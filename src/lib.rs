@@ -8,5 +8,9 @@
 pub mod cli;
 pub mod config;
 pub mod engine;
+pub mod error;
 pub mod output;
 pub mod rules;
+
+// Re-export error types for convenient access
+pub use error::{ConfigError, RatchetError, RuleError};
