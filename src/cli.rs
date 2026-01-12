@@ -1,6 +1,7 @@
 //! CLI argument parsing and command dispatch
 
 pub mod args;
+pub mod bump;
 pub mod check;
 pub mod init;
 
