@@ -173,13 +173,17 @@ pub(crate) fn load_counts() -> Result<CountsManager, CheckError> {
 pub(crate) fn build_rule_registry() -> Result<RuleRegistry, CheckError> {
     let mut registry = RuleRegistry::new();
 
-    // Load builtin regex rules from builtin-ratchets/regex/
+    // Load embedded builtin rules first (always available)
+    registry.load_embedded_builtin_regex_rules()?;
+    registry.load_embedded_builtin_ast_rules()?;
+
+    // Load builtin regex rules from builtin-ratchets/regex/ (for overrides or development)
     let builtin_regex_dir = PathBuf::from("builtin-ratchets").join("regex");
     if builtin_regex_dir.exists() {
         registry.load_builtin_regex_rules(&builtin_regex_dir)?;
     }
 
-    // Load builtin AST rules from builtin-ratchets/ast/
+    // Load builtin AST rules from builtin-ratchets/ast/ (for overrides or development)
     let builtin_ast_dir = PathBuf::from("builtin-ratchets").join("ast");
     if builtin_ast_dir.exists() {
         registry.load_builtin_ast_rules(&builtin_ast_dir)?;

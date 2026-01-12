@@ -1,10 +1,9 @@
 //! Integration tests for the check command
 //!
-//! NOTE: These tests change the current directory and should be run with --test-threads=1
-//! to avoid interference between tests running in parallel.
-//!
-//! Run with: cargo test --test check_command_tests -- --test-threads=1
+//! NOTE: These tests change the current directory and use the serial_test attribute
+//! to ensure they run sequentially and don't interfere with each other.
 
+use serial_test::serial;
 use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
@@ -55,6 +54,7 @@ pattern = "TODO"
 }
 
 #[test]
+#[serial]
 fn test_check_command_within_budget() {
     let temp_dir = TempDir::new().unwrap();
     setup_test_project(temp_dir.path());
@@ -75,6 +75,7 @@ fn test_check_command_within_budget() {
 }
 
 #[test]
+#[serial]
 fn test_check_command_exceeded_budget() {
     let temp_dir = TempDir::new().unwrap();
 
@@ -138,6 +139,7 @@ pattern = "TODO"
 }
 
 #[test]
+#[serial]
 fn test_check_command_missing_config() {
     let temp_dir = TempDir::new().unwrap();
 
@@ -160,6 +162,7 @@ fn test_check_command_missing_config() {
 }
 
 #[test]
+#[serial]
 fn test_check_command_no_files() {
     let temp_dir = TempDir::new().unwrap();
 
@@ -189,6 +192,7 @@ no-todo-comments = true
 }
 
 #[test]
+#[serial]
 fn test_check_command_jsonl_format() {
     let temp_dir = TempDir::new().unwrap();
     setup_test_project(temp_dir.path());

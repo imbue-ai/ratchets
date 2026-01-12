@@ -211,6 +211,11 @@ include = ["**/*.rs"]
 
 [rules]
 no-todo-comments = true
+# Disable other embedded rules that we don't want to test here
+no-fixme-comments = false
+no-unwrap = false
+no-panic = false
+no-expect = false
 "#;
         fs::write("ratchet.toml", config).unwrap();
 
@@ -270,6 +275,11 @@ include = ["**/*.rs"]
 
 [rules]
 no-todo-comments = true
+# Disable other embedded rules that we don't want to test here
+no-fixme-comments = false
+no-unwrap = false
+no-panic = false
+no-expect = false
 "#;
         fs::write("ratchet.toml", config).unwrap();
 

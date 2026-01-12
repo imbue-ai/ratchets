@@ -32,6 +32,34 @@ impl RuleRegistry {
         }
     }
 
+    /// Load built-in regex rules from embedded resources
+    ///
+    /// This method loads built-in regex rules that are embedded in the binary
+    /// at compile time. This ensures the binary is self-contained.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RuleError` if:
+    /// - A TOML file cannot be parsed
+    /// - A rule definition is invalid
+    pub fn load_embedded_builtin_regex_rules(&mut self) -> Result<(), RuleError> {
+        let rules = crate::rules::load_builtin_regex_rules()?;
+
+        for (rule_id, rule) in rules {
+            // Check for duplicate rule IDs
+            if self.rules.contains_key(&rule_id) {
+                return Err(RuleError::InvalidDefinition(format!(
+                    "Duplicate rule ID '{}' in embedded builtin rules",
+                    rule_id.as_str(),
+                )));
+            }
+
+            self.rules.insert(rule_id, rule);
+        }
+
+        Ok(())
+    }
+
     /// Load built-in regex rules from a directory
     ///
     /// This method scans the specified directory for `.toml` files and attempts
@@ -75,6 +103,7 @@ impl RuleRegistry {
     /// Internal helper to load regex rules from a directory
     ///
     /// Scans for .toml files and loads them as RegexRules.
+    /// If a rule with the same ID already exists, it will be replaced (allowing overrides).
     fn load_regex_rules_from_dir(&mut self, dir: &Path) -> Result<(), RuleError> {
         // Check if directory exists
         if !dir.exists() {
@@ -125,17 +154,47 @@ impl RuleRegistry {
             let rule = RegexRule::from_path(&path)?;
             let rule_id = rule.id().clone();
 
-            // Check for duplicate rule IDs
+            // Allow overriding existing rules (for filesystem to override embedded)
+            // but warn if we're replacing an existing rule
             if self.rules.contains_key(&rule_id) {
-                return Err(RuleError::InvalidDefinition(format!(
-                    "Duplicate rule ID '{}' in file {}",
+                eprintln!(
+                    "Warning: Overriding rule '{}' with version from {}",
                     rule_id.as_str(),
                     path.display()
+                );
+            }
+
+            // Add/replace rule in registry
+            self.rules.insert(rule_id, Box::new(rule));
+        }
+
+        Ok(())
+    }
+
+    /// Load built-in AST rules from embedded resources
+    ///
+    /// This method loads built-in AST rules that are embedded in the binary
+    /// at compile time. This ensures the binary is self-contained.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RuleError` if:
+    /// - A TOML file cannot be parsed
+    /// - A rule definition is invalid
+    /// - A tree-sitter query is invalid
+    pub fn load_embedded_builtin_ast_rules(&mut self) -> Result<(), RuleError> {
+        let rules = crate::rules::load_builtin_ast_rules()?;
+
+        for (rule_id, rule) in rules {
+            // Check for duplicate rule IDs (both within AST rules and with regex rules)
+            if self.rules.contains_key(&rule_id) {
+                return Err(RuleError::InvalidDefinition(format!(
+                    "Duplicate rule ID '{}' in embedded builtin AST rules",
+                    rule_id.as_str(),
                 )));
             }
 
-            // Add rule to registry
-            self.rules.insert(rule_id, Box::new(rule));
+            self.rules.insert(rule_id, rule);
         }
 
         Ok(())
@@ -235,6 +294,7 @@ impl RuleRegistry {
     /// Internal helper to load AST rules from a directory
     ///
     /// Scans for .toml files and loads them as AstRules.
+    /// If a rule with the same ID already exists, it will be replaced (allowing overrides).
     fn load_ast_rules_from_dir(&mut self, dir: &Path) -> Result<(), RuleError> {
         // Check if directory exists
         if !dir.exists() {
@@ -288,16 +348,17 @@ impl RuleRegistry {
             let rule = AstRule::from_path(&path)?;
             let rule_id = rule.id().clone();
 
-            // Check for duplicate rule IDs (both within AST rules and with regex rules)
+            // Allow overriding existing rules (for filesystem to override embedded)
+            // but warn if we're replacing an existing rule
             if self.rules.contains_key(&rule_id) {
-                return Err(RuleError::InvalidDefinition(format!(
-                    "Duplicate rule ID '{}' in file {}",
+                eprintln!(
+                    "Warning: Overriding rule '{}' with version from {}",
                     rule_id.as_str(),
                     path.display()
-                )));
+                );
             }
 
-            // Add rule to registry
+            // Add/replace rule in registry
             self.rules.insert(rule_id, Box::new(rule));
         }
 
@@ -480,13 +541,10 @@ pattern = "TODO"
 
         let mut registry = RuleRegistry::new();
         let result = registry.load_builtin_regex_rules(temp_dir.path());
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Duplicate rule ID")
-        );
+        // Should succeed now - later rules override earlier ones
+        assert!(result.is_ok());
+        // Should have exactly 1 rule (the second one overrode the first)
+        assert_eq!(registry.len(), 1);
     }
 
     #[test]
@@ -967,13 +1025,10 @@ query = "(identifier) @violation"
 
         let mut registry = RuleRegistry::new();
         let result = registry.load_custom_ast_rules(temp_dir.path());
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Duplicate rule ID")
-        );
+        // Should succeed now - later rules override earlier ones
+        assert!(result.is_ok());
+        // Should have exactly 1 rule (the second one overrode the first)
+        assert_eq!(registry.len(), 1);
     }
 
     #[test]
@@ -992,15 +1047,11 @@ query = "(identifier) @violation"
         assert!(result.is_ok());
         assert_eq!(registry.len(), 1);
 
-        // Try to load AST rule with same ID - should fail
+        // Load AST rule with same ID - should succeed and override
         let result = registry.load_custom_ast_rules(ast_dir.path());
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Duplicate rule ID")
-        );
+        assert!(result.is_ok());
+        // Should still have exactly 1 rule (AST rule overrode regex rule)
+        assert_eq!(registry.len(), 1);
     }
 
     #[test]
