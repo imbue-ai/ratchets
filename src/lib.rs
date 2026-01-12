@@ -11,6 +11,10 @@ pub mod engine;
 pub mod error;
 pub mod output;
 pub mod rules;
+pub mod types;
 
 // Re-export error types for convenient access
 pub use error::{ConfigError, RatchetError, RuleError};
+
+// Re-export core domain types for convenient access
+pub use types::{GlobPattern, Language, RegionPath, RuleId, Severity};
