@@ -1,0 +1,9 @@
+[rule]
+id = "no-fixme-comments"
+description = "Disallow FIXME comments in code"
+severity = "warning"
+
+[match]
+pattern = "(?i)\\bFIXME\\b"
+
+# Applies to all languages by default

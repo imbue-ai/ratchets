@@ -1,0 +1,14 @@
+[rule]
+id = "no-bare-except"
+description = "Disallow bare 'except:' clauses - specify exception types"
+severity = "error"
+
+[match]
+language = "python"
+query = """
+(except_clause
+  (block)) @violation
+"""
+
+# Note: This is a simplified query. A more precise version would check
+# for absence of exception type, which requires negative matching.

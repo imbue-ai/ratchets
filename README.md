@@ -1,36 +1,150 @@
-# Ratchet: Enforce progressive lint checks for your codebase
+# Ratchet: Progressive lint enforcement for human and AI developers
 
-`ratchet` provides human and AI developers the ability to define, prevent and reduce the occurrences of specific
-undesirable patterns in code that is added to the codebase. Ratchet rules, hereafter just called `ratchets`, are Regex or AST expressions that may be run on a codebase to detect instances of these undesirable patterns.
+Ratchet is a progressive lint enforcement tool that allows codebases to contain existing violations while preventing new ones. Unlike traditional linters that enforce binary pass/fail, Ratchet permits a budgeted number of violations per rule per region. These budgets can only decrease over time (the "ratchet" mechanism), ensuring technical debt monotonically decreases.
 
-Although similar in goals to lint rules, ratchet rules differ in that they allow a regional count of maximum tolerated
-exceptions to the rule. This count is stored in files that are checked in to the repository, alongside the code itself.
+## Key Features
 
-The `ratchet` tool verifies that all the code is compliant with the rules. If the number of violations exceeds the permitted count for that rule, `ratchet` will fail with an informational message. Humans or explicitly authorized agentic developers are able to increment or `bump` ratchet counts to allow for special cases where a ratchet rule must be broken.
+- **Progressive enforcement**: Allow existing violations while preventing new ones
+- **Region-based budgets**: Set different limits for different parts of your codebase
+- **Regex and AST rules**: Match patterns via text or tree-sitter queries
+- **Agent-friendly**: JSONL output, deterministic results, clear exit codes
+- **Fast**: Parallel execution, lazy parser loading, Rust performance
 
-`ratchet` is expected to be used as a pre-commit hook and as a continuous integration check  to automatically verify that agents adhere to style guides. Any commits or pull requests that fail the ratchet check, or bump ratchet counts without justification can be rejected.
+## Installation
+
+```bash
+cargo install ratchet
+```
+
+## Quick Start
+
+Initialize Ratchet in your repository:
+
+```bash
+ratchet init
+```
+
+This creates:
+- `ratchet.toml` — Configuration file
+- `ratchet-counts.toml` — Violation budgets
+- `ratchets/` — Directory for custom rules
+
+Run checks:
+
+```bash
+ratchet check
+```
 
 ## Usage
 
-### TODO: This section is speculative. Once the design has been fleshed out, this section must be re-written to adhere to the design we have agreed on.
+### `ratchet check`
 
-`ratchet init`
+Verify that violations are within budget:
 
-Initializes the repository for use with `ratchet`, by creating the `ratchet.toml` file, `ratchet-counts.toml` file,  `ratchets/` folder.
+```bash
+ratchet check                    # Check all files
+ratchet check --format jsonl     # Machine-readable output
+ratchet check src/               # Check specific path
+```
 
-`ratchet bump rule-id [new-count]`
+### `ratchet bump`
 
-Will bump the count for a given rule id. If the count is provided, we will use that, else we will re-run the ratchet check for the given region and use that.
+Increase the violation budget (requires justification in commit message):
 
-`ratchet tighten [rule-id]`
-Re-runs all ratchets, and updates the new counts in the ratchet-counts file. If the counts have increased instead, this will fail.
+```bash
+ratchet bump no-unwrap --region src/legacy --count 20
+ratchet bump no-unwrap --region src/legacy  # Auto-detect current count
+```
 
-If a rule-id is provided, this will only run that specific rule id.
+### `ratchet tighten`
 
-## Design
+Reduce budgets to match current violation counts:
 
-Please see DESIGN.md for the design.
+```bash
+ratchet tighten                    # Tighten all rules
+ratchet tighten no-unwrap          # Tighten specific rule
+ratchet tighten --region src/      # Tighten specific region
+```
+
+### `ratchet list`
+
+List all enabled rules and their status:
+
+```bash
+ratchet list
+ratchet list --format jsonl
+```
+
+## Configuration
+
+### ratchet.toml
+
+```toml
+[ratchet]
+version = "1"
+languages = ["rust", "typescript"]
+include = ["src/**", "tests/**"]
+exclude = ["**/generated/**"]
+
+[rules]
+no-unwrap = true
+no-todo-comments = { severity = "warning" }
+
+[output]
+format = "human"
+```
+
+### ratchet-counts.toml
+
+```toml
+[no-unwrap]
+"." = 0
+"src/legacy" = 15
+"tests" = 50
+
+[no-todo-comments]
+"src" = 23
+```
+
+Regions are directory subtrees. Child regions inherit parent budgets unless overridden.
+
+## Git Integration
+
+### Merge Driver
+
+Ratchet provides a merge driver that resolves conflicts by taking the minimum count:
+
+```bash
+# .gitattributes
+ratchet-counts.toml merge=ratchet
+
+# .git/config
+[merge "ratchet"]
+    name = Ratchet counts merge driver (minimum wins)
+    driver = ratchet merge-driver %O %A %B
+```
+
+### Pre-commit Hook
+
+```bash
+#!/bin/sh
+ratchet check || exit 1
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | All rules within budget |
+| 1 | At least one rule exceeded budget |
+| 2 | Configuration or usage error |
+| 3 | Parse error in source file |
+
+## Documentation
+
+- [DESIGN.md](DESIGN.md) — Design specification and rationale
+- [ARCHITECTURE.md](ARCHITECTURE.md) — Implementation architecture
 
 ## Further Reading
 
-The ratchet tool was initially described here: https://qntm.org/ratchet
+The ratchet concept was originally described by qntm: https://qntm.org/ratchet

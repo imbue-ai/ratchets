@@ -1,0 +1,9 @@
+[rule]
+id = "no-todo-comments"
+description = "Disallow TODO comments in code"
+severity = "warning"
+
+[match]
+pattern = "(?i)\\bTODO\\b"
+
+# Applies to all languages by default

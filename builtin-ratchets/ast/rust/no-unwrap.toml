@@ -1,0 +1,16 @@
+[rule]
+id = "no-unwrap"
+description = "Disallow .unwrap() calls - prefer explicit error handling"
+severity = "error"
+
+[match]
+language = "rust"
+query = """
+(call_expression
+  function: (field_expression
+    field: (field_identifier) @method)
+  (#eq? @method "unwrap")) @violation
+"""
+
+# Default: exclude tests
+exclude = ["tests/**", "benches/**"]

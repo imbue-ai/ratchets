@@ -1,0 +1,15 @@
+[rule]
+id = "no-panic"
+description = "Disallow panic!() macro - prefer Result types"
+severity = "error"
+
+[match]
+language = "rust"
+query = """
+(macro_invocation
+  macro: (identifier) @macro_name
+  (#eq? @macro_name "panic")) @violation
+"""
+
+# Default: exclude tests
+exclude = ["tests/**", "benches/**"]

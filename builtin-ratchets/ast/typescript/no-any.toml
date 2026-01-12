@@ -1,0 +1,11 @@
+[rule]
+id = "no-any"
+description = "Disallow 'any' type annotations - prefer explicit types"
+severity = "error"
+
+[match]
+language = "typescript"
+query = """
+(type_identifier) @type
+(#eq? @type "any") @violation
+"""

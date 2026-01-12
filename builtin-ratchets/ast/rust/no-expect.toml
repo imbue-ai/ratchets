@@ -1,0 +1,16 @@
+[rule]
+id = "no-expect"
+description = "Disallow .expect() calls - prefer explicit error handling"
+severity = "error"
+
+[match]
+language = "rust"
+query = """
+(call_expression
+  function: (field_expression
+    field: (field_identifier) @method)
+  (#eq? @method "expect")) @violation
+"""
+
+# Default: exclude tests
+exclude = ["tests/**", "benches/**"]
