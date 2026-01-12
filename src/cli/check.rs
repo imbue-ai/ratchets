@@ -28,7 +28,7 @@ pub const EXIT_PARSE_ERROR: i32 = 3;
 
 /// Error type specific to check command
 #[derive(Debug, thiserror::Error)]
-enum CheckError {
+pub(crate) enum CheckError {
     #[error("Configuration error: {0}")]
     Config(#[from] ConfigError),
 
@@ -142,7 +142,7 @@ fn run_check_inner(paths: &[String], format: OutputFormat) -> Result<bool, Check
 }
 
 /// Load ratchet.toml configuration
-fn load_config() -> Result<Config, CheckError> {
+pub(crate) fn load_config() -> Result<Config, CheckError> {
     let config_path = Path::new("ratchet.toml");
     if !config_path.exists() {
         return Err(CheckError::Other(
@@ -154,7 +154,7 @@ fn load_config() -> Result<Config, CheckError> {
 }
 
 /// Load ratchet-counts.toml
-fn load_counts() -> Result<CountsManager, CheckError> {
+pub(crate) fn load_counts() -> Result<CountsManager, CheckError> {
     let counts_path = Path::new("ratchet-counts.toml");
     if !counts_path.exists() {
         // If counts file doesn't exist, start with empty counts (strict enforcement)
@@ -168,7 +168,7 @@ fn load_counts() -> Result<CountsManager, CheckError> {
 }
 
 /// Build rule registry with all builtin and custom rules
-fn build_rule_registry() -> Result<RuleRegistry, CheckError> {
+pub(crate) fn build_rule_registry() -> Result<RuleRegistry, CheckError> {
     let mut registry = RuleRegistry::new();
 
     // Load builtin regex rules from builtin-ratchets/regex/
@@ -199,7 +199,7 @@ fn build_rule_registry() -> Result<RuleRegistry, CheckError> {
 }
 
 /// Discover files to check using FileWalker
-fn discover_files(
+pub(crate) fn discover_files(
     paths: &[String],
     config: &Config,
 ) -> Result<Vec<crate::engine::file_walker::FileEntry>, CheckError> {
