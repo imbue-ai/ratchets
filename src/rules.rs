@@ -2,7 +2,9 @@
 
 //! Rule definitions and registry
 
+mod regex_rule;
 mod rule;
 
 // Re-export core types
+pub use regex_rule::RegexRule;
 pub use rule::{AstPlaceholder, ExecutionContext, Rule, Violation};
