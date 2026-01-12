@@ -89,11 +89,11 @@ impl FileWalker {
             Some(Self::build_globset(include)?)
         };
 
-        let exclude_set = if exclude.is_empty() {
-            None
-        } else {
-            Some(Self::build_globset(exclude)?)
-        };
+        // Always exclude .git directory, merging with user-provided excludes
+        let mut exclude_patterns = Vec::from(exclude);
+        exclude_patterns.push(GlobPattern::new("**/.git/**"));
+
+        let exclude_set = Some(Self::build_globset(&exclude_patterns)?);
 
         Ok(Self {
             walker,
