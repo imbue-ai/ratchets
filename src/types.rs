@@ -193,38 +193,272 @@ impl From<&str> for GlobPattern {
 mod tests {
     use super::*;
 
+    // Language enum tests
     #[test]
-    fn test_rule_id_validation() {
-        assert!(RuleId::new("valid-rule").is_some());
-        assert!(RuleId::new("rule_123").is_some());
-        assert!(RuleId::new("no-unwrap").is_some());
-        assert!(RuleId::new("").is_none());
-        assert!(RuleId::new("invalid rule").is_none());
-        assert!(RuleId::new("invalid@rule").is_none());
+    fn test_language_serde_serialization() {
+        assert_eq!(serde_json::to_string(&Language::Rust).unwrap(), "\"rust\"");
+        assert_eq!(
+            serde_json::to_string(&Language::TypeScript).unwrap(),
+            "\"typescript\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Language::JavaScript).unwrap(),
+            "\"javascript\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Language::Python).unwrap(),
+            "\"python\""
+        );
+        assert_eq!(serde_json::to_string(&Language::Go).unwrap(), "\"go\"");
     }
 
     #[test]
-    fn test_region_path_normalization() {
+    fn test_language_serde_deserialization() {
+        assert_eq!(
+            serde_json::from_str::<Language>("\"rust\"").unwrap(),
+            Language::Rust
+        );
+        assert_eq!(
+            serde_json::from_str::<Language>("\"typescript\"").unwrap(),
+            Language::TypeScript
+        );
+        assert_eq!(
+            serde_json::from_str::<Language>("\"javascript\"").unwrap(),
+            Language::JavaScript
+        );
+        assert_eq!(
+            serde_json::from_str::<Language>("\"python\"").unwrap(),
+            Language::Python
+        );
+        assert_eq!(
+            serde_json::from_str::<Language>("\"go\"").unwrap(),
+            Language::Go
+        );
+    }
+
+    #[test]
+    fn test_language_all_variants_exist() {
+        // Ensure all 5 variants can be constructed
+        let _rust = Language::Rust;
+        let _typescript = Language::TypeScript;
+        let _javascript = Language::JavaScript;
+        let _python = Language::Python;
+        let _go = Language::Go;
+    }
+
+    // Severity enum tests
+    #[test]
+    fn test_severity_serde_serialization() {
+        assert_eq!(
+            serde_json::to_string(&Severity::Error).unwrap(),
+            "\"error\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Severity::Warning).unwrap(),
+            "\"warning\""
+        );
+        assert_eq!(serde_json::to_string(&Severity::Info).unwrap(), "\"info\"");
+    }
+
+    #[test]
+    fn test_severity_serde_deserialization() {
+        assert_eq!(
+            serde_json::from_str::<Severity>("\"error\"").unwrap(),
+            Severity::Error
+        );
+        assert_eq!(
+            serde_json::from_str::<Severity>("\"warning\"").unwrap(),
+            Severity::Warning
+        );
+        assert_eq!(
+            serde_json::from_str::<Severity>("\"info\"").unwrap(),
+            Severity::Info
+        );
+    }
+
+    // RuleId validation tests
+    #[test]
+    fn test_rule_id_validation_valid() {
+        assert!(RuleId::new("valid-rule").is_some());
+        assert!(RuleId::new("rule_123").is_some());
+        assert!(RuleId::new("no-unwrap").is_some());
+        assert!(RuleId::new("a").is_some());
+        assert!(RuleId::new("123").is_some());
+        assert!(RuleId::new("UPPERCASE").is_some());
+        assert!(RuleId::new("Mixed-Case_123").is_some());
+    }
+
+    #[test]
+    fn test_rule_id_validation_invalid() {
+        assert!(RuleId::new("").is_none());
+        assert!(RuleId::new("invalid rule").is_none());
+        assert!(RuleId::new("invalid@rule").is_none());
+        assert!(RuleId::new("invalid.rule").is_none());
+        assert!(RuleId::new("invalid/rule").is_none());
+        assert!(RuleId::new("invalid\\rule").is_none());
+    }
+
+    #[test]
+    fn test_rule_id_display() {
+        let rule_id = RuleId::new("test-rule").unwrap();
+        assert_eq!(rule_id.to_string(), "test-rule");
+        assert_eq!(format!("{}", rule_id), "test-rule");
+    }
+
+    #[test]
+    fn test_rule_id_as_str() {
+        let rule_id = RuleId::new("my-rule").unwrap();
+        assert_eq!(rule_id.as_str(), "my-rule");
+    }
+
+    #[test]
+    fn test_rule_id_try_from() {
+        let result = RuleId::try_from("valid-id".to_string());
+        assert!(result.is_ok());
+
+        let result = RuleId::try_from("invalid id".to_string());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_rule_id_into_string() {
+        let rule_id = RuleId::new("test-id").unwrap();
+        let s: String = rule_id.into();
+        assert_eq!(s, "test-id");
+    }
+
+    #[test]
+    fn test_rule_id_serde_serialization() {
+        let rule_id = RuleId::new("my-rule").unwrap();
+        let json = serde_json::to_string(&rule_id).unwrap();
+        assert_eq!(json, "\"my-rule\"");
+    }
+
+    #[test]
+    fn test_rule_id_serde_deserialization() {
+        let rule_id: RuleId = serde_json::from_str("\"my-rule\"").unwrap();
+        assert_eq!(rule_id.as_str(), "my-rule");
+
+        let result = serde_json::from_str::<RuleId>("\"invalid rule\"");
+        assert!(result.is_err());
+    }
+
+    // RegionPath normalization tests
+    #[test]
+    fn test_region_path_normalization_empty() {
         assert_eq!(RegionPath::new("").as_str(), ".");
         assert_eq!(RegionPath::new(".").as_str(), ".");
         assert_eq!(RegionPath::new("./").as_str(), ".");
         assert_eq!(RegionPath::new("/").as_str(), ".");
-        assert_eq!(RegionPath::new("src").as_str(), "src");
-        assert_eq!(RegionPath::new("src/").as_str(), "src");
-        assert_eq!(RegionPath::new("./src").as_str(), "src");
-        assert_eq!(RegionPath::new("src\\parser").as_str(), "src/parser");
-        assert_eq!(RegionPath::new("src/parser/").as_str(), "src/parser");
     }
 
     #[test]
-    fn test_glob_pattern() {
+    fn test_region_path_normalization_simple() {
+        assert_eq!(RegionPath::new("src").as_str(), "src");
+        assert_eq!(RegionPath::new("tests").as_str(), "tests");
+    }
+
+    #[test]
+    fn test_region_path_normalization_trailing_slash() {
+        assert_eq!(RegionPath::new("src/").as_str(), "src");
+        assert_eq!(RegionPath::new("src/parser/").as_str(), "src/parser");
+        assert_eq!(RegionPath::new("path///").as_str(), "path");
+    }
+
+    #[test]
+    fn test_region_path_normalization_leading_dot_slash() {
+        assert_eq!(RegionPath::new("./src").as_str(), "src");
+        assert_eq!(RegionPath::new("./src/parser").as_str(), "src/parser");
+    }
+
+    #[test]
+    fn test_region_path_normalization_backslashes() {
+        assert_eq!(RegionPath::new("src\\parser").as_str(), "src/parser");
+        assert_eq!(
+            RegionPath::new("src\\parser\\ast").as_str(),
+            "src/parser/ast"
+        );
+        assert_eq!(RegionPath::new("path\\to\\file").as_str(), "path/to/file");
+    }
+
+    #[test]
+    fn test_region_path_normalization_mixed() {
+        assert_eq!(RegionPath::new("./src\\").as_str(), "src");
+        assert_eq!(RegionPath::new(".\\src/parser/").as_str(), "src/parser");
+    }
+
+    #[test]
+    fn test_region_path_display() {
+        let path = RegionPath::new("src/parser");
+        assert_eq!(path.to_string(), "src/parser");
+        assert_eq!(format!("{}", path), "src/parser");
+    }
+
+    #[test]
+    fn test_region_path_as_str() {
+        let path = RegionPath::new("my/path");
+        assert_eq!(path.as_str(), "my/path");
+    }
+
+    #[test]
+    fn test_region_path_try_from() {
+        let result = RegionPath::try_from("src/parser".to_string());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().as_str(), "src/parser");
+    }
+
+    #[test]
+    fn test_region_path_into_string() {
+        let path = RegionPath::new("test/path");
+        let s: String = path.into();
+        assert_eq!(s, "test/path");
+    }
+
+    #[test]
+    fn test_region_path_serde_serialization() {
+        let path = RegionPath::new("src/parser");
+        let json = serde_json::to_string(&path).unwrap();
+        assert_eq!(json, "\"src/parser\"");
+    }
+
+    #[test]
+    fn test_region_path_serde_deserialization() {
+        let path: RegionPath = serde_json::from_str("\"src/parser\"").unwrap();
+        assert_eq!(path.as_str(), "src/parser");
+
+        // Test that normalization happens during deserialization
+        let path: RegionPath = serde_json::from_str("\"src\\\\parser\"").unwrap();
+        assert_eq!(path.as_str(), "src/parser");
+    }
+
+    // GlobPattern tests
+    #[test]
+    fn test_glob_pattern_basic() {
         let pattern = GlobPattern::new("**/*.rs");
         assert_eq!(pattern.as_str(), "**/*.rs");
     }
 
     #[test]
-    fn test_type_derives() {
-        // Verify all types implement Hash for use in HashMaps/HashSets
+    fn test_glob_pattern_display() {
+        let pattern = GlobPattern::new("*.toml");
+        assert_eq!(pattern.to_string(), "*.toml");
+    }
+
+    #[test]
+    fn test_glob_pattern_from_string() {
+        let pattern: GlobPattern = "test/**/*.rs".to_string().into();
+        assert_eq!(pattern.as_str(), "test/**/*.rs");
+    }
+
+    #[test]
+    fn test_glob_pattern_from_str() {
+        let pattern: GlobPattern = "src/*.rs".into();
+        assert_eq!(pattern.as_str(), "src/*.rs");
+    }
+
+    // Type derives tests
+    #[test]
+    fn test_type_derives_hash() {
         use std::collections::HashSet;
 
         let mut languages = HashSet::new();
@@ -246,5 +480,41 @@ mod tests {
         let mut glob_patterns = HashSet::new();
         glob_patterns.insert(GlobPattern::new("*.rs"));
         glob_patterns.insert(GlobPattern::new("*.toml"));
+    }
+
+    #[test]
+    fn test_type_derives_clone() {
+        let lang = Language::Rust;
+        let _lang_clone = lang; // Copy types don't need clone
+
+        let severity = Severity::Error;
+        let _severity_clone = severity; // Copy types don't need clone
+
+        let rule_id = RuleId::new("test").unwrap();
+        let _rule_id_clone = rule_id.clone();
+
+        let path = RegionPath::new("src");
+        let _path_clone = path.clone();
+
+        let pattern = GlobPattern::new("*.rs");
+        let _pattern_clone = pattern.clone();
+    }
+
+    #[test]
+    fn test_type_derives_partial_eq() {
+        assert_eq!(Language::Rust, Language::Rust);
+        assert_ne!(Language::Rust, Language::Python);
+
+        assert_eq!(Severity::Error, Severity::Error);
+        assert_ne!(Severity::Error, Severity::Warning);
+
+        assert_eq!(RuleId::new("test").unwrap(), RuleId::new("test").unwrap());
+        assert_ne!(RuleId::new("test1").unwrap(), RuleId::new("test2").unwrap());
+
+        assert_eq!(RegionPath::new("src"), RegionPath::new("src"));
+        assert_ne!(RegionPath::new("src"), RegionPath::new("tests"));
+
+        assert_eq!(GlobPattern::new("*.rs"), GlobPattern::new("*.rs"));
+        assert_ne!(GlobPattern::new("*.rs"), GlobPattern::new("*.toml"));
     }
 }
