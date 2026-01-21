@@ -1,0 +1,8 @@
+[rule]
+id = "no-while-true"
+description = "'while True' loops can cause infinite loops. Use explicit conditions instead"
+severity = "warning"
+
+[match]
+pattern = "\\bwhile\\s+True\\s*:"
+languages = ["python"]

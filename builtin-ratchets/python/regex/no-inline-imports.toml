@@ -1,0 +1,8 @@
+[rule]
+id = "no-inline-imports"
+description = "Imports should be at the top of the file, not inline within functions"
+severity = "warning"
+
+[match]
+pattern = "(?m)^[ \\t]+import\\s+\\w+|^[ \\t]+from\\s+\\S+\\s+import\\b"
+languages = ["python"]

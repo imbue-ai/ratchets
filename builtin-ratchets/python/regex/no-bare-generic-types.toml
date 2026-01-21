@@ -1,0 +1,8 @@
+[rule]
+id = "no-bare-generic-types"
+description = "Generic types must specify their type parameters. Use 'list[str]' not 'list'"
+severity = "warning"
+
+[match]
+pattern = ":\\s*(list|dict|tuple|set|List|Dict|Tuple|Set|Mapping|Sequence)\\s*($|[,\\)\\]])"
+languages = ["python"]

@@ -1,0 +1,8 @@
+[rule]
+id = "no-asyncio-import"
+description = "asyncio is banned per style guide. Use synchronous code instead"
+severity = "error"
+
+[match]
+pattern = "\\bimport\\s+asyncio\\b|\\bfrom\\s+asyncio\\b"
+languages = ["python"]

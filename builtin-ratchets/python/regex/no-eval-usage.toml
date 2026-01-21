@@ -1,0 +1,8 @@
+[rule]
+id = "no-eval-usage"
+description = "eval() should not be used due to security and maintainability concerns"
+severity = "error"
+
+[match]
+pattern = "\\beval\\s*\\("
+languages = ["python"]

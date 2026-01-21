@@ -1,0 +1,8 @@
+[rule]
+id = "no-exec-usage"
+description = "exec() should not be used due to security and maintainability concerns"
+severity = "error"
+
+[match]
+pattern = "\\bexec\\s*\\("
+languages = ["python"]

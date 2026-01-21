@@ -1,0 +1,8 @@
+[rule]
+id = "no-fstring-logging"
+description = "Do not use f-strings with loguru. Use placeholder syntax: logger.info('message {}', var)"
+severity = "warning"
+
+[match]
+pattern = "logger\\.(trace|debug|info|warning|error|exception)\\(f"
+languages = ["python"]

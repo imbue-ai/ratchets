@@ -1,0 +1,8 @@
+[rule]
+id = "no-returns-in-docstrings"
+description = "Never include 'Returns:' sections in docstrings. Use inline return type comments"
+severity = "warning"
+
+[match]
+pattern = "\"\"\"[\\s\\S]{0,500}Returns:"
+languages = ["python"]

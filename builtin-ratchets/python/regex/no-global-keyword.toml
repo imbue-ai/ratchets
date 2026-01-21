@@ -1,0 +1,8 @@
+[rule]
+id = "no-global-keyword"
+description = "Avoid using the 'global' keyword. Pass state explicitly through function parameters"
+severity = "warning"
+
+[match]
+pattern = "\\bglobal\\s+\\w+"
+languages = ["python"]

@@ -1,0 +1,8 @@
+[rule]
+id = "no-literal-multi-options"
+description = "Never use Literal with multiple string options. Create an UpperCaseStrEnum instead"
+severity = "warning"
+
+[match]
+pattern = "Literal\\[.*,.*\\]"
+languages = ["python"]

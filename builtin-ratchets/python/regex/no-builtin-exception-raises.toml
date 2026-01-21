@@ -1,0 +1,8 @@
+[rule]
+id = "no-builtin-exception-raises"
+description = "Never raise built-in exceptions directly. Create custom exception types"
+severity = "error"
+
+[match]
+pattern = "raise\\s+(ValueError|KeyError|TypeError|AttributeError|IndexError|RuntimeError|OSError|IOError)\\("
+languages = ["python"]

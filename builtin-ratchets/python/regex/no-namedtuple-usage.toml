@@ -1,0 +1,8 @@
+[rule]
+id = "no-namedtuple-usage"
+description = "namedtuple is banned per style guide. Use pydantic models instead"
+severity = "warning"
+
+[match]
+pattern = "\\bnamedtuple\\s*\\("
+languages = ["python"]

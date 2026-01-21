@@ -1,0 +1,8 @@
+[rule]
+id = "no-dataclasses-import"
+description = "dataclasses are banned per style guide. Use pydantic models instead"
+severity = "error"
+
+[match]
+pattern = "\\bimport\\s+dataclasses\\b|\\bfrom\\s+dataclasses\\b"
+languages = ["python"]

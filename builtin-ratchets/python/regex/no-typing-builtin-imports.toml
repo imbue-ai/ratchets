@@ -1,0 +1,8 @@
+[rule]
+id = "no-typing-builtin-imports"
+description = "Do not import Dict, List, Set, Tuple from typing. Use lowercase builtins instead"
+severity = "warning"
+
+[match]
+pattern = "\\bfrom\\s+typing\\s+import\\s+.*\\b(Dict|List|Set|Tuple)\\b"
+languages = ["python"]

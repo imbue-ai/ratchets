@@ -1,0 +1,8 @@
+[rule]
+id = "no-broad-exception"
+description = "Catching 'Exception' is too broad. Use specific exception types"
+severity = "error"
+
+[match]
+pattern = "except\\s+Exception\\b"
+languages = ["python"]

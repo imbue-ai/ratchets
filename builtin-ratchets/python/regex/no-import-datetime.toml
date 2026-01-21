@@ -1,0 +1,8 @@
+[rule]
+id = "no-import-datetime"
+description = "Do not use 'import datetime'. Import specific items instead: 'from datetime import datetime, timedelta'"
+severity = "warning"
+
+[match]
+pattern = "(?m)^import datetime$"
+languages = ["python"]

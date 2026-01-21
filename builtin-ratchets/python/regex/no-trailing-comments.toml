@@ -1,0 +1,8 @@
+[rule]
+id = "no-trailing-comments"
+description = "Comments should be on their own line, not trailing after code"
+severity = "warning"
+
+[match]
+pattern = "[^\\s#].*[ \\t]#"
+languages = ["python"]

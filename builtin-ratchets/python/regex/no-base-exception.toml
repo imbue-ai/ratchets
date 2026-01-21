@@ -1,0 +1,8 @@
+[rule]
+id = "no-base-exception"
+description = "Catching 'BaseException' catches system exits and keyboard interrupts. Use specific types"
+severity = "error"
+
+[match]
+pattern = "except\\s+BaseException\\b"
+languages = ["python"]

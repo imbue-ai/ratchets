@@ -1,0 +1,8 @@
+[rule]
+id = "no-relative-imports"
+description = "Always use absolute imports, never relative imports"
+severity = "warning"
+
+[match]
+pattern = "(?m)^from\\s+\\."
+languages = ["python"]

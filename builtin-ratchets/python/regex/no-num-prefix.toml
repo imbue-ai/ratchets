@@ -1,0 +1,8 @@
+[rule]
+id = "no-num-prefix"
+description = "Avoid using 'num' prefix. Use 'count' or 'idx' instead (e.g., 'user_count' not 'num_users')"
+severity = "warning"
+
+[match]
+pattern = "\\bnum_\\w+|\\bnumOf|\\bnum[A-Z]"
+languages = ["python"]

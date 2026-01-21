@@ -1,0 +1,8 @@
+[rule]
+id = "no-pandas-import"
+description = "pandas is banned per style guide. Use polars instead"
+severity = "error"
+
+[match]
+pattern = "\\bimport\\s+pandas\\b|\\bfrom\\s+pandas\\b"
+languages = ["python"]

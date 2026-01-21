@@ -1,0 +1,8 @@
+[rule]
+id = "no-time-sleep"
+description = "time.sleep is an antipattern. Poll for the condition instead"
+severity = "warning"
+
+[match]
+pattern = "\\btime\\.sleep\\s*\\(|\\bfrom\\s+time\\s+import\\s+sleep\\b"
+languages = ["python"]

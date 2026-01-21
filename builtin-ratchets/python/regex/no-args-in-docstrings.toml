@@ -1,0 +1,8 @@
+[rule]
+id = "no-args-in-docstrings"
+description = "Never include 'Args:' sections in docstrings. Use inline parameter comments if needed"
+severity = "warning"
+
+[match]
+pattern = "\"\"\"[\\s\\S]{0,500}Args:"
+languages = ["python"]

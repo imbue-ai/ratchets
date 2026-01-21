@@ -1,0 +1,8 @@
+[rule]
+id = "no-yaml-usage"
+description = "NEVER use YAML files. Use TOML for configuration instead"
+severity = "error"
+
+[match]
+pattern = "yaml"
+languages = ["python"]

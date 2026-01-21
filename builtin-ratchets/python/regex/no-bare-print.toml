@@ -1,0 +1,8 @@
+[rule]
+id = "no-bare-print"
+description = "Do not use bare print statements. Use logger.info(), logger.debug() instead"
+severity = "warning"
+
+[match]
+pattern = "(?m)^\\s*print\\s*\\("
+languages = ["python"]

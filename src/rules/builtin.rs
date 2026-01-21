@@ -25,6 +25,38 @@ const BUILTIN_REGEX_RULES: &[(&str, &str)] = &[
     ),
 ];
 
+/// Embedded built-in regex rule files for Python
+#[cfg(feature = "lang-python")]
+const BUILTIN_PYTHON_REGEX_RULES: &[(&str, &str)] = &[
+    ("no-exec-usage", include_str!("../../builtin-ratchets/python/regex/no-exec-usage.toml")),
+    ("no-eval-usage", include_str!("../../builtin-ratchets/python/regex/no-eval-usage.toml")),
+    ("no-broad-exception", include_str!("../../builtin-ratchets/python/regex/no-broad-exception.toml")),
+    ("no-base-exception", include_str!("../../builtin-ratchets/python/regex/no-base-exception.toml")),
+    ("no-inline-imports", include_str!("../../builtin-ratchets/python/regex/no-inline-imports.toml")),
+    ("no-relative-imports", include_str!("../../builtin-ratchets/python/regex/no-relative-imports.toml")),
+    ("no-import-datetime", include_str!("../../builtin-ratchets/python/regex/no-import-datetime.toml")),
+    ("no-asyncio-import", include_str!("../../builtin-ratchets/python/regex/no-asyncio-import.toml")),
+    ("no-pandas-import", include_str!("../../builtin-ratchets/python/regex/no-pandas-import.toml")),
+    ("no-dataclasses-import", include_str!("../../builtin-ratchets/python/regex/no-dataclasses-import.toml")),
+    ("no-yaml-usage", include_str!("../../builtin-ratchets/python/regex/no-yaml-usage.toml")),
+    ("no-while-true", include_str!("../../builtin-ratchets/python/regex/no-while-true.toml")),
+    ("no-namedtuple-usage", include_str!("../../builtin-ratchets/python/regex/no-namedtuple-usage.toml")),
+    ("no-global-keyword", include_str!("../../builtin-ratchets/python/regex/no-global-keyword.toml")),
+    ("no-time-sleep", include_str!("../../builtin-ratchets/python/regex/no-time-sleep.toml")),
+    ("no-bare-print", include_str!("../../builtin-ratchets/python/regex/no-bare-print.toml")),
+    ("no-click-echo", include_str!("../../builtin-ratchets/python/regex/no-click-echo.toml")),
+    ("no-bare-generic-types", include_str!("../../builtin-ratchets/python/regex/no-bare-generic-types.toml")),
+    ("no-typing-builtin-imports", include_str!("../../builtin-ratchets/python/regex/no-typing-builtin-imports.toml")),
+    ("no-literal-multi-options", include_str!("../../builtin-ratchets/python/regex/no-literal-multi-options.toml")),
+    ("no-init-docstrings", include_str!("../../builtin-ratchets/python/regex/no-init-docstrings.toml")),
+    ("no-args-in-docstrings", include_str!("../../builtin-ratchets/python/regex/no-args-in-docstrings.toml")),
+    ("no-returns-in-docstrings", include_str!("../../builtin-ratchets/python/regex/no-returns-in-docstrings.toml")),
+    ("no-trailing-comments", include_str!("../../builtin-ratchets/python/regex/no-trailing-comments.toml")),
+    ("no-num-prefix", include_str!("../../builtin-ratchets/python/regex/no-num-prefix.toml")),
+    ("no-builtin-exception-raises", include_str!("../../builtin-ratchets/python/regex/no-builtin-exception-raises.toml")),
+    ("no-fstring-logging", include_str!("../../builtin-ratchets/python/regex/no-fstring-logging.toml")),
+];
+
 /// Embedded built-in AST rule files for Rust
 #[cfg(feature = "lang-rust")]
 const BUILTIN_AST_RUST_RULES: &[(&str, &str)] = &[
@@ -68,6 +100,7 @@ const BUILTIN_AST_TYPESCRIPT_RULES: &[(&str, &str)] = &[(
 pub fn load_builtin_regex_rules() -> Result<RuleList, RuleError> {
     let mut rules = Vec::new();
 
+    // Load common regex rules
     for (rule_name, toml_content) in BUILTIN_REGEX_RULES {
         let rule = RegexRule::from_toml(toml_content).map_err(|e| {
             RuleError::InvalidDefinition(format!(
@@ -78,6 +111,22 @@ pub fn load_builtin_regex_rules() -> Result<RuleList, RuleError> {
 
         let rule_id = rule.id().clone();
         rules.push((rule_id, Box::new(rule) as Box<dyn Rule>));
+    }
+
+    // Load Python regex rules
+    #[cfg(feature = "lang-python")]
+    {
+        for (rule_name, toml_content) in BUILTIN_PYTHON_REGEX_RULES {
+            let rule = RegexRule::from_toml(toml_content).map_err(|e| {
+                RuleError::InvalidDefinition(format!(
+                    "Failed to parse built-in Python regex rule '{}': {}",
+                    rule_name, e
+                ))
+            })?;
+
+            let rule_id = rule.id().clone();
+            rules.push((rule_id, Box::new(rule) as Box<dyn Rule>));
+        }
     }
 
     Ok(rules)
@@ -157,12 +206,27 @@ mod tests {
         assert!(result.is_ok());
 
         let rules = result.unwrap();
+
+        // The number of rules depends on which language features are enabled
+        #[cfg(not(feature = "lang-python"))]
         assert_eq!(rules.len(), 2); // no-todo-comments and no-fixme-comments
+
+        #[cfg(feature = "lang-python")]
+        assert_eq!(rules.len(), 29); // 2 common + 27 Python regex rules
 
         // Check that rule IDs are correct
         let rule_ids: Vec<&str> = rules.iter().map(|(id, _)| id.as_str()).collect();
         assert!(rule_ids.contains(&"no-todo-comments"));
         assert!(rule_ids.contains(&"no-fixme-comments"));
+
+        // Verify Python rules are present when lang-python feature is enabled
+        #[cfg(feature = "lang-python")]
+        {
+            assert!(rule_ids.contains(&"no-exec-usage"));
+            assert!(rule_ids.contains(&"no-eval-usage"));
+            assert!(rule_ids.contains(&"no-broad-exception"));
+            assert!(rule_ids.contains(&"no-fstring-logging"));
+        }
     }
 
     #[test]

@@ -1,0 +1,8 @@
+[rule]
+id = "no-init-docstrings"
+description = "Never create docstrings for __init__ methods. The class docstring should describe the class"
+severity = "warning"
+
+[match]
+pattern = "(?m)def __init__[^:]*:\\s+\"\"\""
+languages = ["python"]
