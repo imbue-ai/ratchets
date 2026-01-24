@@ -71,7 +71,7 @@ fn test_check_command_within_budget() {
         ratchet::cli::check::run_check(&[".".to_string()], ratchet::cli::OutputFormat::Human);
 
     // Should pass because we have 1 TODO and budget is 2
-    assert_eq!(exit_code, ratchet::cli::check::EXIT_SUCCESS);
+    assert_eq!(exit_code, ratchet::cli::common::EXIT_SUCCESS);
 
     // Restore original directory
     std::env::set_current_dir(original_dir).unwrap();
@@ -140,7 +140,7 @@ pattern = "TODO"
         ratchet::cli::check::run_check(&[".".to_string()], ratchet::cli::OutputFormat::Human);
 
     // Should fail because we have 2 TODOs and budget is 1
-    assert_eq!(exit_code, ratchet::cli::check::EXIT_EXCEEDED);
+    assert_eq!(exit_code, ratchet::cli::common::EXIT_EXCEEDED);
 
     std::env::set_current_dir(original_dir).unwrap();
 }
@@ -163,7 +163,7 @@ fn test_check_command_missing_config() {
         ratchet::cli::check::run_check(&[".".to_string()], ratchet::cli::OutputFormat::Human);
 
     // Should return error code
-    assert_eq!(exit_code, ratchet::cli::check::EXIT_ERROR);
+    assert_eq!(exit_code, ratchet::cli::common::EXIT_ERROR);
 
     std::env::set_current_dir(original_dir).unwrap();
 }
@@ -193,7 +193,7 @@ no-todo-comments = true
         ratchet::cli::check::run_check(&[".".to_string()], ratchet::cli::OutputFormat::Human);
 
     // Should succeed with warning (no files to check)
-    assert_eq!(exit_code, ratchet::cli::check::EXIT_SUCCESS);
+    assert_eq!(exit_code, ratchet::cli::common::EXIT_SUCCESS);
 
     std::env::set_current_dir(original_dir).unwrap();
 }
@@ -212,7 +212,7 @@ fn test_check_command_jsonl_format() {
         ratchet::cli::check::run_check(&[".".to_string()], ratchet::cli::OutputFormat::Jsonl);
 
     // Should pass because we have 1 TODO and budget is 2
-    assert_eq!(exit_code, ratchet::cli::check::EXIT_SUCCESS);
+    assert_eq!(exit_code, ratchet::cli::common::EXIT_SUCCESS);
 
     std::env::set_current_dir(original_dir).unwrap();
 }

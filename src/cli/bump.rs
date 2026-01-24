@@ -6,7 +6,7 @@
 //! - Updates ratchet-counts.toml with the new budget
 //! - Validates that bumps don't go below current violation counts
 
-use crate::cli::check::{EXIT_ERROR, EXIT_SUCCESS};
+use crate::cli::common::{EXIT_ERROR, EXIT_SUCCESS};
 use crate::config::counts::CountsManager;
 use crate::config::ratchet_toml::Config;
 use crate::engine::aggregator::ViolationAggregator;

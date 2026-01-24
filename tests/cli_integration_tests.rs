@@ -174,7 +174,7 @@ fn test_check_returns_success_when_within_budget() {
         let exit_code = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human);
 
         // Should pass: 1 TODO with budget of 5
-        assert_eq!(exit_code, cli::check::EXIT_SUCCESS);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
     });
 }
 
@@ -193,7 +193,7 @@ fn test_check_returns_exceeded_when_over_budget() {
         let exit_code = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human);
 
         // Should fail: 1 TODO with budget of 0
-        assert_eq!(exit_code, cli::check::EXIT_EXCEEDED);
+        assert_eq!(exit_code, cli::common::EXIT_EXCEEDED);
     });
 }
 
@@ -205,7 +205,7 @@ fn test_check_returns_error_when_config_missing() {
         let exit_code = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human);
 
         // Should return error
-        assert_eq!(exit_code, cli::check::EXIT_ERROR);
+        assert_eq!(exit_code, cli::common::EXIT_ERROR);
     });
 }
 
@@ -217,7 +217,7 @@ fn test_check_jsonl_format_returns_success() {
         let exit_code = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Jsonl);
 
         // Should pass with JSONL format
-        assert_eq!(exit_code, cli::check::EXIT_SUCCESS);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
     });
 }
 
@@ -240,7 +240,7 @@ fn test_check_with_multiple_paths() {
         );
 
         // Should still be within budget (2 TODOs, budget 5)
-        assert_eq!(exit_code, cli::check::EXIT_SUCCESS);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
     });
 }
 
@@ -262,7 +262,7 @@ no-todo-comments = true
         let exit_code = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human);
 
         // Should succeed with warning (no files to check)
-        assert_eq!(exit_code, cli::check::EXIT_SUCCESS);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
     });
 }
 
@@ -278,7 +278,7 @@ fn test_bump_with_explicit_count() {
         // Bump to explicit count
         let exit_code = cli::bump::run_bump("no-todo-comments", ".", Some(10));
 
-        assert_eq!(exit_code, cli::check::EXIT_SUCCESS);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
 
         // Verify counts file was updated
         let counts_content =
@@ -295,7 +295,7 @@ fn test_bump_with_auto_detect() {
         // Bump with auto-detect (should set to current count of 1)
         let exit_code = cli::bump::run_bump("no-todo-comments", ".", None);
 
-        assert_eq!(exit_code, cli::check::EXIT_SUCCESS);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
 
         // Verify counts file was updated to current count
         let counts_content =
@@ -314,7 +314,7 @@ fn test_bump_rejects_count_below_current() {
         let exit_code = cli::bump::run_bump("no-todo-comments", ".", Some(0));
 
         // Should fail
-        assert_eq!(exit_code, cli::check::EXIT_ERROR);
+        assert_eq!(exit_code, cli::common::EXIT_ERROR);
     });
 }
 
@@ -334,7 +334,7 @@ fn test_bump_with_custom_region() {
         // Bump the src region
         let exit_code = cli::bump::run_bump("no-todo-comments", "src", Some(5));
 
-        assert_eq!(exit_code, cli::check::EXIT_SUCCESS);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
 
         // Verify counts file has the src region
         let counts_content =
@@ -352,7 +352,7 @@ fn test_bump_invalid_rule_id() {
         let exit_code = cli::bump::run_bump("nonexistent-rule", ".", Some(10));
 
         // Should fail
-        assert_eq!(exit_code, cli::check::EXIT_ERROR);
+        assert_eq!(exit_code, cli::common::EXIT_ERROR);
     });
 }
 
@@ -364,7 +364,7 @@ fn test_bump_missing_config() {
         let exit_code = cli::bump::run_bump("no-todo-comments", ".", Some(10));
 
         // Should fail
-        assert_eq!(exit_code, cli::check::EXIT_ERROR);
+        assert_eq!(exit_code, cli::common::EXIT_ERROR);
     });
 }
 
@@ -380,7 +380,7 @@ fn test_tighten_reduces_budget_to_current() {
         // Current count is 1, budget is 5 - should tighten to 1
         let exit_code = cli::tighten::run_tighten(None, None);
 
-        assert_eq!(exit_code, cli::check::EXIT_SUCCESS);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
 
         // Verify budget was reduced
         let counts_content =
@@ -398,7 +398,7 @@ fn test_tighten_specific_rule() {
 
         let exit_code = cli::tighten::run_tighten(Some("no-todo-comments"), None);
 
-        assert_eq!(exit_code, cli::check::EXIT_SUCCESS);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
     });
 }
 
@@ -409,7 +409,7 @@ fn test_tighten_specific_region() {
 
         let exit_code = cli::tighten::run_tighten(None, Some("."));
 
-        assert_eq!(exit_code, cli::check::EXIT_SUCCESS);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
     });
 }
 
@@ -428,7 +428,7 @@ fn test_tighten_fails_when_violations_exceed_budget() {
         let exit_code = cli::tighten::run_tighten(None, None);
 
         // Should fail because violations exceed budget
-        assert_eq!(exit_code, cli::check::EXIT_EXCEEDED);
+        assert_eq!(exit_code, cli::common::EXIT_EXCEEDED);
     });
 }
 
@@ -439,11 +439,11 @@ fn test_tighten_no_changes_needed() {
 
         // First tighten to current
         let exit_code1 = cli::tighten::run_tighten(None, None);
-        assert_eq!(exit_code1, cli::check::EXIT_SUCCESS);
+        assert_eq!(exit_code1, cli::common::EXIT_SUCCESS);
 
         // Second tighten should have no changes
         let exit_code2 = cli::tighten::run_tighten(None, None);
-        assert_eq!(exit_code2, cli::check::EXIT_SUCCESS);
+        assert_eq!(exit_code2, cli::common::EXIT_SUCCESS);
     });
 }
 
@@ -455,7 +455,7 @@ fn test_tighten_invalid_rule_id() {
         let exit_code = cli::tighten::run_tighten(Some("invalid rule!"), None);
 
         // Should fail with invalid rule ID
-        assert_eq!(exit_code, cli::check::EXIT_ERROR);
+        assert_eq!(exit_code, cli::common::EXIT_ERROR);
     });
 }
 
@@ -465,7 +465,7 @@ fn test_tighten_missing_config() {
         let exit_code = cli::tighten::run_tighten(None, None);
 
         // Should fail
-        assert_eq!(exit_code, cli::check::EXIT_ERROR);
+        assert_eq!(exit_code, cli::common::EXIT_ERROR);
     });
 }
 
@@ -481,7 +481,7 @@ fn test_list_human_format() {
         let exit_code = cli::list::run_list(cli::OutputFormat::Human);
 
         // Should succeed
-        assert_eq!(exit_code, cli::check::EXIT_SUCCESS);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
     });
 }
 
@@ -493,7 +493,7 @@ fn test_list_jsonl_format() {
         let exit_code = cli::list::run_list(cli::OutputFormat::Jsonl);
 
         // Should succeed
-        assert_eq!(exit_code, cli::check::EXIT_SUCCESS);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
     });
 }
 
@@ -513,7 +513,7 @@ languages = ["rust"]
         let exit_code = cli::list::run_list(cli::OutputFormat::Human);
 
         // Should succeed (just shows empty list)
-        assert_eq!(exit_code, cli::check::EXIT_SUCCESS);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
     });
 }
 
@@ -523,7 +523,7 @@ fn test_list_missing_config() {
         let exit_code = cli::list::run_list(cli::OutputFormat::Human);
 
         // Should fail
-        assert_eq!(exit_code, cli::check::EXIT_ERROR);
+        assert_eq!(exit_code, cli::common::EXIT_ERROR);
     });
 }
 
@@ -761,10 +761,10 @@ fn test_merge_driver_invalid_toml() {
 #[test]
 fn test_exit_codes_are_correct() {
     // Verify the exit codes match the specification
-    assert_eq!(cli::check::EXIT_SUCCESS, 0);
-    assert_eq!(cli::check::EXIT_EXCEEDED, 1);
-    assert_eq!(cli::check::EXIT_ERROR, 2);
-    assert_eq!(cli::check::EXIT_PARSE_ERROR, 3);
+    assert_eq!(cli::common::EXIT_SUCCESS, 0);
+    assert_eq!(cli::common::EXIT_EXCEEDED, 1);
+    assert_eq!(cli::common::EXIT_ERROR, 2);
+    assert_eq!(cli::common::EXIT_PARSE_ERROR, 3);
 }
 
 // ============================================================================
@@ -811,7 +811,7 @@ pattern = "TODO"
         let exit_code = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human);
 
         // Should fail with empty counts (budget defaults to 0)
-        assert_eq!(exit_code, cli::check::EXIT_EXCEEDED);
+        assert_eq!(exit_code, cli::common::EXIT_EXCEEDED);
     });
 }
 
@@ -825,7 +825,7 @@ fn test_bump_creates_counts_file_if_missing() {
 
         let exit_code = cli::bump::run_bump("no-todo-comments", ".", Some(10));
 
-        assert_eq!(exit_code, cli::check::EXIT_SUCCESS);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
 
         // Verify counts file was created
         assert!(temp_dir.path().join("ratchet-counts.toml").exists());
@@ -877,6 +877,6 @@ pattern = "TODO"
         let exit_code = cli::tighten::run_tighten(None, None);
 
         // Should succeed and tighten all rules
-        assert_eq!(exit_code, cli::check::EXIT_SUCCESS);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
     });
 }

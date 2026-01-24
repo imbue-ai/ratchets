@@ -6,7 +6,7 @@
 //! - Supports both human-readable and JSONL output formats
 
 use crate::cli::args::OutputFormat;
-use crate::cli::check::{EXIT_ERROR, EXIT_SUCCESS, load_counts};
+use crate::cli::common::{EXIT_ERROR, EXIT_SUCCESS, load_counts};
 use crate::config::counts::CountsManager;
 use crate::engine::aggregator::ViolationAggregator;
 use crate::engine::executor::ExecutionEngine;
@@ -32,24 +32,8 @@ enum ListError {
     Io(#[from] std::io::Error),
 
     #[error("{0}")]
+    #[allow(dead_code)] // Reserved for future use
     Other(String),
-}
-
-// Convert CheckError to ListError
-impl From<crate::cli::check::CheckError> for ListError {
-    fn from(err: crate::cli::check::CheckError) -> Self {
-        // Convert by extracting the underlying error
-        match err {
-            crate::cli::check::CheckError::Config(e) => ListError::Config(e),
-            crate::cli::check::CheckError::Rule(e) => ListError::Rule(e),
-            crate::cli::check::CheckError::FileWalker(e) => ListError::FileWalker(e),
-            crate::cli::check::CheckError::Parse { file, message } => {
-                ListError::Other(format!("Parse error in {}: {}", file.display(), message))
-            }
-            crate::cli::check::CheckError::Io(e) => ListError::Io(e),
-            crate::cli::check::CheckError::Other(msg) => ListError::Other(msg),
-        }
-    }
 }
 
 /// Run the list command

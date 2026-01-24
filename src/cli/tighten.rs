@@ -6,7 +6,7 @@
 //! - Fails if any violations exceed current budgets
 //! - Supports filtering by rule_id and region
 
-use crate::cli::check::{EXIT_ERROR, EXIT_EXCEEDED, EXIT_SUCCESS};
+use crate::cli::common::{EXIT_ERROR, EXIT_EXCEEDED, EXIT_SUCCESS};
 use crate::config::counts::CountsManager;
 use crate::config::ratchet_toml::Config;
 use crate::engine::aggregator::ViolationAggregator;

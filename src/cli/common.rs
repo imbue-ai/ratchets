@@ -3,11 +3,18 @@
 //! This module provides shared functionality for loading configuration,
 //! discovering files, and building rule registries.
 
+use crate::config::counts::CountsManager;
 use crate::config::ratchet_toml::Config;
 use crate::engine::file_walker::{FileEntry, FileWalker, FileWalkerError};
 use crate::error::{ConfigError, RuleError};
 use crate::rules::RuleRegistry;
 use std::path::Path;
+
+/// Exit codes from DESIGN.md
+pub const EXIT_SUCCESS: i32 = 0;
+pub const EXIT_EXCEEDED: i32 = 1;
+pub const EXIT_ERROR: i32 = 2;
+pub const EXIT_PARSE_ERROR: i32 = 3;
 
 /// Load ratchet.toml configuration
 ///
@@ -79,6 +86,25 @@ pub(crate) fn discover_files(
 /// Returns `RuleError` if there is an error loading or building rules.
 pub(crate) fn build_registry(config: &Config) -> Result<RuleRegistry, RuleError> {
     RuleRegistry::build_from_config(config)
+}
+
+/// Load ratchet-counts.toml
+///
+/// # Errors
+///
+/// Returns `ConfigError::Io` if ratchet-counts.toml cannot be read.
+/// Returns `ConfigError::Parse` if ratchet-counts.toml is invalid.
+pub(crate) fn load_counts() -> Result<CountsManager, ConfigError> {
+    let counts_path = Path::new("ratchet-counts.toml");
+    if !counts_path.exists() {
+        // If counts file doesn't exist, start with empty counts (strict enforcement)
+        eprintln!(
+            "Warning: ratchet-counts.toml not found. Using strict enforcement (budget=0 for all rules)."
+        );
+        return Ok(CountsManager::new());
+    }
+
+    CountsManager::load(counts_path)
 }
 
 #[cfg(test)]

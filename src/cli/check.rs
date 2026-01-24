@@ -10,18 +10,12 @@
 //! - Returns appropriate exit code
 
 use crate::cli::args::OutputFormat;
-use crate::config::counts::CountsManager;
+use crate::cli::common::{EXIT_ERROR, EXIT_EXCEEDED, EXIT_PARSE_ERROR, EXIT_SUCCESS};
 use crate::engine::aggregator::ViolationAggregator;
 use crate::engine::executor::ExecutionEngine;
 use crate::error::ConfigError;
 use serde::Serialize;
-use std::path::{Path, PathBuf};
-
-/// Exit codes from DESIGN.md
-pub const EXIT_SUCCESS: i32 = 0;
-pub const EXIT_EXCEEDED: i32 = 1;
-pub const EXIT_ERROR: i32 = 2;
-pub const EXIT_PARSE_ERROR: i32 = 3;
+use std::path::PathBuf;
 
 /// Error type specific to check command
 #[derive(Debug, thiserror::Error)]
@@ -92,7 +86,7 @@ fn run_check_inner(paths: &[String], format: OutputFormat) -> Result<bool, Check
     let config = super::common::load_config()?;
 
     // 2. Load ratchet-counts.toml
-    let counts = load_counts()?;
+    let counts = super::common::load_counts()?;
 
     // 3. Build rule registry (load builtin + custom rules, apply config filter)
     let registry = super::common::build_registry(&config)?;
@@ -136,20 +130,6 @@ fn run_check_inner(paths: &[String], format: OutputFormat) -> Result<bool, Check
 
     // 9. Return pass/fail status
     Ok(aggregation_result.passed)
-}
-
-/// Load ratchet-counts.toml
-pub(crate) fn load_counts() -> Result<CountsManager, CheckError> {
-    let counts_path = Path::new("ratchet-counts.toml");
-    if !counts_path.exists() {
-        // If counts file doesn't exist, start with empty counts (strict enforcement)
-        eprintln!(
-            "Warning: ratchet-counts.toml not found. Using strict enforcement (budget=0 for all rules)."
-        );
-        return Ok(CountsManager::new());
-    }
-
-    Ok(CountsManager::load(counts_path)?)
 }
 
 /// Print human-readable output
