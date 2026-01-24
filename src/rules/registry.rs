@@ -78,8 +78,7 @@ impl RuleRegistry {
     /// - There is an I/O error reading a file
     pub fn load_builtin_regex_rules(&mut self, builtin_dir: &Path) -> Result<(), RuleError> {
         // Built-in rules don't use pattern references, so we pass None
-        // Don't warn on override - filesystem builtins overriding embedded is expected
-        self.load_regex_rules_from_dir(builtin_dir, None, false)
+        self.load_regex_rules_from_dir(builtin_dir, None)
     }
 
     /// Load custom regex rules from a directory
@@ -104,8 +103,7 @@ impl RuleRegistry {
         custom_dir: &Path,
         ctx: Option<&RuleContext>,
     ) -> Result<(), RuleError> {
-        // Warn on override - custom rules overriding builtins is unexpected
-        self.load_regex_rules_from_dir(custom_dir, ctx, true)
+        self.load_regex_rules_from_dir(custom_dir, ctx)
     }
 
     /// Internal helper to load regex rules from a directory
@@ -117,12 +115,10 @@ impl RuleRegistry {
     ///
     /// * `dir` - Directory to load rules from
     /// * `ctx` - Optional pattern context for resolving pattern references
-    /// * `warn_on_override` - Whether to warn when overriding an existing rule
     fn load_regex_rules_from_dir(
         &mut self,
         dir: &Path,
         ctx: Option<&RuleContext>,
-        warn_on_override: bool,
     ) -> Result<(), RuleError> {
         // Check if directory exists
         if !dir.exists() {
@@ -175,16 +171,6 @@ impl RuleRegistry {
             })?;
             let rule = RegexRule::from_toml_with_context(&content, ctx)?;
             let rule_id = rule.id().clone();
-
-            // Allow overriding existing rules (for filesystem to override embedded)
-            // Warn if requested (e.g., when custom rules override builtins)
-            if warn_on_override && self.rules.contains_key(&rule_id) {
-                eprintln!(
-                    "Warning: Overriding rule '{}' with version from {}",
-                    rule_id.as_str(),
-                    path.display()
-                );
-            }
 
             // Add/replace rule in registry (HashMap insert replaces existing key)
             self.rules.insert(rule_id, Box::new(rule));
@@ -306,8 +292,7 @@ impl RuleRegistry {
             let ast_path = lang_path.join("ast");
             if ast_path.exists() && ast_path.is_dir() {
                 // Load all AST rules from this language's ast subdirectory
-                // Don't warn on override - filesystem builtins overriding embedded is expected
-                self.load_ast_rules_from_dir(&ast_path, Some(&rule_context), false)?;
+                self.load_ast_rules_from_dir(&ast_path, Some(&rule_context))?;
             }
         }
 
@@ -338,8 +323,7 @@ impl RuleRegistry {
         custom_dir: &Path,
         ctx: Option<&RuleContext>,
     ) -> Result<(), RuleError> {
-        // Warn on override - custom rules overriding builtins is unexpected
-        self.load_ast_rules_from_dir(custom_dir, ctx, true)
+        self.load_ast_rules_from_dir(custom_dir, ctx)
     }
 
     /// Internal helper to load AST rules from a directory
@@ -351,12 +335,10 @@ impl RuleRegistry {
     ///
     /// * `dir` - Directory to load rules from
     /// * `ctx` - Optional pattern context for resolving pattern references
-    /// * `warn_on_override` - Whether to warn when overriding an existing rule
     fn load_ast_rules_from_dir(
         &mut self,
         dir: &Path,
         ctx: Option<&RuleContext>,
-        warn_on_override: bool,
     ) -> Result<(), RuleError> {
         // Check if directory exists
         if !dir.exists() {
@@ -412,16 +394,6 @@ impl RuleRegistry {
             })?;
             let rule = AstRule::from_toml_with_context(&content, ctx)?;
             let rule_id = rule.id().clone();
-
-            // Allow overriding existing rules (for filesystem to override embedded)
-            // Warn if requested (e.g., when custom rules override builtins)
-            if warn_on_override && self.rules.contains_key(&rule_id) {
-                eprintln!(
-                    "Warning: Overriding rule '{}' with version from {}",
-                    rule_id.as_str(),
-                    path.display()
-                );
-            }
 
             // Add/replace rule in registry (HashMap insert replaces existing key)
             self.rules.insert(rule_id, Box::new(rule));
@@ -1369,21 +1341,21 @@ query = "(unclosed_paren"
     }
 
     #[test]
-    fn test_override_warnings_controlled_by_parameter() {
+    fn test_override_silently_replaces_existing_rules() {
         let temp_dir = TempDir::new().unwrap();
-        create_test_rule_file(temp_dir.path(), "warning-test.toml", "warning-test");
+        create_test_rule_file(temp_dir.path(), "override-test.toml", "override-test");
 
         let mut registry = RuleRegistry::new();
 
-        // Load builtin (no warning expected since it's first load)
+        // Load builtin (first load)
         registry.load_builtin_regex_rules(temp_dir.path()).unwrap();
         assert_eq!(registry.len(), 1);
 
-        // Load builtin again (no warning expected - warn_on_override=false)
+        // Load builtin again (should silently replace)
         registry.load_builtin_regex_rules(temp_dir.path()).unwrap();
         assert_eq!(registry.len(), 1);
 
-        // Load custom (warning expected - warn_on_override=true, but we can't easily test stderr)
+        // Load custom (should silently replace)
         registry
             .load_custom_regex_rules(temp_dir.path(), None)
             .unwrap();
