@@ -496,6 +496,43 @@ impl RuleRegistry {
         self.rules.is_empty()
     }
 
+    /// Filter rules to only keep those matching the configured languages.
+    /// Rules with no language restriction are always kept.
+    ///
+    /// # Arguments
+    ///
+    /// * `languages` - The list of languages to filter by
+    pub fn filter_by_languages(&mut self, languages: &[crate::types::Language]) {
+        // If no languages specified, keep all rules
+        if languages.is_empty() {
+            return;
+        }
+
+        // Collect rule IDs to remove
+        let to_remove: Vec<RuleId> = self
+            .rules
+            .iter()
+            .filter_map(|(id, rule)| {
+                let rule_langs = rule.languages();
+                // Keep if rule has no language restriction
+                if rule_langs.is_empty() {
+                    return None;
+                }
+                // Keep if any of the rule's languages are in the config
+                if rule_langs.iter().any(|l| languages.contains(l)) {
+                    return None;
+                }
+                // Otherwise, remove
+                Some(id.clone())
+            })
+            .collect();
+
+        // Remove filtered rules
+        for id in to_remove {
+            self.rules.remove(&id);
+        }
+    }
+
     /// Build a fully configured rule registry from the given config.
     ///
     /// This is the ONLY function that should be used to create a rule registry
@@ -504,6 +541,7 @@ impl RuleRegistry {
     /// 2. Filesystem builtin rules (from builtin-ratchets/ - for overrides/development)
     /// 3. Custom rules (from ratchets/ - user-defined rules)
     /// 4. Filters by config (removes disabled rules)
+    /// 5. Filters by language (removes rules for unconfigured languages)
     ///
     /// # Arguments
     ///
@@ -552,6 +590,9 @@ impl RuleRegistry {
 
         // Step 4: Filter by config (remove disabled rules)
         registry.filter_by_config(&config.rules);
+
+        // Step 5: Filter by language (remove rules for unconfigured languages)
+        registry.filter_by_languages(&config.ratchet.languages);
 
         Ok(registry)
     }
@@ -1475,7 +1516,7 @@ query = "(unclosed_paren"
         let config = Config {
             ratchet: RatchetMeta {
                 version: "1".to_string(),
-                languages: vec![],
+                languages: vec![crate::types::Language::Rust],
                 include: vec![GlobPattern::new("**/*".to_string())],
                 exclude: vec![],
             },
@@ -1495,6 +1536,192 @@ query = "(unclosed_paren"
         assert!(
             registry.get_rule(&no_todo_comments).is_none(),
             "no-todo-comments should be filtered out when disabled in config"
+        );
+    }
+
+    #[test]
+    fn test_filter_by_languages_empty_languages() {
+        let temp_dir = TempDir::new().unwrap();
+        create_test_rule_file(temp_dir.path(), "rule1.toml", "rule-1");
+        create_test_rule_file(temp_dir.path(), "rule2.toml", "rule-2");
+
+        let mut registry = RuleRegistry::new();
+        registry.load_builtin_regex_rules(temp_dir.path()).unwrap();
+        assert_eq!(registry.len(), 2);
+
+        // Empty languages list should keep all rules
+        registry.filter_by_languages(&[]);
+        assert_eq!(registry.len(), 2);
+    }
+
+    #[test]
+    #[cfg(feature = "lang-rust")]
+    fn test_filter_by_languages_removes_non_matching_rules() {
+        use crate::config::ratchet_toml::{Config, OutputConfig, RatchetMeta, RulesConfig};
+        use crate::types::{GlobPattern, Language};
+        use std::collections::HashMap;
+
+        // Create config with only Rust language
+        let config = Config {
+            ratchet: RatchetMeta {
+                version: "1".to_string(),
+                languages: vec![Language::Rust],
+                include: vec![GlobPattern::new("**/*".to_string())],
+                exclude: vec![],
+            },
+            rules: RulesConfig {
+                builtin: HashMap::new(),
+                custom: HashMap::new(),
+            },
+            output: OutputConfig::default(),
+            patterns: HashMap::new(),
+        };
+
+        // Build registry from config
+        let registry = RuleRegistry::build_from_config(&config).unwrap();
+
+        // Verify that only Rust rules and language-agnostic rules are present
+        for rule in registry.iter_rules() {
+            let rule_langs = rule.languages();
+            // Rule should either have no languages (language-agnostic)
+            // or include Rust
+            assert!(
+                rule_langs.is_empty() || rule_langs.contains(&Language::Rust),
+                "Rule '{}' with languages {:?} should not be present when only Rust is configured",
+                rule.id().as_str(),
+                rule_langs
+            );
+        }
+
+        // Verify specific Rust rules are present
+        let no_unwrap = RuleId::new("no-unwrap").unwrap();
+        let no_panic = RuleId::new("no-panic").unwrap();
+        let no_expect = RuleId::new("no-expect").unwrap();
+
+        assert!(
+            registry.get_rule(&no_unwrap).is_some(),
+            "no-unwrap (Rust rule) should be present"
+        );
+        assert!(
+            registry.get_rule(&no_panic).is_some(),
+            "no-panic (Rust rule) should be present"
+        );
+        assert!(
+            registry.get_rule(&no_expect).is_some(),
+            "no-expect (Rust rule) should be present"
+        );
+
+        // Verify Python-specific rules are NOT present
+        let no_args_in_docstrings = RuleId::new("no-args-in-docstrings").unwrap();
+        assert!(
+            registry.get_rule(&no_args_in_docstrings).is_none(),
+            "no-args-in-docstrings (Python rule) should be filtered out"
+        );
+
+        // Verify TypeScript-specific rules are NOT present
+        let no_any = RuleId::new("no-any").unwrap();
+        assert!(
+            registry.get_rule(&no_any).is_none(),
+            "no-any (TypeScript rule) should be filtered out"
+        );
+
+        // Verify language-agnostic rules are present
+        let no_todo_comments = RuleId::new("no-todo-comments").unwrap();
+        let no_fixme_comments = RuleId::new("no-fixme-comments").unwrap();
+        assert!(
+            registry.get_rule(&no_todo_comments).is_some(),
+            "no-todo-comments (language-agnostic) should be present"
+        );
+        assert!(
+            registry.get_rule(&no_fixme_comments).is_some(),
+            "no-fixme-comments (language-agnostic) should be present"
+        );
+    }
+
+    #[test]
+    #[cfg(all(feature = "lang-rust", feature = "lang-python"))]
+    fn test_filter_by_languages_keeps_multiple_languages() {
+        use crate::config::ratchet_toml::{Config, OutputConfig, RatchetMeta, RulesConfig};
+        use crate::types::{GlobPattern, Language};
+        use std::collections::HashMap;
+
+        // Create config with Rust and Python languages
+        let config = Config {
+            ratchet: RatchetMeta {
+                version: "1".to_string(),
+                languages: vec![Language::Rust, Language::Python],
+                include: vec![GlobPattern::new("**/*".to_string())],
+                exclude: vec![],
+            },
+            rules: RulesConfig {
+                builtin: HashMap::new(),
+                custom: HashMap::new(),
+            },
+            output: OutputConfig::default(),
+            patterns: HashMap::new(),
+        };
+
+        // Build registry from config
+        let registry = RuleRegistry::build_from_config(&config).unwrap();
+
+        // Verify Rust rules are present
+        let no_unwrap = RuleId::new("no-unwrap").unwrap();
+        assert!(
+            registry.get_rule(&no_unwrap).is_some(),
+            "no-unwrap (Rust rule) should be present"
+        );
+
+        // Verify Python rules are present
+        let no_args_in_docstrings = RuleId::new("no-args-in-docstrings").unwrap();
+        assert!(
+            registry.get_rule(&no_args_in_docstrings).is_some(),
+            "no-args-in-docstrings (Python rule) should be present"
+        );
+
+        // Verify TypeScript rules are NOT present
+        let no_any = RuleId::new("no-any").unwrap();
+        assert!(
+            registry.get_rule(&no_any).is_none(),
+            "no-any (TypeScript rule) should be filtered out"
+        );
+    }
+
+    #[test]
+    fn test_filter_by_languages_keeps_language_agnostic_rules() {
+        use crate::config::ratchet_toml::{Config, OutputConfig, RatchetMeta, RulesConfig};
+        use crate::types::{GlobPattern, Language};
+        use std::collections::HashMap;
+
+        // Create config with only Rust language
+        let config = Config {
+            ratchet: RatchetMeta {
+                version: "1".to_string(),
+                languages: vec![Language::Rust],
+                include: vec![GlobPattern::new("**/*".to_string())],
+                exclude: vec![],
+            },
+            rules: RulesConfig {
+                builtin: HashMap::new(),
+                custom: HashMap::new(),
+            },
+            output: OutputConfig::default(),
+            patterns: HashMap::new(),
+        };
+
+        // Build registry from config
+        let registry = RuleRegistry::build_from_config(&config).unwrap();
+
+        // Language-agnostic rules (those with empty languages list) should always be present
+        let no_todo_comments = RuleId::new("no-todo-comments").unwrap();
+        let no_fixme_comments = RuleId::new("no-fixme-comments").unwrap();
+
+        assert!(
+            registry.get_rule(&no_todo_comments).is_some(),
+            "no-todo-comments (language-agnostic) should always be present"
+        );
+        assert!(
+            registry.get_rule(&no_fixme_comments).is_some(),
+            "no-fixme-comments (language-agnostic) should always be present"
         );
     }
 }
