@@ -118,8 +118,9 @@ impl ExecutionEngine {
         let mut all_violations = Vec::new();
 
         // Parse AST once if we have AST rules
-        let tree = if !ast_rules.is_empty() && file.language.is_some() {
-            self.parse_ast(&content, file.language.unwrap())
+        let tree = if !ast_rules.is_empty() {
+            file.language
+                .and_then(|lang| self.parse_ast(&content, lang))
         } else {
             None
         };
