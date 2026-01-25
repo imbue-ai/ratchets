@@ -3,6 +3,9 @@
 //! This module contains integration tests for the error types and domain types
 //! defined in the Ratchet library.
 
+mod common;
+
+use common::TestResult;
 use ratchet::error::{ConfigError, RatchetError, RuleError};
 use ratchet::types::{GlobPattern, Language, RegionPath, RuleId, Severity};
 use std::path::PathBuf;
@@ -95,7 +98,7 @@ fn test_rule_error_variants_display() {
 // Language integration tests
 
 #[test]
-fn test_language_roundtrip_serialization() {
+fn test_language_roundtrip_serialization() -> TestResult {
     let languages = vec![
         Language::Rust,
         Language::TypeScript,
@@ -105,22 +108,24 @@ fn test_language_roundtrip_serialization() {
     ];
 
     for lang in languages {
-        let json = serde_json::to_string(&lang).unwrap();
-        let deserialized: Language = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&lang)?;
+        let deserialized: Language = serde_json::from_str(&json)?;
         assert_eq!(lang, deserialized);
     }
+    Ok(())
 }
 
 #[test]
-fn test_language_lowercase_serialization() {
+fn test_language_lowercase_serialization() -> TestResult {
     // Verify that all languages serialize to lowercase
-    let rust_json = serde_json::to_string(&Language::Rust).unwrap();
+    let rust_json = serde_json::to_string(&Language::Rust)?;
     assert!(rust_json.contains("rust"));
     assert!(!rust_json.contains("Rust"));
 
-    let typescript_json = serde_json::to_string(&Language::TypeScript).unwrap();
+    let typescript_json = serde_json::to_string(&Language::TypeScript)?;
     assert!(typescript_json.contains("typescript"));
     assert!(!typescript_json.contains("TypeScript"));
+    Ok(())
 }
 
 #[test]
@@ -141,36 +146,42 @@ fn test_language_in_collections() {
 // Severity integration tests
 
 #[test]
-fn test_severity_roundtrip_serialization() {
+fn test_severity_roundtrip_serialization() -> TestResult {
     let severities = vec![Severity::Error, Severity::Warning, Severity::Info];
 
     for severity in severities {
-        let json = serde_json::to_string(&severity).unwrap();
-        let deserialized: Severity = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&severity)?;
+        let deserialized: Severity = serde_json::from_str(&json)?;
         assert_eq!(severity, deserialized);
     }
+    Ok(())
 }
 
 #[test]
-fn test_severity_lowercase_serialization() {
-    let error_json = serde_json::to_string(&Severity::Error).unwrap();
+fn test_severity_lowercase_serialization() -> TestResult {
+    let error_json = serde_json::to_string(&Severity::Error)?;
     assert_eq!(error_json, "\"error\"");
 
-    let warning_json = serde_json::to_string(&Severity::Warning).unwrap();
+    let warning_json = serde_json::to_string(&Severity::Warning)?;
     assert_eq!(warning_json, "\"warning\"");
 
-    let info_json = serde_json::to_string(&Severity::Info).unwrap();
+    let info_json = serde_json::to_string(&Severity::Info)?;
     assert_eq!(info_json, "\"info\"");
+    Ok(())
 }
 
 // RuleId integration tests
 
 #[test]
-fn test_rule_id_roundtrip_serialization() {
-    let rule_id = RuleId::new("test-rule-123").unwrap();
-    let json = serde_json::to_string(&rule_id).unwrap();
-    let deserialized: RuleId = serde_json::from_str(&json).unwrap();
+fn test_rule_id_roundtrip_serialization() -> TestResult {
+    let rule_id = assert_some!(
+        RuleId::new("test-rule-123"),
+        "Failed to create valid rule ID"
+    );
+    let json = serde_json::to_string(&rule_id)?;
+    let deserialized: RuleId = serde_json::from_str(&json)?;
     assert_eq!(rule_id, deserialized);
+    Ok(())
 }
 
 #[test]
@@ -217,15 +228,15 @@ fn test_rule_id_in_collections() {
     use std::collections::{HashMap, HashSet};
 
     let mut set = HashSet::new();
-    set.insert(RuleId::new("rule1").unwrap());
-    set.insert(RuleId::new("rule2").unwrap());
-    set.insert(RuleId::new("rule1").unwrap()); // Duplicate
+    set.insert(assert_some!(RuleId::new("rule1")));
+    set.insert(assert_some!(RuleId::new("rule2")));
+    set.insert(assert_some!(RuleId::new("rule1"))); // Duplicate
     assert_eq!(set.len(), 2);
 
     let mut map = HashMap::new();
-    map.insert(RuleId::new("no-unwrap").unwrap(), "Rule description");
+    map.insert(assert_some!(RuleId::new("no-unwrap")), "Rule description");
     assert_eq!(
-        map.get(&RuleId::new("no-unwrap").unwrap()),
+        map.get(&assert_some!(RuleId::new("no-unwrap"))),
         Some(&"Rule description")
     );
 }
@@ -233,11 +244,12 @@ fn test_rule_id_in_collections() {
 // RegionPath integration tests
 
 #[test]
-fn test_region_path_roundtrip_serialization() {
+fn test_region_path_roundtrip_serialization() -> TestResult {
     let path = RegionPath::new("src/parser/ast");
-    let json = serde_json::to_string(&path).unwrap();
-    let deserialized: RegionPath = serde_json::from_str(&json).unwrap();
+    let json = serde_json::to_string(&path)?;
+    let deserialized: RegionPath = serde_json::from_str(&json)?;
     assert_eq!(path, deserialized);
+    Ok(())
 }
 
 #[test]
@@ -273,15 +285,16 @@ fn test_region_path_normalization_comprehensive() {
 }
 
 #[test]
-fn test_region_path_serde_normalizes_on_deserialization() {
+fn test_region_path_serde_normalizes_on_deserialization() -> TestResult {
     // Verify that normalization happens during deserialization
     let json_with_backslash = "\"src\\\\parser\"";
-    let path: RegionPath = serde_json::from_str(json_with_backslash).unwrap();
+    let path: RegionPath = serde_json::from_str(json_with_backslash)?;
     assert_eq!(path.as_str(), "src/parser");
 
     let json_with_trailing = "\"src/parser/\"";
-    let path: RegionPath = serde_json::from_str(json_with_trailing).unwrap();
+    let path: RegionPath = serde_json::from_str(json_with_trailing)?;
     assert_eq!(path.as_str(), "src/parser");
+    Ok(())
 }
 
 #[test]
@@ -333,9 +346,9 @@ fn test_glob_pattern_in_collections() {
 // Cross-type integration tests
 
 #[test]
-fn test_types_work_together() {
+fn test_types_work_together() -> TestResult {
     // Simulate a simple configuration-like structure
-    let rule_id = RuleId::new("no-unwrap").unwrap();
+    let rule_id = assert_some!(RuleId::new("no-unwrap"));
     let region = RegionPath::new("src/parser");
     let pattern = GlobPattern::new("**/*.rs");
     let language = Language::Rust;
@@ -345,11 +358,12 @@ fn test_types_work_together() {
     let _config = (rule_id, region, pattern, language, severity);
 
     // All types should be serializable
-    assert!(serde_json::to_string(&Language::Rust).is_ok());
-    assert!(serde_json::to_string(&Severity::Error).is_ok());
-    assert!(serde_json::to_string(&RuleId::new("test").unwrap()).is_ok());
-    assert!(serde_json::to_string(&RegionPath::new("src")).is_ok());
-    assert!(serde_json::to_string(&GlobPattern::new("*.rs")).is_ok());
+    serde_json::to_string(&Language::Rust)?;
+    serde_json::to_string(&Severity::Error)?;
+    serde_json::to_string(&assert_some!(RuleId::new("test")))?;
+    serde_json::to_string(&RegionPath::new("src"))?;
+    serde_json::to_string(&GlobPattern::new("*.rs"))?;
+    Ok(())
 }
 
 #[test]
@@ -365,7 +379,7 @@ fn test_all_types_are_cloneable_and_hashable() {
     severity_set.insert(Severity::Error); // Copy type
 
     let mut rule_set = HashSet::new();
-    rule_set.insert(RuleId::new("test").unwrap().clone());
+    rule_set.insert(assert_some!(RuleId::new("test")).clone());
 
     let mut path_set = HashSet::new();
     path_set.insert(RegionPath::new("src").clone());
