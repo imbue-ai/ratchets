@@ -568,6 +568,41 @@ impl RuleRegistry {
 
         Ok(registry)
     }
+
+    /// Create a new registry containing only the specified rule
+    ///
+    /// This method filters the current registry to keep only the specified rule,
+    /// removing all other rules. This is useful when you need to execute only a
+    /// specific rule without the overhead of processing all rules.
+    ///
+    /// Note: This method mutates the registry in place by removing all rules
+    /// except the target rule. If you need to preserve the original registry,
+    /// you'll need to rebuild it from config.
+    ///
+    /// # Arguments
+    ///
+    /// * `rule_id` - The ID of the rule to keep
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let mut registry = RuleRegistry::build_from_config(&config)?;
+    /// registry.filter_to_single_rule(&rule_id);
+    /// ```
+    pub fn filter_to_single_rule(&mut self, rule_id: &RuleId) {
+        // Collect all rule IDs that are not the target rule
+        let to_remove: Vec<RuleId> = self
+            .rules
+            .keys()
+            .filter(|id| *id != rule_id)
+            .cloned()
+            .collect();
+
+        // Remove all rules except the target
+        for id in to_remove {
+            self.rules.remove(&id);
+        }
+    }
 }
 
 impl Default for RuleRegistry {
@@ -1695,5 +1730,81 @@ query = "(unclosed_paren"
             registry.get_rule(&no_fixme_comments).is_some(),
             "no-fixme-comments (language-agnostic) should always be present"
         );
+    }
+
+    #[test]
+    fn test_filter_to_single_rule_keeps_target() {
+        let temp_dir = TempDir::new().unwrap();
+        create_test_rule_file(temp_dir.path(), "rule1.toml", "rule-1");
+        create_test_rule_file(temp_dir.path(), "rule2.toml", "rule-2");
+        create_test_rule_file(temp_dir.path(), "rule3.toml", "rule-3");
+
+        let mut registry = RuleRegistry::new();
+        registry.load_builtin_regex_rules(temp_dir.path()).unwrap();
+        assert_eq!(registry.len(), 3);
+
+        // Filter to keep only rule-2
+        let target_rule_id = RuleId::new("rule-2").unwrap();
+        registry.filter_to_single_rule(&target_rule_id);
+
+        // Should only have 1 rule now
+        assert_eq!(registry.len(), 1);
+
+        // rule-2 should still exist
+        assert!(registry.get_rule(&target_rule_id).is_some());
+
+        // Other rules should be removed
+        assert!(registry.get_rule(&RuleId::new("rule-1").unwrap()).is_none());
+        assert!(registry.get_rule(&RuleId::new("rule-3").unwrap()).is_none());
+    }
+
+    #[test]
+    fn test_filter_to_single_rule_nonexistent() {
+        let temp_dir = TempDir::new().unwrap();
+        create_test_rule_file(temp_dir.path(), "rule1.toml", "rule-1");
+        create_test_rule_file(temp_dir.path(), "rule2.toml", "rule-2");
+
+        let mut registry = RuleRegistry::new();
+        registry.load_builtin_regex_rules(temp_dir.path()).unwrap();
+        assert_eq!(registry.len(), 2);
+
+        // Filter to a nonexistent rule
+        let nonexistent_rule_id = RuleId::new("nonexistent").unwrap();
+        registry.filter_to_single_rule(&nonexistent_rule_id);
+
+        // Should have 0 rules since the target doesn't exist
+        assert_eq!(registry.len(), 0);
+        assert!(registry.is_empty());
+    }
+
+    #[test]
+    fn test_filter_to_single_rule_empty_registry() {
+        let mut registry = RuleRegistry::new();
+        assert!(registry.is_empty());
+
+        // Filtering an empty registry should remain empty
+        let some_rule_id = RuleId::new("some-rule").unwrap();
+        registry.filter_to_single_rule(&some_rule_id);
+
+        assert!(registry.is_empty());
+        assert_eq!(registry.len(), 0);
+    }
+
+    #[test]
+    fn test_filter_to_single_rule_already_single() {
+        let temp_dir = TempDir::new().unwrap();
+        create_test_rule_file(temp_dir.path(), "only-rule.toml", "only-rule");
+
+        let mut registry = RuleRegistry::new();
+        registry.load_builtin_regex_rules(temp_dir.path()).unwrap();
+        assert_eq!(registry.len(), 1);
+
+        // Filter to the only rule that exists
+        let rule_id = RuleId::new("only-rule").unwrap();
+        registry.filter_to_single_rule(&rule_id);
+
+        // Should still have 1 rule
+        assert_eq!(registry.len(), 1);
+        assert!(registry.get_rule(&rule_id).is_some());
     }
 }

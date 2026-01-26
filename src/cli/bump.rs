@@ -250,37 +250,9 @@ fn get_current_violation_count(
     let region_path = RegionPath::new(region);
     counts.set_count(rule_id, &region_path, u64::MAX);
 
-    // Build a filtered registry with only the target rule
-    let full_registry = super::common::build_registry(config)?;
-    let mut single_rule_registry = RuleRegistry::new();
-
-    // Copy only the target rule to the single rule registry
-    // We need to re-load the rule since we can't clone Box<dyn Rule>
-    if full_registry.get_rule(rule_id).is_some() {
-        // The rule exists, now we need to create a registry with only this rule
-        // Filter to only keep the target rule
-        let mut filtered_config = config.clone();
-        // Disable all rules except the target
-        for other_rule_id in full_registry
-            .iter_rules()
-            .map(|r| r.id().clone())
-            .collect::<Vec<_>>()
-        {
-            if other_rule_id != *rule_id {
-                filtered_config.rules.builtin.insert(
-                    other_rule_id.clone(),
-                    crate::config::ratchet_toml::RuleValue::Enabled(false),
-                );
-                filtered_config.rules.custom.insert(
-                    other_rule_id,
-                    crate::config::ratchet_toml::RuleValue::Enabled(false),
-                );
-            }
-        }
-
-        // Rebuild registry with the filtered config
-        single_rule_registry = super::common::build_registry(&filtered_config)?;
-    }
+    // Build a registry with only the target rule
+    let mut single_rule_registry = super::common::build_registry(config)?;
+    single_rule_registry.filter_to_single_rule(rule_id);
 
     // Discover files in the region
     let files = super::common::discover_files(&[region.to_string()], config)?;
