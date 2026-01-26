@@ -10,9 +10,11 @@ use crate::cli::common::{EXIT_ERROR, EXIT_SUCCESS, load_counts};
 use crate::config::counts::CountsManager;
 use crate::engine::aggregator::ViolationAggregator;
 use crate::engine::executor::ExecutionEngine;
+use crate::output::{
+    CheckStatus, RuleSource, RuleStatus, RuleStatusHumanFormatter, RuleStatusJsonlFormatter,
+};
 use crate::rules::Rule;
 use crate::types::{Language, RuleId, Severity};
-use serde::Serialize;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -107,8 +109,14 @@ fn run_list_inner(format: OutputFormat) -> Result<(), ListError> {
 
     // 9. Format and print output
     match format {
-        OutputFormat::Human => print_human_output(&rule_statuses),
-        OutputFormat::Jsonl => print_jsonl_output(&rule_statuses),
+        OutputFormat::Human => {
+            let formatter = RuleStatusHumanFormatter::new();
+            formatter.write_to_stdout(&rule_statuses);
+        }
+        OutputFormat::Jsonl => {
+            let formatter = RuleStatusJsonlFormatter::new();
+            formatter.write_to_stdout(&rule_statuses);
+        }
     }
 
     Ok(())
@@ -121,52 +129,6 @@ struct RuleMetadata {
     description: String,
     languages: Vec<Language>,
     severity: Severity,
-}
-
-/// Status information for a single rule
-#[derive(Debug, Clone)]
-struct RuleStatus {
-    rule_id: RuleId,
-    description: String,
-    source: RuleSource,
-    languages: Vec<Language>,
-    severity: Severity,
-    violations: u64,
-    budget: u64,
-    status: CheckStatus,
-}
-
-/// Source of a rule (builtin or custom)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)] // Custom variant reserved for future use
-enum RuleSource {
-    Builtin,
-    Custom,
-}
-
-impl RuleSource {
-    fn as_str(&self) -> &'static str {
-        match self {
-            RuleSource::Builtin => "builtin",
-            RuleSource::Custom => "custom",
-        }
-    }
-}
-
-/// Status of a rule check (pass, fail, or over-budget)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CheckStatus {
-    Pass,
-    OverBudget,
-}
-
-impl CheckStatus {
-    fn as_str(&self) -> &'static str {
-        match self {
-            CheckStatus::Pass => "pass",
-            CheckStatus::OverBudget => "over_budget",
-        }
-    }
 }
 
 /// Build rule statuses by combining rule metadata with violation counts
@@ -204,12 +166,19 @@ fn build_rule_statuses(
         });
         let passed = violation_passed.get(rule_id).copied().unwrap_or(true);
 
+        // Convert types to strings for the output module RuleStatus
+        let languages: Vec<String> = metadata
+            .languages
+            .iter()
+            .map(|l| format!("{:?}", l).to_lowercase())
+            .collect();
+
         let status = RuleStatus {
-            rule_id: rule_id.clone(),
+            rule_id: rule_id.as_str().to_string(),
             description: metadata.description.clone(),
             source: determine_rule_source(rule_id),
-            languages: metadata.languages.clone(),
-            severity: metadata.severity,
+            languages,
+            severity: format!("{:?}", metadata.severity).to_lowercase(),
             violations,
             budget,
             status: if passed {
@@ -223,7 +192,7 @@ fn build_rule_statuses(
     }
 
     // Sort by rule_id for deterministic output
-    statuses.sort_by(|a, b| a.rule_id.as_str().cmp(b.rule_id.as_str()));
+    statuses.sort_by(|a, b| a.rule_id.cmp(&b.rule_id));
 
     statuses
 }
@@ -236,114 +205,11 @@ fn determine_rule_source(_rule_id: &RuleId) -> RuleSource {
     RuleSource::Builtin
 }
 
-/// Print human-readable output
-fn print_human_output(statuses: &[RuleStatus]) {
-    println!("Rules ({} enabled):", statuses.len());
-    println!();
-
-    for status in statuses {
-        println!("{} ({})", status.rule_id.as_str(), status.source.as_str());
-        println!("  Description: {}", status.description);
-
-        // Format languages
-        let langs: Vec<String> = status
-            .languages
-            .iter()
-            .map(|l| format!("{:?}", l).to_lowercase())
-            .collect();
-        println!("  Languages: {}", langs.join(", "));
-
-        println!("  Severity: {:?}", status.severity);
-        println!("  Violations: {}", status.violations);
-        println!("  Budget: {}", status.budget);
-
-        let (icon, status_text) = match status.status {
-            CheckStatus::Pass => ("✓", "within budget".to_string()),
-            CheckStatus::OverBudget => {
-                let excess = status.violations.saturating_sub(status.budget);
-                ("✗", format!("exceeded by {}", excess))
-            }
-        };
-
-        println!("  Status: {} {}", icon, status_text);
-        println!();
-    }
-}
-
-/// JSONL output structure
-#[derive(Debug, Serialize)]
-struct JsonlRuleStatus {
-    rule_id: String,
-    source: String,
-    description: String,
-    languages: Vec<String>,
-    severity: String,
-    violations: u64,
-    budget: u64,
-    status: String,
-}
-
-/// Print JSONL output (one JSON object per line for each rule)
-fn print_jsonl_output(statuses: &[RuleStatus]) {
-    for status in statuses {
-        let jsonl_status = JsonlRuleStatus {
-            rule_id: status.rule_id.as_str().to_string(),
-            source: status.source.as_str().to_string(),
-            description: status.description.clone(),
-            languages: status
-                .languages
-                .iter()
-                .map(|l| format!("{:?}", l).to_lowercase())
-                .collect(),
-            severity: format!("{:?}", status.severity).to_lowercase(),
-            violations: status.violations,
-            budget: status.budget,
-            status: status.status.as_str().to_string(),
-        };
-
-        if let Ok(json) = serde_json::to_string(&jsonl_status) {
-            println!("{}", json);
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::engine::aggregator::{AggregationResult, RuleRegionStatus};
     use crate::types::RegionPath;
-
-    #[test]
-    fn test_rule_source_as_str() {
-        assert_eq!(RuleSource::Builtin.as_str(), "builtin");
-        assert_eq!(RuleSource::Custom.as_str(), "custom");
-    }
-
-    #[test]
-    fn test_check_status_as_str() {
-        assert_eq!(CheckStatus::Pass.as_str(), "pass");
-        assert_eq!(CheckStatus::OverBudget.as_str(), "over_budget");
-    }
-
-    #[test]
-    fn test_jsonl_rule_status_serialization() {
-        let status = JsonlRuleStatus {
-            rule_id: "no-unwrap".to_string(),
-            source: "builtin".to_string(),
-            description: "Disallow .unwrap() calls".to_string(),
-            languages: vec!["rust".to_string()],
-            severity: "error".to_string(),
-            violations: 5,
-            budget: 10,
-            status: "pass".to_string(),
-        };
-
-        let json = serde_json::to_string(&status).unwrap();
-        assert!(json.contains("no-unwrap"));
-        assert!(json.contains("builtin"));
-        assert!(json.contains("\"violations\":5"));
-        assert!(json.contains("\"budget\":10"));
-    }
 
     #[test]
     fn test_build_rule_statuses_empty() {
@@ -391,7 +257,7 @@ mod tests {
         assert_eq!(statuses.len(), 1);
 
         let status = &statuses[0];
-        assert_eq!(status.rule_id.as_str(), "test-rule");
+        assert_eq!(status.rule_id, "test-rule");
         assert_eq!(status.violations, 5);
         assert_eq!(status.budget, 10);
         assert_eq!(status.status, CheckStatus::Pass);
@@ -428,7 +294,7 @@ mod tests {
         assert_eq!(statuses.len(), 1);
 
         let status = &statuses[0];
-        assert_eq!(status.rule_id.as_str(), "test-rule");
+        assert_eq!(status.rule_id, "test-rule");
         assert_eq!(status.violations, 10);
         assert_eq!(status.budget, 5);
         assert_eq!(status.status, CheckStatus::OverBudget);
@@ -486,10 +352,10 @@ mod tests {
         assert_eq!(statuses.len(), 2);
 
         // Should be sorted by rule_id
-        assert_eq!(statuses[0].rule_id.as_str(), "rule-1");
+        assert_eq!(statuses[0].rule_id, "rule-1");
         assert_eq!(statuses[0].status, CheckStatus::Pass);
 
-        assert_eq!(statuses[1].rule_id.as_str(), "rule-2");
+        assert_eq!(statuses[1].rule_id, "rule-2");
         assert_eq!(statuses[1].status, CheckStatus::OverBudget);
     }
 
