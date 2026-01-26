@@ -38,24 +38,26 @@ enum BumpError {
 /// Run the bump command
 ///
 /// This is the main entry point for the bump command. It:
-/// 1. Validates the rule ID exists
-/// 2. If count is None, runs check to get current violation count
-/// 3. If count is Some, validates it's not below current violations
-/// 4. Updates ratchet-counts.toml with the new budget
+/// 1. Validates the rule ID exists (unless --all is used)
+/// 2. If --all is used, bumps all enabled rules to their current violation counts
+/// 3. If count is None, runs check to get current violation count
+/// 4. If count is Some, validates it's not below current violations
+/// 5. Updates ratchet-counts.toml with the new budget
 ///
 /// # Arguments
 ///
-/// * `rule_id` - The rule ID to bump
+/// * `rule_id` - The rule ID to bump (None when --all is used)
 /// * `region` - The region path to bump (defaults to ".")
 /// * `count` - Optional new count (auto-detects if None)
+/// * `all` - Whether to bump all rules
 ///
 /// # Returns
 ///
 /// Exit code:
 /// - 0: Success
 /// - 2: Error (config error, invalid rule ID, count below current violations)
-pub fn run_bump(rule_id: &str, region: &str, count: Option<u64>) -> i32 {
-    match run_bump_inner(rule_id, region, count) {
+pub fn run_bump(rule_id: Option<&str>, region: &str, count: Option<u64>, all: bool) -> i32 {
+    match run_bump_inner(rule_id, region, count, all) {
         Ok(()) => EXIT_SUCCESS,
         Err(e) => {
             eprintln!("Error: {}", e);
@@ -65,20 +67,35 @@ pub fn run_bump(rule_id: &str, region: &str, count: Option<u64>) -> i32 {
 }
 
 /// Internal implementation of bump command
-fn run_bump_inner(rule_id: &str, region: &str, count: Option<u64>) -> Result<(), BumpError> {
-    // 1. Validate rule_id
-    let rule_id = RuleId::new(rule_id).ok_or_else(|| {
-        BumpError::Other(format!(
-            "Invalid rule ID '{}'. Rule IDs must contain only alphanumeric characters, hyphens, and underscores.",
-            rule_id
-        ))
-    })?;
-
-    // 2. Load configuration and verify rule exists
+fn run_bump_inner(
+    rule_id: Option<&str>,
+    region: &str,
+    count: Option<u64>,
+    all: bool,
+) -> Result<(), BumpError> {
+    // Load configuration
     let config = super::common::load_config().map_err(BumpError::Config)?;
     let registry = super::common::build_registry(&config)?;
 
-    // Verify the rule exists in the registry
+    // Handle --all flag
+    if all {
+        return run_bump_all(&config, &registry);
+    }
+
+    // When not using --all, rule_id is required
+    let rule_id_str = rule_id.ok_or_else(|| {
+        BumpError::Other("Rule ID is required when --all is not used".to_string())
+    })?;
+
+    // 1. Validate rule_id
+    let rule_id = RuleId::new(rule_id_str).ok_or_else(|| {
+        BumpError::Other(format!(
+            "Invalid rule ID '{}'. Rule IDs must contain only alphanumeric characters, hyphens, and underscores.",
+            rule_id_str
+        ))
+    })?;
+
+    // 2. Verify rule exists in the registry
     if registry.get_rule(&rule_id).is_none() {
         return Err(BumpError::Other(format!(
             "Rule '{}' not found. Run 'ratchet list' to see available rules.",
@@ -146,6 +163,70 @@ fn run_bump_inner(rule_id: &str, region: &str, count: Option<u64>) -> Result<(),
             new_count
         );
     }
+
+    Ok(())
+}
+
+/// Bump all enabled rules to their current violation counts
+fn run_bump_all(config: &Config, registry: &RuleRegistry) -> Result<(), BumpError> {
+    // Load existing counts
+    let counts_path = Path::new("ratchet-counts.toml");
+    let mut counts = if counts_path.exists() {
+        CountsManager::load(counts_path)?
+    } else {
+        CountsManager::new()
+    };
+
+    // Get all enabled rules from the registry
+    let rule_ids: Vec<RuleId> = registry.iter_rules().map(|r| r.id().clone()).collect();
+
+    if rule_ids.is_empty() {
+        return Err(BumpError::Other(
+            "No enabled rules found. Check your ratchet.toml configuration.".to_string(),
+        ));
+    }
+
+    println!(
+        "Bumping {} rules to current violation counts...",
+        rule_ids.len()
+    );
+
+    // For each rule, get current violations and update budget for root region
+    let mut updated = 0;
+    let mut unchanged = 0;
+
+    for rule_id in rule_ids {
+        // Get current violation count for root region
+        let current_count = get_current_violation_count(&rule_id, ".", config)?;
+
+        // Get old budget
+        let region_path = RegionPath::new(".");
+        let old_count = get_budget_for_region(&counts, &rule_id, &region_path);
+
+        // Update the count
+        counts.set_count(&rule_id, &region_path, current_count);
+
+        if old_count == current_count {
+            unchanged += 1;
+        } else {
+            println!(
+                "  {} budget: {} -> {}",
+                rule_id.as_str(),
+                old_count,
+                current_count
+            );
+            updated += 1;
+        }
+    }
+
+    // Write back to file
+    let toml_content = counts.to_toml_string();
+    std::fs::write(counts_path, toml_content)?;
+
+    println!(
+        "\nCompleted: {} rules updated, {} unchanged",
+        updated, unchanged
+    );
 
     Ok(())
 }

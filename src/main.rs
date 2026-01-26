@@ -23,7 +23,8 @@ fn main() {
             rule_id,
             region,
             count,
-        } => ratchet::cli::bump::run_bump(&rule_id, &region, count),
+            all,
+        } => ratchet::cli::bump::run_bump(rule_id.as_deref(), &region, count, all),
         Command::Tighten { rule_id, region } => {
             ratchet::cli::tighten::run_tighten(rule_id.as_deref(), region.as_deref())
         }

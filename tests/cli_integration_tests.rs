@@ -276,7 +276,7 @@ fn test_bump_with_explicit_count() {
         setup_basic_project(temp_dir.path());
 
         // Bump to explicit count
-        let exit_code = cli::bump::run_bump("no-todo-comments", ".", Some(10));
+        let exit_code = cli::bump::run_bump(Some("no-todo-comments"), ".", Some(10), false);
 
         assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
 
@@ -293,7 +293,7 @@ fn test_bump_with_auto_detect() {
         setup_basic_project(temp_dir.path());
 
         // Bump with auto-detect (should set to current count of 1)
-        let exit_code = cli::bump::run_bump("no-todo-comments", ".", None);
+        let exit_code = cli::bump::run_bump(Some("no-todo-comments"), ".", None, false);
 
         assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
 
@@ -311,7 +311,7 @@ fn test_bump_rejects_count_below_current() {
         setup_basic_project(temp_dir.path());
 
         // Try to bump to 0 (below current count of 1)
-        let exit_code = cli::bump::run_bump("no-todo-comments", ".", Some(0));
+        let exit_code = cli::bump::run_bump(Some("no-todo-comments"), ".", Some(0), false);
 
         // Should fail
         assert_eq!(exit_code, cli::common::EXIT_ERROR);
@@ -332,7 +332,7 @@ fn test_bump_with_custom_region() {
         .unwrap();
 
         // Bump the src region
-        let exit_code = cli::bump::run_bump("no-todo-comments", "src", Some(5));
+        let exit_code = cli::bump::run_bump(Some("no-todo-comments"), "src", Some(5), false);
 
         assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
 
@@ -349,7 +349,7 @@ fn test_bump_invalid_rule_id() {
         setup_basic_project(temp_dir.path());
 
         // Try to bump non-existent rule
-        let exit_code = cli::bump::run_bump("nonexistent-rule", ".", Some(10));
+        let exit_code = cli::bump::run_bump(Some("nonexistent-rule"), ".", Some(10), false);
 
         // Should fail
         assert_eq!(exit_code, cli::common::EXIT_ERROR);
@@ -361,7 +361,7 @@ fn test_bump_missing_config() {
     with_temp_dir(|_temp_dir| {
         // Don't create config
 
-        let exit_code = cli::bump::run_bump("no-todo-comments", ".", Some(10));
+        let exit_code = cli::bump::run_bump(Some("no-todo-comments"), ".", Some(10), false);
 
         // Should fail
         assert_eq!(exit_code, cli::common::EXIT_ERROR);
@@ -823,7 +823,7 @@ fn test_bump_creates_counts_file_if_missing() {
         // Remove counts file
         fs::remove_file(temp_dir.path().join("ratchet-counts.toml")).unwrap();
 
-        let exit_code = cli::bump::run_bump("no-todo-comments", ".", Some(10));
+        let exit_code = cli::bump::run_bump(Some("no-todo-comments"), ".", Some(10), false);
 
         assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
 

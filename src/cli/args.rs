@@ -60,16 +60,21 @@ pub enum Command {
 
     /// Increase a rule's violation budget
     Bump {
-        /// Rule ID to bump
-        rule_id: String,
+        /// Rule ID to bump (optional when --all is used)
+        #[arg(required_unless_present = "all")]
+        rule_id: Option<String>,
 
         /// Region to bump (defaults to root)
         #[arg(long, default_value = ".")]
         region: String,
 
         /// New count (auto-detects if not specified)
-        #[arg(long)]
+        #[arg(long, conflicts_with = "all")]
         count: Option<u64>,
+
+        /// Bump all rules to their current violation counts
+        #[arg(long, conflicts_with = "region")]
+        all: bool,
     },
 
     /// Reduce budgets to match current violations
@@ -189,10 +194,12 @@ mod tests {
                 rule_id,
                 region,
                 count,
+                all,
             } => {
-                assert_eq!(rule_id, "no-unwrap");
+                assert_eq!(rule_id, Some("no-unwrap".to_string()));
                 assert_eq!(region, ".");
                 assert_eq!(count, None);
+                assert!(!all);
             }
             _ => panic!("Expected Bump command"),
         }
@@ -206,10 +213,12 @@ mod tests {
                 rule_id,
                 region,
                 count,
+                all,
             } => {
-                assert_eq!(rule_id, "no-unwrap");
+                assert_eq!(rule_id, Some("no-unwrap".to_string()));
                 assert_eq!(region, "src/legacy");
                 assert_eq!(count, None);
+                assert!(!all);
             }
             _ => panic!("Expected Bump command"),
         }
@@ -223,10 +232,12 @@ mod tests {
                 rule_id,
                 region,
                 count,
+                all,
             } => {
-                assert_eq!(rule_id, "no-unwrap");
+                assert_eq!(rule_id, Some("no-unwrap".to_string()));
                 assert_eq!(region, ".");
                 assert_eq!(count, Some(20));
+                assert!(!all);
             }
             _ => panic!("Expected Bump command"),
         }
@@ -248,10 +259,12 @@ mod tests {
                 rule_id,
                 region,
                 count,
+                all,
             } => {
-                assert_eq!(rule_id, "no-unwrap");
+                assert_eq!(rule_id, Some("no-unwrap".to_string()));
                 assert_eq!(region, "src/legacy");
                 assert_eq!(count, Some(20));
+                assert!(!all);
             }
             _ => panic!("Expected Bump command"),
         }
@@ -413,12 +426,69 @@ mod tests {
 
     #[test]
     fn test_missing_required_args() {
-        // Bump requires rule_id
+        // Bump requires rule_id when --all is not used
         let result = Cli::try_parse_from(["ratchet", "bump"]);
         assert!(result.is_err());
 
         // MergeDriver requires three positional args
         let result = Cli::try_parse_from(["ratchet", "merge-driver", "base"]);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_bump_all_flag() {
+        let cli = Cli::parse_from(["ratchet", "bump", "--all"]);
+        match cli.command {
+            Command::Bump {
+                rule_id,
+                region,
+                count,
+                all,
+            } => {
+                assert_eq!(rule_id, None);
+                assert_eq!(region, ".");
+                assert_eq!(count, None);
+                assert!(all);
+            }
+            _ => panic!("Expected Bump command"),
+        }
+    }
+
+    #[test]
+    fn test_bump_all_with_rule_id() {
+        // Using both rule_id and --all should work (rule_id is just ignored)
+        let cli = Cli::parse_from(["ratchet", "bump", "no-unwrap", "--all"]);
+        match cli.command {
+            Command::Bump {
+                rule_id,
+                region,
+                count,
+                all,
+            } => {
+                assert_eq!(rule_id, Some("no-unwrap".to_string()));
+                assert_eq!(region, ".");
+                assert_eq!(count, None);
+                assert!(all);
+            }
+            _ => panic!("Expected Bump command"),
+        }
+    }
+
+    #[test]
+    fn test_bump_all_conflicts_with_region() {
+        // --all conflicts with --region
+        let result = Cli::try_parse_from(["ratchet", "bump", "--all", "--region", "src/"]);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("--all") || err_msg.contains("--region"));
+    }
+
+    #[test]
+    fn test_bump_all_conflicts_with_count() {
+        // --all conflicts with --count
+        let result = Cli::try_parse_from(["ratchet", "bump", "--all", "--count", "20"]);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("--all") || err_msg.contains("--count"));
     }
 }
