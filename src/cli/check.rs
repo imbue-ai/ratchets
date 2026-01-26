@@ -14,8 +14,9 @@ use crate::cli::common::{EXIT_ERROR, EXIT_EXCEEDED, EXIT_PARSE_ERROR, EXIT_SUCCE
 use crate::engine::aggregator::ViolationAggregator;
 use crate::engine::executor::ExecutionEngine;
 use crate::error::ConfigError;
-use serde::Serialize;
+use crate::output::{HumanFormatter, JsonlFormatter};
 use std::path::PathBuf;
+use termcolor::ColorChoice;
 
 /// Error type specific to check command
 #[derive(Debug, thiserror::Error)]
@@ -124,109 +125,21 @@ fn run_check_inner(paths: &[String], format: OutputFormat) -> Result<bool, Check
 
     // 8. Format and print output
     match format {
-        OutputFormat::Human => print_human_output(&aggregation_result),
-        OutputFormat::Jsonl => print_jsonl_output(&aggregation_result),
+        OutputFormat::Human => {
+            eprintln!(); // Blank line after "Checking..." message
+            let formatter = HumanFormatter::new(ColorChoice::Auto);
+            if let Err(e) = formatter.write_to_stdout(&aggregation_result) {
+                eprintln!("Error writing output: {}", e);
+            }
+        }
+        OutputFormat::Jsonl => {
+            let formatter = JsonlFormatter::new();
+            print!("{}", formatter.format(&aggregation_result));
+        }
     }
 
     // 9. Return pass/fail status
     Ok(aggregation_result.passed)
-}
-
-/// Print human-readable output
-fn print_human_output(result: &crate::engine::aggregator::AggregationResult) {
-    // Print violations grouped by rule and region
-    if !result.statuses.is_empty() {
-        eprintln!(); // Blank line after "Checking..." message
-
-        for status in &result.statuses {
-            // Only print violations if there are any
-            if !status.violations.is_empty() {
-                for violation in &status.violations {
-                    eprintln!(
-                        "{}: {}:{}:{} - {}",
-                        status.rule_id.as_str(),
-                        violation.file.display(),
-                        violation.line,
-                        violation.column,
-                        violation.message
-                    );
-                }
-            }
-        }
-
-        eprintln!(); // Blank line before results summary
-    }
-
-    // Print summary of results
-    eprintln!("Results:");
-    if result.statuses.is_empty() {
-        eprintln!("  No violations found.");
-    } else {
-        for status in &result.statuses {
-            let status_icon = if status.passed { "✓" } else { "✗" };
-            let status_text = if status.passed {
-                "".to_string()
-            } else {
-                " exceeded".to_string()
-            };
-
-            eprintln!(
-                "  {} [{}]: {} violations (budget: {}) {}{}",
-                status.rule_id.as_str(),
-                status.region.as_str(),
-                status.actual_count,
-                status.budget,
-                status_icon,
-                status_text
-            );
-        }
-    }
-
-    eprintln!(); // Blank line before final status
-
-    // Print final pass/fail status
-    if result.passed {
-        eprintln!("Check PASSED: All rules within budget");
-    } else {
-        let num_failed = result.statuses.iter().filter(|s| !s.passed).count();
-        eprintln!("Check FAILED: {} rule(s) exceeded budget", num_failed);
-    }
-}
-
-/// JSONL violation output structure
-#[derive(Debug, Serialize)]
-struct JsonlViolation {
-    rule_id: String,
-    file: String,
-    line: u32,
-    column: u32,
-    end_line: u32,
-    end_column: u32,
-    message: String,
-    region: String,
-}
-
-/// Print JSONL output (one JSON object per line for each violation)
-fn print_jsonl_output(result: &crate::engine::aggregator::AggregationResult) {
-    for status in &result.statuses {
-        for violation in &status.violations {
-            let jsonl_violation = JsonlViolation {
-                rule_id: violation.rule_id.as_str().to_string(),
-                file: violation.file.display().to_string(),
-                line: violation.line,
-                column: violation.column,
-                end_line: violation.end_line,
-                end_column: violation.end_column,
-                message: violation.message.clone(),
-                region: violation.region.as_str().to_string(),
-            };
-
-            // Print each violation as a JSON line
-            if let Ok(json) = serde_json::to_string(&jsonl_violation) {
-                println!("{}", json);
-            }
-        }
-    }
 }
 
 #[cfg(test)]
@@ -245,24 +158,5 @@ mod tests {
     fn test_check_error_display() {
         let err = CheckError::Other("test error".to_string());
         assert_eq!(err.to_string(), "test error");
-    }
-
-    #[test]
-    fn test_jsonl_violation_serialization() {
-        let violation = JsonlViolation {
-            rule_id: "no-unwrap".to_string(),
-            file: "src/main.rs".to_string(),
-            line: 10,
-            column: 5,
-            end_line: 10,
-            end_column: 15,
-            message: "Avoid using .unwrap()".to_string(),
-            region: "src".to_string(),
-        };
-
-        let json = serde_json::to_string(&violation).unwrap();
-        assert!(json.contains("no-unwrap"));
-        assert!(json.contains("src/main.rs"));
-        assert!(json.contains("10"));
     }
 }
