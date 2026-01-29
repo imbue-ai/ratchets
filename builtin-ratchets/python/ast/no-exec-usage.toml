@@ -4,5 +4,9 @@ description = "exec() should not be used due to security and maintainability con
 severity = "error"
 
 [match]
-pattern = "\\bexec\\s*\\("
-languages = ["python"]
+language = "python"
+query = """
+(call
+  function: (identifier) @func
+  (#eq? @func "exec")) @violation
+"""
