@@ -414,6 +414,488 @@ def clean_code():
         // Note: The query may still produce some violations, so we just check it completes
         drop(violations);
     }
+
+    // Tests for no-base-exception rule
+    #[test]
+    fn test_no_base_exception_rule_loads() {
+        let rule = load_builtin_rule("python", "no-base-exception");
+        assert_eq!(rule.id().as_str(), "no-base-exception");
+        assert_eq!(rule.languages(), &[Language::Python]);
+    }
+
+    #[test]
+    fn test_no_base_exception_detects_both_forms() {
+        let rule = load_builtin_rule("python", "no-base-exception");
+        let content = read_fixture("python_exception_handling.py");
+
+        let parser_cache = ParserCache::new();
+        let mut parser = parser_cache.get_parser(Language::Python).unwrap();
+        let tree = parser.parse(&content, None).unwrap();
+
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+
+        // Should detect both `except BaseException:` and `except BaseException as e:`
+        assert_eq!(
+            violations.len(),
+            2,
+            "Expected 2 violations for BaseException, found {}",
+            violations.len()
+        );
+
+        // Verify these are actual except clauses with BaseException
+        for v in &violations {
+            assert!(
+                v.snippet.contains("BaseException"),
+                "Should contain BaseException: {}",
+                v.snippet
+            );
+        }
+
+        // Verify correct line numbers
+        let lines: Vec<u32> = violations.iter().map(|v| v.line).collect();
+        assert!(lines.contains(&8), "Should find violation on line 8");
+        assert!(lines.contains(&14), "Should find violation on line 14");
+    }
+
+    #[test]
+    fn test_no_base_exception_positions() {
+        let rule = load_builtin_rule("python", "no-base-exception");
+        let content = read_fixture("python_exception_handling.py");
+
+        let parser_cache = ParserCache::new();
+        let mut parser = parser_cache.get_parser(Language::Python).unwrap();
+        let tree = parser.parse(&content, None).unwrap();
+
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+
+        for violation in &violations {
+            assert!(violation.line > 0, "Line should be 1-indexed");
+            assert!(violation.column > 0, "Column should be 1-indexed");
+            assert!(
+                violation.end_line >= violation.line,
+                "End line should be >= start line"
+            );
+            assert!(!violation.snippet.is_empty(), "Snippet should not be empty");
+        }
+    }
+
+    // Tests for no-broad-exception rule
+    #[test]
+    fn test_no_broad_exception_rule_loads() {
+        let rule = load_builtin_rule("python", "no-broad-exception");
+        assert_eq!(rule.id().as_str(), "no-broad-exception");
+        assert_eq!(rule.languages(), &[Language::Python]);
+    }
+
+    #[test]
+    fn test_no_broad_exception_detects_both_forms() {
+        let rule = load_builtin_rule("python", "no-broad-exception");
+        let content = read_fixture("python_exception_handling.py");
+
+        let parser_cache = ParserCache::new();
+        let mut parser = parser_cache.get_parser(Language::Python).unwrap();
+        let tree = parser.parse(&content, None).unwrap();
+
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+
+        // Should detect both `except Exception:` and `except Exception as e:`
+        assert_eq!(
+            violations.len(),
+            2,
+            "Expected 2 violations for Exception, found {}",
+            violations.len()
+        );
+
+        // Verify these are actual except clauses with Exception
+        for v in &violations {
+            assert!(
+                v.snippet.contains("Exception"),
+                "Should contain Exception: {}",
+                v.snippet
+            );
+        }
+
+        // Verify correct line numbers
+        let lines: Vec<u32> = violations.iter().map(|v| v.line).collect();
+        assert!(lines.contains(&21), "Should find violation on line 21");
+        assert!(lines.contains(&27), "Should find violation on line 27");
+    }
+
+    // Tests for no-eval-usage rule
+    #[test]
+    fn test_no_eval_usage_rule_loads() {
+        let rule = load_builtin_rule("python", "no-eval-usage");
+        assert_eq!(rule.id().as_str(), "no-eval-usage");
+        assert_eq!(rule.languages(), &[Language::Python]);
+    }
+
+    #[test]
+    fn test_no_eval_usage_finds_violations() {
+        let rule = load_builtin_rule("python", "no-eval-usage");
+        let content = read_fixture("python_eval_exec.py");
+
+        let parser_cache = ParserCache::new();
+        let mut parser = parser_cache.get_parser(Language::Python).unwrap();
+        let tree = parser.parse(&content, None).unwrap();
+
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+
+        // Should find 3 eval() calls
+        assert_eq!(
+            violations.len(),
+            3,
+            "Expected 3 violations for eval(), found {}",
+            violations.len()
+        );
+
+        // Verify correct line numbers
+        let lines: Vec<u32> = violations.iter().map(|v| v.line).collect();
+        assert!(lines.contains(&6), "Should find violation on line 6");
+        assert!(lines.contains(&11), "Should find violation on line 11");
+        assert!(lines.contains(&15), "Should find violation on line 15");
+    }
+
+    #[test]
+    fn test_no_eval_usage_no_false_positives() {
+        let rule = load_builtin_rule("python", "no-eval-usage");
+        let content = read_fixture("python_eval_exec.py");
+
+        let parser_cache = ParserCache::new();
+        let mut parser = parser_cache.get_parser(Language::Python).unwrap();
+        let tree = parser.parse(&content, None).unwrap();
+
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+
+        // Verify no violations from strings or variable names
+        for v in &violations {
+            // Should not match string literals
+            assert!(
+                !v.snippet.contains("\"eval"),
+                "Should not match string literals: {}",
+                v.snippet
+            );
+            // Should not match variable names like eval_result
+            assert!(
+                !v.snippet.contains("eval_result") && !v.snippet.contains("evaluate"),
+                "Should not match variable names: {}",
+                v.snippet
+            );
+        }
+    }
+
+    // Tests for no-exec-usage rule
+    #[test]
+    fn test_no_exec_usage_rule_loads() {
+        let rule = load_builtin_rule("python", "no-exec-usage");
+        assert_eq!(rule.id().as_str(), "no-exec-usage");
+        assert_eq!(rule.languages(), &[Language::Python]);
+    }
+
+    #[test]
+    fn test_no_exec_usage_finds_violations() {
+        let rule = load_builtin_rule("python", "no-exec-usage");
+        let content = read_fixture("python_eval_exec.py");
+
+        let parser_cache = ParserCache::new();
+        let mut parser = parser_cache.get_parser(Language::Python).unwrap();
+        let tree = parser.parse(&content, None).unwrap();
+
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+
+        // Should find 3 exec() calls
+        assert_eq!(
+            violations.len(),
+            3,
+            "Expected 3 violations for exec(), found {}",
+            violations.len()
+        );
+
+        // Verify correct line numbers
+        let lines: Vec<u32> = violations.iter().map(|v| v.line).collect();
+        assert!(lines.contains(&20), "Should find violation on line 20");
+        assert!(lines.contains(&24), "Should find violation on line 24");
+        assert!(lines.contains(&27), "Should find violation on line 27");
+    }
+
+    // Tests for no-while-true rule
+    #[test]
+    fn test_no_while_true_rule_loads() {
+        let rule = load_builtin_rule("python", "no-while-true");
+        assert_eq!(rule.id().as_str(), "no-while-true");
+        assert_eq!(rule.languages(), &[Language::Python]);
+    }
+
+    #[test]
+    fn test_no_while_true_finds_violations() {
+        let rule = load_builtin_rule("python", "no-while-true");
+        let content = read_fixture("python_control_flow.py");
+
+        let parser_cache = ParserCache::new();
+        let mut parser = parser_cache.get_parser(Language::Python).unwrap();
+        let tree = parser.parse(&content, None).unwrap();
+
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+
+        // Should find 3 while True loops
+        assert_eq!(
+            violations.len(),
+            3,
+            "Expected 3 violations for while True, found {}",
+            violations.len()
+        );
+
+        // Verify correct line numbers
+        let lines: Vec<u32> = violations.iter().map(|v| v.line).collect();
+        assert!(lines.contains(&6), "Should find violation on line 6");
+        assert!(lines.contains(&11), "Should find violation on line 11");
+        assert!(lines.contains(&17), "Should find violation on line 17");
+    }
+
+    #[test]
+    fn test_no_while_true_no_false_positives() {
+        let rule = load_builtin_rule("python", "no-while-true");
+        let content = read_fixture("python_control_flow.py");
+
+        let parser_cache = ParserCache::new();
+        let mut parser = parser_cache.get_parser(Language::Python).unwrap();
+        let tree = parser.parse(&content, None).unwrap();
+
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+
+        // Verify all violations are actual while True statements
+        for v in &violations {
+            assert!(
+                v.snippet.contains("while") && v.snippet.contains("True"),
+                "Should match while True: {}",
+                v.snippet
+            );
+        }
+    }
+
+    // Tests for no-global-keyword rule
+    #[test]
+    fn test_no_global_keyword_rule_loads() {
+        let rule = load_builtin_rule("python", "no-global-keyword");
+        assert_eq!(rule.id().as_str(), "no-global-keyword");
+        assert_eq!(rule.languages(), &[Language::Python]);
+    }
+
+    #[test]
+    fn test_no_global_keyword_finds_violations() {
+        let rule = load_builtin_rule("python", "no-global-keyword");
+        let content = read_fixture("python_control_flow.py");
+
+        let parser_cache = ParserCache::new();
+        let mut parser = parser_cache.get_parser(Language::Python).unwrap();
+        let tree = parser.parse(&content, None).unwrap();
+
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+
+        // Should find 3 global statements
+        assert_eq!(
+            violations.len(),
+            3,
+            "Expected 3 violations for global, found {}",
+            violations.len()
+        );
+
+        // Verify correct line numbers
+        let lines: Vec<u32> = violations.iter().map(|v| v.line).collect();
+        assert!(lines.contains(&25), "Should find violation on line 25");
+        assert!(lines.contains(&29), "Should find violation on line 29");
+        assert!(lines.contains(&35), "Should find violation on line 35");
+    }
+
+    // Tests for no-bare-print rule
+    #[test]
+    fn test_no_bare_print_rule_loads() {
+        let rule = load_builtin_rule("python", "no-bare-print");
+        assert_eq!(rule.id().as_str(), "no-bare-print");
+        assert_eq!(rule.languages(), &[Language::Python]);
+    }
+
+    #[test]
+    fn test_no_bare_print_finds_violations() {
+        let rule = load_builtin_rule("python", "no-bare-print");
+        let content = read_fixture("python_control_flow.py");
+
+        let parser_cache = ParserCache::new();
+        let mut parser = parser_cache.get_parser(Language::Python).unwrap();
+        let tree = parser.parse(&content, None).unwrap();
+
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+
+        // Should find 5 print() calls (including line 7 in the while loop)
+        assert_eq!(
+            violations.len(),
+            5,
+            "Expected 5 violations for print, found {}",
+            violations.len()
+        );
+
+        // Verify correct line numbers
+        let lines: Vec<u32> = violations.iter().map(|v| v.line).collect();
+        assert!(lines.contains(&7), "Should find violation on line 7");
+        assert!(lines.contains(&41), "Should find violation on line 41");
+        assert!(lines.contains(&44), "Should find violation on line 44");
+        assert!(lines.contains(&45), "Should find violation on line 45");
+        assert!(lines.contains(&49), "Should find violation on line 49");
+    }
+
+    #[test]
+    fn test_no_bare_print_no_false_positives() {
+        let rule = load_builtin_rule("python", "no-bare-print");
+        let content = read_fixture("python_control_flow.py");
+
+        let parser_cache = ParserCache::new();
+        let mut parser = parser_cache.get_parser(Language::Python).unwrap();
+        let tree = parser.parse(&content, None).unwrap();
+
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+
+        // Verify all violations are actual print() calls
+        for v in &violations {
+            assert!(
+                v.snippet.contains("print("),
+                "Should match print(): {}",
+                v.snippet
+            );
+        }
+    }
+
+    // Tests for python-no-todo-comments rule
+    #[test]
+    fn test_python_no_todo_comments_rule_loads() {
+        let rule = load_builtin_rule("python", "no-todo-comments");
+        assert_eq!(rule.id().as_str(), "python-no-todo-comments");
+        assert_eq!(rule.languages(), &[Language::Python]);
+    }
+
+    #[test]
+    fn test_python_no_todo_comments_finds_violations() {
+        let rule = load_builtin_rule("python", "no-todo-comments");
+        let content = read_fixture("python_comments.py");
+
+        let parser_cache = ParserCache::new();
+        let mut parser = parser_cache.get_parser(Language::Python).unwrap();
+        let tree = parser.parse(&content, None).unwrap();
+
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+
+        // Should find 5 TODO comments
+        assert_eq!(
+            violations.len(),
+            5,
+            "Expected 5 violations for TODO, found {}",
+            violations.len()
+        );
+
+        // Verify all violations contain TODO
+        for v in &violations {
+            assert!(
+                v.snippet.to_lowercase().contains("todo"),
+                "Violation should contain TODO: {}",
+                v.snippet
+            );
+        }
+
+        // Verify correct line numbers
+        let lines: Vec<u32> = violations.iter().map(|v| v.line).collect();
+        assert!(lines.contains(&5), "Should find violation on line 5");
+        assert!(lines.contains(&7), "Should find violation on line 7");
+        assert!(lines.contains(&10), "Should find violation on line 10");
+        assert!(lines.contains(&14), "Should find violation on line 14");
+        assert!(lines.contains(&19), "Should find violation on line 19");
+    }
+
+    #[test]
+    fn test_python_no_todo_comments_no_false_positives() {
+        let rule = load_builtin_rule("python", "no-todo-comments");
+        let content = read_fixture("python_comments.py");
+
+        let parser_cache = ParserCache::new();
+        let mut parser = parser_cache.get_parser(Language::Python).unwrap();
+        let tree = parser.parse(&content, None).unwrap();
+
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+
+        // AST rules only match actual comment nodes, not strings or docstrings
+        // Verify all violations are actual comments (start with #)
+        for v in &violations {
+            assert!(
+                v.snippet.trim().starts_with('#'),
+                "Should only match actual comments: {}",
+                v.snippet
+            );
+        }
+    }
+
+    // Tests for python-no-fixme-comments rule
+    #[test]
+    fn test_python_no_fixme_comments_rule_loads() {
+        let rule = load_builtin_rule("python", "no-fixme-comments");
+        assert_eq!(rule.id().as_str(), "python-no-fixme-comments");
+        assert_eq!(rule.languages(), &[Language::Python]);
+    }
+
+    #[test]
+    fn test_python_no_fixme_comments_finds_violations() {
+        let rule = load_builtin_rule("python", "no-fixme-comments");
+        let content = read_fixture("python_comments.py");
+
+        let parser_cache = ParserCache::new();
+        let mut parser = parser_cache.get_parser(Language::Python).unwrap();
+        let tree = parser.parse(&content, None).unwrap();
+
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+
+        // Should find 5 FIXME comments
+        assert_eq!(
+            violations.len(),
+            5,
+            "Expected 5 violations for FIXME, found {}",
+            violations.len()
+        );
+
+        // Verify all violations contain FIXME
+        for v in &violations {
+            assert!(
+                v.snippet.to_lowercase().contains("fixme"),
+                "Violation should contain FIXME: {}",
+                v.snippet
+            );
+        }
+
+        // Verify correct line numbers
+        let lines: Vec<u32> = violations.iter().map(|v| v.line).collect();
+        assert!(lines.contains(&23), "Should find violation on line 23");
+        assert!(lines.contains(&25), "Should find violation on line 25");
+        assert!(lines.contains(&28), "Should find violation on line 28");
+        assert!(lines.contains(&32), "Should find violation on line 32");
+        assert!(lines.contains(&37), "Should find violation on line 37");
+    }
+
+    #[test]
+    fn test_python_no_fixme_comments_no_false_positives() {
+        let rule = load_builtin_rule("python", "no-fixme-comments");
+        let content = read_fixture("python_comments.py");
+
+        let parser_cache = ParserCache::new();
+        let mut parser = parser_cache.get_parser(Language::Python).unwrap();
+        let tree = parser.parse(&content, None).unwrap();
+
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+
+        // AST rules only match actual comment nodes, not strings or docstrings
+        // Verify all violations are actual comments (start with #)
+        for v in &violations {
+            assert!(
+                v.snippet.trim().starts_with('#'),
+                "Should only match actual comments: {}",
+                v.snippet
+            );
+        }
+    }
 }
 
 /// Tests for query validation and error handling
