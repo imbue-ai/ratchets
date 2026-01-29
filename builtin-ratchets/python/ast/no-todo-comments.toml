@@ -1,0 +1,11 @@
+[rule]
+id = "python-no-todo-comments"
+description = "Disallow TODO comments in Python code"
+severity = "warning"
+
+[match]
+language = "python"
+query = """
+((comment) @violation
+ (#match? @violation "(?i)TODO"))
+"""

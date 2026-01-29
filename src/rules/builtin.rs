@@ -178,6 +178,14 @@ const BUILTIN_AST_PYTHON_RULES: &[(&str, &str)] = &[
         "no-bare-print",
         include_str!("../../builtin-ratchets/python/ast/no-bare-print.toml"),
     ),
+    (
+        "python-no-todo-comments",
+        include_str!("../../builtin-ratchets/python/ast/no-todo-comments.toml"),
+    ),
+    (
+        "python-no-fixme-comments",
+        include_str!("../../builtin-ratchets/python/ast/no-fixme-comments.toml"),
+    ),
 ];
 
 /// Embedded built-in AST rule files for TypeScript
@@ -401,6 +409,8 @@ mod tests {
             assert!(rule_ids.contains(&"no-while-true"));
             assert!(rule_ids.contains(&"no-global-keyword"));
             assert!(rule_ids.contains(&"no-bare-print"));
+            assert!(rule_ids.contains(&"python-no-todo-comments"));
+            assert!(rule_ids.contains(&"python-no-fixme-comments"));
         }
 
         // Verify TypeScript rules are present when lang-typescript feature is enabled
