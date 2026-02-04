@@ -265,8 +265,8 @@ impl CountsManager {
     /// # Examples
     ///
     /// ```
-    /// # use ratchet::config::counts::CountsManager;
-    /// # use ratchet::types::{RuleId, RegionPath};
+    /// # use ratchets::config::counts::CountsManager;
+    /// # use ratchets::types::{RuleId, RegionPath};
     /// let mut counts = CountsManager::new();
     /// let rule_id = RuleId::new("no-unwrap").unwrap();
     /// counts.set_count(&rule_id, &RegionPath::new("."), 0);

@@ -64,7 +64,7 @@ pub fn run_list(format: OutputFormat) -> i32 {
 
 /// Internal implementation of list command
 fn run_list_inner(format: OutputFormat) -> Result<(), ListError> {
-    // 1. Load ratchet.toml config
+    // 1. Load ratchets.toml config
     let config = super::common::load_config()?;
 
     // 2. Load ratchet-counts.toml

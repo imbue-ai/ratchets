@@ -98,7 +98,7 @@ fn run_bump_inner(
     // 2. Verify rule exists in the registry
     if registry.get_rule(&rule_id).is_none() {
         return Err(BumpError::Other(format!(
-            "Rule '{}' not found. Run 'ratchet list' to see available rules.",
+            "Rule '{}' not found. Run 'ratchets list' to see available rules.",
             rule_id.as_str()
         )));
     }
@@ -112,7 +112,7 @@ fn run_bump_inner(
             // User specified a count - validate it's not below current violations
             if n < current_count {
                 return Err(BumpError::Other(format!(
-                    "Cannot bump '{}' in region '{}' to {} (below current {} violations). Use 'ratchet tighten' to reduce budgets.",
+                    "Cannot bump '{}' in region '{}' to {} (below current {} violations). Use 'ratchets tighten' to reduce budgets.",
                     rule_id.as_str(),
                     region,
                     n,
@@ -182,7 +182,7 @@ fn run_bump_all(config: &Config, registry: &RuleRegistry) -> Result<(), BumpErro
 
     if rule_ids.is_empty() {
         return Err(BumpError::Other(
-            "No enabled rules found. Check your ratchet.toml configuration.".to_string(),
+            "No enabled rules found. Check your ratchets.toml configuration.".to_string(),
         ));
     }
 

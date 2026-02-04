@@ -1,8 +1,8 @@
 #![forbid(unsafe_code)]
 
-//! Ratchet: Progressive lint enforcement for human and AI developers
+//! Ratchets: Progressive lint enforcement for human and AI developers
 //!
-//! Ratchet is a progressive lint enforcement tool that allows codebases to contain
+//! Ratchets is a progressive lint enforcement tool that allows codebases to contain
 //! existing violations while preventing new ones.
 
 pub mod cli;

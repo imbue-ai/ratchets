@@ -1,4 +1,4 @@
-//! Test utilities for ratchet integration tests
+//! Test utilities for ratchets integration tests
 
 /// Result type alias for tests
 pub type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;

@@ -1,5 +1,5 @@
 # Valid: JSONL output format
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 

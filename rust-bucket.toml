@@ -2,4 +2,4 @@
 
 rust_bucket_version = "0.5.0"
 test_timeout = 120
-project_name = "ratchet"
+project_name = "ratchets"

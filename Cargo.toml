@@ -1,13 +1,13 @@
 [package]
-name = "ratchet"
+name = "ratchets"
 version = "0.2.4"
 edition = "2024"
 description = "Progressive lint enforcement tool with budgeted violations that can only decrease over time"
 license-file = "LICENSE"
-repository = "https://github.com/imbue-ai/ratchet"
-homepage = "https://github.com/imbue-ai/ratchet"
+repository = "https://github.com/imbue-ai/ratchets"
+homepage = "https://github.com/imbue-ai/ratchets"
 readme = "README.md"
-keywords = ["lint", "ratchet", "static-analysis", "code-quality", "tree-sitter"]
+keywords = ["lint", "ratchets", "static-analysis", "code-quality", "tree-sitter"]
 categories = ["development-tools", "command-line-utilities"]
 
 [features]

@@ -1,5 +1,5 @@
 # Invalid: malformed glob pattern in include
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["[invalid-bracket"]

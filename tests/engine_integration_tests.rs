@@ -8,12 +8,12 @@
 //! - Region inheritance
 //! - AST and regex rule interaction
 
-use ratchet::config::counts::CountsManager;
-use ratchet::engine::aggregator::ViolationAggregator;
-use ratchet::engine::executor::ExecutionEngine;
-use ratchet::engine::file_walker::FileEntry;
-use ratchet::rules::RuleRegistry;
-use ratchet::types::{RegionPath, RuleId};
+use ratchets::config::counts::CountsManager;
+use ratchets::engine::aggregator::ViolationAggregator;
+use ratchets::engine::executor::ExecutionEngine;
+use ratchets::engine::file_walker::FileEntry;
+use ratchets::rules::RuleRegistry;
+use ratchets::types::{RegionPath, RuleId};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;

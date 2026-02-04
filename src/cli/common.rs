@@ -16,18 +16,18 @@ pub const EXIT_EXCEEDED: i32 = 1;
 pub const EXIT_ERROR: i32 = 2;
 pub const EXIT_PARSE_ERROR: i32 = 3;
 
-/// Load ratchet.toml configuration
+/// Load ratchets.toml configuration
 ///
 /// # Errors
 ///
-/// Returns `ConfigError::Io` if ratchet.toml does not exist or cannot be read.
-/// Returns `ConfigError::Parse` if ratchet.toml is invalid.
+/// Returns `ConfigError::Io` if ratchets.toml does not exist or cannot be read.
+/// Returns `ConfigError::Parse` if ratchets.toml is invalid.
 pub(crate) fn load_config() -> Result<Config, ConfigError> {
-    let config_path = Path::new("ratchet.toml");
+    let config_path = Path::new("ratchets.toml");
     if !config_path.exists() {
         return Err(ConfigError::Io(std::io::Error::new(
             std::io::ErrorKind::NotFound,
-            "ratchet.toml not found. Run 'ratchet init' to create it.",
+            "ratchets.toml not found. Run 'ratchets init' to create it.",
         )));
     }
 
@@ -89,8 +89,8 @@ where
         // Create FileWalker with include/exclude patterns from config
         let walker = FileWalker::with_verbose(
             path,
-            &config.ratchet.include,
-            &config.ratchet.exclude,
+            &config.ratchets.include,
+            &config.ratchets.exclude,
             verbose,
         )?;
 
@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn test_load_config_missing_file() {
-        // This test will fail if ratchet.toml exists in test directory
+        // This test will fail if ratchets.toml exists in test directory
         // but is useful for validating error handling
         let result = load_config();
         // We can't assert failure since the file might exist in the test environment
@@ -180,7 +180,7 @@ mod tests {
     fn test_discover_files_with_empty_paths() {
         // Create a minimal config for testing
         let config = Config {
-            ratchet: crate::config::ratchet_toml::RatchetMeta {
+            ratchets: crate::config::ratchet_toml::RatchetsMeta {
                 version: "1".to_string(),
                 languages: vec![Language::Rust],
                 include: vec![GlobPattern::new("**/*.rs")],
@@ -202,7 +202,7 @@ mod tests {
     #[test]
     fn test_build_registry_with_minimal_config() {
         let config = Config {
-            ratchet: crate::config::ratchet_toml::RatchetMeta {
+            ratchets: crate::config::ratchet_toml::RatchetsMeta {
                 version: "1".to_string(),
                 languages: vec![Language::Rust],
                 include: vec![GlobPattern::new("**/*.rs")],

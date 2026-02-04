@@ -1,10 +1,10 @@
-# Ratchet Performance Characteristics
+# Ratchets Performance Characteristics
 
-This document describes the performance characteristics of Ratchet and the optimizations implemented.
+This document describes the performance characteristics of Ratchets and the optimizations implemented.
 
 ## Overview
 
-Ratchet is designed to efficiently process large codebases with thousands of files. Key performance features include:
+Ratchets is designed to efficiently process large codebases with thousands of files. Key performance features include:
 
 - **Parallel File Processing**: Uses `rayon` for parallel execution across multiple CPU cores
 - **Parser Caching**: Tree-sitter parsers are cached to avoid repeated initialization

@@ -18,9 +18,9 @@
 //! - File I/O is parallelized
 //! - Parser caching avoids redundant work
 
-use ratchet::engine::executor::ExecutionEngine;
-use ratchet::engine::file_walker::{FileEntry, FileWalker};
-use ratchet::rules::RuleRegistry;
+use ratchets::engine::executor::ExecutionEngine;
+use ratchets::engine::file_walker::{FileEntry, FileWalker};
+use ratchets::rules::RuleRegistry;
 use std::fs;
 use std::time::Instant;
 use tempfile::TempDir;
@@ -115,7 +115,7 @@ pattern = "TODO"
     registry.load_custom_regex_rules(&rule_dir, None).unwrap();
 
     // Walk files (only include .rs files, exclude .toml)
-    use ratchet::types::GlobPattern;
+    use ratchets::types::GlobPattern;
     let include = vec![GlobPattern::new("**/*.rs")];
     let walker = FileWalker::new(temp_dir.path(), &include, &[]).unwrap();
     let files: Vec<FileEntry> = walker.walk().filter_map(Result::ok).collect();
@@ -177,7 +177,7 @@ language = "rust"
     registry.load_custom_ast_rules(&rule_dir, None).unwrap();
 
     // Walk files (only include .rs files)
-    use ratchet::types::GlobPattern;
+    use ratchets::types::GlobPattern;
     let include = vec![GlobPattern::new("**/*.rs")];
     let walker = FileWalker::new(temp_dir.path(), &include, &[]).unwrap();
     let files: Vec<FileEntry> = walker.walk().filter_map(Result::ok).collect();
@@ -235,7 +235,7 @@ pattern = "println!"
     registry.load_custom_regex_rules(&rule_dir, None).unwrap();
 
     // Walk files and execute (only include .rs files)
-    use ratchet::types::GlobPattern;
+    use ratchets::types::GlobPattern;
     let include = vec![GlobPattern::new("**/*.rs")];
     let walker = FileWalker::new(temp_dir.path(), &include, &[]).unwrap();
     let files: Vec<FileEntry> = walker.walk().filter_map(Result::ok).collect();
@@ -280,7 +280,7 @@ pattern = "TODO"
     registry.load_custom_regex_rules(&rule_dir, None).unwrap();
 
     // Walk files (only include .rs files)
-    use ratchet::types::GlobPattern;
+    use ratchets::types::GlobPattern;
     let include = vec![GlobPattern::new("**/*.rs")];
     let walker = FileWalker::new(temp_dir.path(), &include, &[]).unwrap();
     let files: Vec<FileEntry> = walker.walk().filter_map(Result::ok).collect();
@@ -335,7 +335,7 @@ language = "rust"
     registry.load_custom_ast_rules(&rule_dir, None).unwrap();
 
     // Walk files (only include .rs files)
-    use ratchet::types::GlobPattern;
+    use ratchets::types::GlobPattern;
     let include = vec![GlobPattern::new("**/*.rs")];
     let walker = FileWalker::new(temp_dir.path(), &include, &[]).unwrap();
     let files: Vec<FileEntry> = walker.walk().filter_map(Result::ok).collect();
@@ -400,7 +400,7 @@ pattern = "TODO"
     registry.load_custom_regex_rules(&rule_dir, None).unwrap();
 
     // Walk and execute (only include .rs files)
-    use ratchet::types::GlobPattern;
+    use ratchets::types::GlobPattern;
     let include = vec![GlobPattern::new("**/*.rs")];
     let walker = FileWalker::new(temp_dir.path(), &include, &[]).unwrap();
     let files: Vec<FileEntry> = walker.walk().filter_map(Result::ok).collect();
@@ -475,7 +475,7 @@ pattern = "fn "
     registry.load_custom_regex_rules(&rule_dir, None).unwrap();
 
     // Execute (only include .rs files)
-    use ratchet::types::GlobPattern;
+    use ratchets::types::GlobPattern;
     let include = vec![GlobPattern::new("**/*.rs")];
     let walker = FileWalker::new(temp_dir.path(), &include, &[]).unwrap();
     let files: Vec<FileEntry> = walker.walk().filter_map(Result::ok).collect();

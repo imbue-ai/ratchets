@@ -6,8 +6,8 @@
 //! - End-to-end parsing with various valid and invalid inputs
 //! - Region inheritance resolution
 
-use ratchet::config::{Config, CountsManager};
-use ratchet::types::RuleId;
+use ratchets::config::{Config, CountsManager};
+use ratchets::types::RuleId;
 use std::path::{Path, PathBuf};
 
 // Helper to get fixture path
@@ -20,7 +20,7 @@ fn fixture_path(filename: &str) -> PathBuf {
 }
 
 // ============================================================================
-// Config (ratchet.toml) Integration Tests
+// Config (ratchets.toml) Integration Tests
 // ============================================================================
 
 #[test]
@@ -28,8 +28,8 @@ fn test_config_load_valid_minimal() {
     let path = fixture_path("valid_minimal.toml");
     let config = Config::load(&path).unwrap();
 
-    assert_eq!(config.ratchet.version, "1");
-    assert_eq!(config.ratchet.languages.len(), 1);
+    assert_eq!(config.ratchets.version, "1");
+    assert_eq!(config.ratchets.languages.len(), 1);
 }
 
 #[test]
@@ -37,10 +37,10 @@ fn test_config_load_valid_full() {
     let path = fixture_path("valid_full.toml");
     let config = Config::load(&path).unwrap();
 
-    assert_eq!(config.ratchet.version, "1");
-    assert_eq!(config.ratchet.languages.len(), 3);
-    assert_eq!(config.ratchet.include.len(), 2);
-    assert_eq!(config.ratchet.exclude.len(), 2);
+    assert_eq!(config.ratchets.version, "1");
+    assert_eq!(config.ratchets.languages.len(), 3);
+    assert_eq!(config.ratchets.include.len(), 2);
+    assert_eq!(config.ratchets.exclude.len(), 2);
 
     // Verify rules are parsed
     assert!(config.rules.builtin.len() >= 4);
@@ -74,7 +74,7 @@ fn test_config_load_invalid_missing_languages() {
     let err_msg = result.unwrap_err().to_string();
     assert!(
         err_msg
-            .contains("No languages configured. Add languages to ratchet.toml to start checking.")
+            .contains("No languages configured. Add languages to ratchets.toml to start checking.")
     );
 }
 
@@ -87,7 +87,7 @@ fn test_config_load_invalid_empty_languages() {
     let err_msg = result.unwrap_err().to_string();
     assert!(
         err_msg
-            .contains("No languages configured. Add languages to ratchet.toml to start checking.")
+            .contains("No languages configured. Add languages to ratchets.toml to start checking.")
     );
 }
 
@@ -134,8 +134,8 @@ fn test_config_load_valid_output_jsonl() {
     let path = fixture_path("valid_output_jsonl.toml");
     let config = Config::load(&path).unwrap();
 
-    assert_eq!(config.output.format, ratchet::config::OutputFormat::Jsonl);
-    assert_eq!(config.output.color, ratchet::config::ColorOption::Never);
+    assert_eq!(config.output.format, ratchets::config::OutputFormat::Jsonl);
+    assert_eq!(config.output.color, ratchets::config::ColorOption::Never);
 }
 
 #[test]
@@ -143,7 +143,7 @@ fn test_config_load_valid_output_color_always() {
     let path = fixture_path("valid_output_color_always.toml");
     let config = Config::load(&path).unwrap();
 
-    assert_eq!(config.output.color, ratchet::config::ColorOption::Always);
+    assert_eq!(config.output.color, ratchets::config::ColorOption::Always);
 }
 
 #[test]
@@ -154,7 +154,7 @@ fn test_config_load_nonexistent_file() {
     assert!(result.is_err());
     // Should be an IO error
     match result.unwrap_err() {
-        ratchet::error::ConfigError::Io(_) => {} // Expected
+        ratchets::error::ConfigError::Io(_) => {} // Expected
         other => panic!("Expected IO error, got: {:?}", other),
     }
 }
@@ -320,7 +320,7 @@ fn test_counts_load_nonexistent_file() {
     assert!(result.is_err());
     // Should be an IO error
     match result.unwrap_err() {
-        ratchet::error::ConfigError::Io(_) => {} // Expected
+        ratchets::error::ConfigError::Io(_) => {} // Expected
         other => panic!("Expected IO error, got: {:?}", other),
     }
 }
@@ -364,17 +364,17 @@ fn test_config_defaults_when_sections_omitted() {
     let config = Config::load(&path).unwrap();
 
     // Output section should have defaults
-    assert_eq!(config.output.format, ratchet::config::OutputFormat::Human);
-    assert_eq!(config.output.color, ratchet::config::ColorOption::Auto);
+    assert_eq!(config.output.format, ratchets::config::OutputFormat::Human);
+    assert_eq!(config.output.color, ratchets::config::ColorOption::Auto);
 
     // Rules section should be empty by default
     assert_eq!(config.rules.builtin.len(), 0);
     assert_eq!(config.rules.custom.len(), 0);
 
     // Include should have default "**/*"
-    assert_eq!(config.ratchet.include.len(), 1);
-    assert_eq!(config.ratchet.include[0].as_str(), "**/*");
+    assert_eq!(config.ratchets.include.len(), 1);
+    assert_eq!(config.ratchets.include[0].as_str(), "**/*");
 
     // Exclude should be empty
-    assert_eq!(config.ratchet.exclude.len(), 0);
+    assert_eq!(config.ratchets.exclude.len(), 0);
 }

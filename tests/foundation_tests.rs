@@ -6,8 +6,8 @@
 mod common;
 
 use common::TestResult;
-use ratchet::error::{ConfigError, RatchetError, RuleError};
-use ratchet::types::{GlobPattern, Language, RegionPath, RuleId, Severity};
+use ratchets::error::{ConfigError, RatchetError, RuleError};
+use ratchets::types::{GlobPattern, Language, RegionPath, RuleId, Severity};
 use std::path::PathBuf;
 
 // Error integration tests

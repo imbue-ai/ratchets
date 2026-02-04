@@ -15,7 +15,7 @@ pub struct AstPlaceholder;
 
 /// Context for resolving pattern references in rule definitions
 ///
-/// This context contains pattern definitions from ratchet.toml that can be
+/// This context contains pattern definitions from ratchets.toml that can be
 /// referenced in rule files using @pattern_name syntax.
 #[derive(Debug, Clone, Default)]
 pub struct RuleContext {

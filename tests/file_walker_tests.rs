@@ -3,8 +3,8 @@
 //! These tests use fixture directories in tests/fixtures/file_walker/
 //! to verify file walking, gitignore support, pattern matching, and more.
 
-use ratchet::engine::file_walker::{FileEntry, FileWalker};
-use ratchet::types::{GlobPattern, Language};
+use ratchets::engine::file_walker::{FileEntry, FileWalker};
+use ratchets::types::{GlobPattern, Language};
 use std::collections::HashSet;
 use std::path::PathBuf;
 

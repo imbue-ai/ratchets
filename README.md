@@ -1,6 +1,6 @@
-# Ratchet: Progressive lint enforcement for human and AI developers
+# Ratchets: Progressive lint enforcement for human and AI developers
 
-Ratchet is a progressive lint enforcement tool that allows codebases to contain existing violations while preventing new ones. Unlike traditional linters that enforce binary pass/fail, Ratchet permits a budgeted number of violations per rule per region. These budgets can only decrease over time (the "ratchet" mechanism), ensuring technical debt monotonically decreases.
+Ratchets is a progressive lint enforcement tool that allows codebases to contain existing violations while preventing new ones. Unlike traditional linters that enforce binary pass/fail, Ratchets permits a budgeted number of violations per rule per region. These budgets can only decrease over time (the "ratchet" mechanism), ensuring technical debt monotonically decreases.
 
 ## Key Features
 
@@ -17,76 +17,76 @@ Ratchet is a progressive lint enforcement tool that allows codebases to contain 
 Install from source using the installation script:
 
 ```bash
-curl -sSf https://raw.githubusercontent.com/imbue-ai/ratchet/main/install.sh | sh
+curl -sSf https://raw.githubusercontent.com/imbue-ai/ratchets/main/install.sh | sh
 ```
 
-This will automatically build and install ratchet to `~/.cargo/bin/`. Requires Rust/Cargo to be installed.
+This will automatically build and install ratchets to `~/.cargo/bin/`. Requires Rust/Cargo to be installed.
 
 ## Quick Start
 
-Initialize Ratchet in your repository:
+Initialize Ratchets in your repository:
 
 ```bash
-ratchet init
+ratchets init
 ```
 
 This creates:
-- `ratchet.toml` — Configuration file
+- `ratchets.toml` — Configuration file
 - `ratchet-counts.toml` — Violation budgets
 - `ratchets/` — Directory for custom rules
 
 Run checks:
 
 ```bash
-ratchet check
+ratchets check
 ```
 
 ## Usage
 
-### `ratchet check`
+### `ratchets check`
 
 Verify that violations are within budget:
 
 ```bash
-ratchet check                    # Check all files
-ratchet check --format jsonl     # Machine-readable output
-ratchet check src/               # Check specific path
+ratchets check                    # Check all files
+ratchets check --format jsonl     # Machine-readable output
+ratchets check src/               # Check specific path
 ```
 
-### `ratchet bump`
+### `ratchets bump`
 
 Increase the violation budget (requires justification in commit message):
 
 ```bash
-ratchet bump no-unwrap --region src/legacy --count 20
-ratchet bump no-unwrap --region src/legacy  # Auto-detect current count
+ratchets bump no-unwrap --region src/legacy --count 20
+ratchets bump no-unwrap --region src/legacy  # Auto-detect current count
 ```
 
-### `ratchet tighten`
+### `ratchets tighten`
 
 Reduce budgets to match current violation counts:
 
 ```bash
-ratchet tighten                    # Tighten all rules
-ratchet tighten no-unwrap          # Tighten specific rule
-ratchet tighten --region src/      # Tighten specific region
+ratchets tighten                    # Tighten all rules
+ratchets tighten no-unwrap          # Tighten specific rule
+ratchets tighten --region src/      # Tighten specific region
 ```
 
-### `ratchet list`
+### `ratchets list`
 
 List all enabled rules and their status:
 
 ```bash
-ratchet list
-ratchet list --format jsonl
+ratchets list
+ratchets list --format jsonl
 ```
 
 ## Configuration
 
-### ratchet.toml
+### ratchets.toml
 
 ```toml
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust", "typescript"]
 include = ["src/**", "tests/**"]
@@ -118,23 +118,23 @@ Regions are directory subtrees. Child regions inherit parent budgets unless over
 
 ### Merge Driver
 
-Ratchet provides a merge driver that resolves conflicts by taking the minimum count:
+Ratchets provides a merge driver that resolves conflicts by taking the minimum count:
 
 ```bash
 # .gitattributes
-ratchet-counts.toml merge=ratchet
+ratchet-counts.toml merge=ratchets
 
 # .git/config
-[merge "ratchet"]
-    name = Ratchet counts merge driver (minimum wins)
-    driver = ratchet merge-driver %O %A %B
+[merge "ratchets"]
+    name = Ratchets counts merge driver (minimum wins)
+    driver = ratchets merge-driver %O %A %B
 ```
 
 ### Pre-commit Hook
 
 ```bash
 #!/bin/sh
-ratchet check || exit 1
+ratchets check || exit 1
 ```
 
 ## Exit Codes

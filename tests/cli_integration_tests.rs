@@ -11,7 +11,7 @@
 //! NOTE: These tests change the current directory and use std::sync::Mutex
 //! to ensure they don't interfere with each other.
 
-use ratchet::cli;
+use ratchets::cli;
 use std::fs;
 use std::path::Path;
 use std::sync::Mutex;
@@ -36,9 +36,9 @@ where
 
 /// Helper to create a basic test project structure
 fn setup_basic_project(temp_dir: &Path) {
-    // Create ratchet.toml
+    // Create ratchets.toml
     let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -48,7 +48,7 @@ no-todo-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-    fs::write(temp_dir.join("ratchet.toml"), config).unwrap();
+    fs::write(temp_dir.join("ratchets.toml"), config).unwrap();
 
     // Create ratchet-counts.toml
     let counts = r#"
@@ -89,7 +89,7 @@ fn test_init_creates_all_files() {
         let result = cli::init::run_init(false).expect("init should succeed");
 
         // Check that all expected items were created
-        assert!(result.created.contains(&"ratchet.toml".to_string()));
+        assert!(result.created.contains(&"ratchets.toml".to_string()));
         assert!(result.created.contains(&"ratchet-counts.toml".to_string()));
         assert!(result.created.contains(&"ratchets/regex/".to_string()));
         assert!(result.created.contains(&"ratchets/ast/".to_string()));
@@ -97,7 +97,7 @@ fn test_init_creates_all_files() {
         assert!(result.overwritten.is_empty());
 
         // Verify files exist
-        assert!(temp_dir.path().join("ratchet.toml").exists());
+        assert!(temp_dir.path().join("ratchets.toml").exists());
         assert!(temp_dir.path().join("ratchet-counts.toml").exists());
         assert!(temp_dir.path().join("ratchets/regex").is_dir());
         assert!(temp_dir.path().join("ratchets/ast").is_dir());
@@ -108,17 +108,17 @@ fn test_init_creates_all_files() {
 fn test_init_without_force_skips_existing() {
     with_temp_dir(|temp_dir| {
         // Create an existing file
-        fs::write(temp_dir.path().join("ratchet.toml"), "existing content").unwrap();
+        fs::write(temp_dir.path().join("ratchets.toml"), "existing content").unwrap();
 
         let result = cli::init::run_init(false).expect("init should succeed");
 
         // Existing file should be skipped
-        assert!(result.skipped.contains(&"ratchet.toml".to_string()));
-        assert!(!result.created.contains(&"ratchet.toml".to_string()));
-        assert!(!result.overwritten.contains(&"ratchet.toml".to_string()));
+        assert!(result.skipped.contains(&"ratchets.toml".to_string()));
+        assert!(!result.created.contains(&"ratchets.toml".to_string()));
+        assert!(!result.overwritten.contains(&"ratchets.toml".to_string()));
 
         // Verify file wasn't changed
-        let content = fs::read_to_string(temp_dir.path().join("ratchet.toml")).unwrap();
+        let content = fs::read_to_string(temp_dir.path().join("ratchets.toml")).unwrap();
         assert_eq!(content, "existing content");
     });
 }
@@ -127,24 +127,24 @@ fn test_init_without_force_skips_existing() {
 fn test_init_with_force_overwrites_existing() {
     with_temp_dir(|temp_dir| {
         // Create existing files
-        fs::write(temp_dir.path().join("ratchet.toml"), "old content").unwrap();
+        fs::write(temp_dir.path().join("ratchets.toml"), "old content").unwrap();
         fs::write(temp_dir.path().join("ratchet-counts.toml"), "old counts").unwrap();
 
         let result = cli::init::run_init(true).expect("init should succeed");
 
         // Files should be overwritten
-        assert!(result.overwritten.contains(&"ratchet.toml".to_string()));
+        assert!(result.overwritten.contains(&"ratchets.toml".to_string()));
         assert!(
             result
                 .overwritten
                 .contains(&"ratchet-counts.toml".to_string())
         );
-        assert!(!result.skipped.contains(&"ratchet.toml".to_string()));
+        assert!(!result.skipped.contains(&"ratchets.toml".to_string()));
 
         // Verify file was changed
-        let content = fs::read_to_string(temp_dir.path().join("ratchet.toml")).unwrap();
+        let content = fs::read_to_string(temp_dir.path().join("ratchets.toml")).unwrap();
         assert_ne!(content, "old content");
-        assert!(content.contains("[ratchet]"));
+        assert!(content.contains("[ratchets]"));
     });
 }
 
@@ -157,7 +157,7 @@ fn test_init_is_idempotent() {
 
         // Second init should skip files
         let result2 = cli::init::run_init(false).expect("second init should succeed");
-        assert!(result2.skipped.contains(&"ratchet.toml".to_string()));
+        assert!(result2.skipped.contains(&"ratchets.toml".to_string()));
         assert!(result2.skipped.contains(&"ratchet-counts.toml".to_string()));
         assert!(result2.created.is_empty());
         assert!(result2.overwritten.is_empty());
@@ -252,7 +252,7 @@ fn test_check_with_no_files_found() {
     with_temp_dir(|temp_dir| {
         // Create config but no source files
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -262,7 +262,7 @@ no-todo-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write(temp_dir.path().join("ratchet.toml"), config).unwrap();
+        fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
         let exit_code = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false);
 
@@ -507,13 +507,13 @@ fn test_list_with_no_rules_enabled() {
     with_temp_dir(|temp_dir| {
         // Create config with all rules disabled
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 
 [rules]
 "#;
-        fs::write(temp_dir.path().join("ratchet.toml"), config).unwrap();
+        fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
         let exit_code = cli::list::run_list(cli::OutputFormat::Human);
 
@@ -664,9 +664,9 @@ fn test_merge_driver_multiple_rules() {
         // no-unwrap: min(15, 18) = 15
         // no-todo-comments: min(30, 25) = 25
         // Check that both values are in the file
-        let parsed = ratchet::config::counts::CountsManager::parse(&merged).unwrap();
-        let no_unwrap = ratchet::types::RuleId::new("no-unwrap").unwrap();
-        let no_todo = ratchet::types::RuleId::new("no-todo-comments").unwrap();
+        let parsed = ratchets::config::counts::CountsManager::parse(&merged).unwrap();
+        let no_unwrap = ratchets::types::RuleId::new("no-unwrap").unwrap();
+        let no_todo = ratchets::types::RuleId::new("no-todo-comments").unwrap();
         assert_eq!(parsed.get_budget(&no_unwrap, Path::new(".")), 15);
         assert_eq!(parsed.get_budget(&no_todo, Path::new(".")), 25);
     });
@@ -703,8 +703,8 @@ fn test_merge_driver_multiple_regions() {
 
         // Verify minimums for both regions
         let merged = fs::read_to_string(temp_dir.path().join("ours.toml")).unwrap();
-        let parsed = ratchet::config::counts::CountsManager::parse(&merged).unwrap();
-        let rule_id = ratchet::types::RuleId::new("no-todo-comments").unwrap();
+        let parsed = ratchets::config::counts::CountsManager::parse(&merged).unwrap();
+        let rule_id = ratchets::types::RuleId::new("no-todo-comments").unwrap();
 
         // Root: min(18, 19) = 18
         assert_eq!(parsed.get_budget(&rule_id, Path::new(".")), 18);
@@ -781,7 +781,7 @@ fn test_check_with_empty_counts_file() {
     with_temp_dir(|temp_dir| {
         // Create config but empty counts file
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -791,7 +791,7 @@ no-todo-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write(temp_dir.path().join("ratchet.toml"), config).unwrap();
+        fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
         fs::write(temp_dir.path().join("ratchet-counts.toml"), "").unwrap();
 
         // Create builtin rule
@@ -844,7 +844,7 @@ fn test_tighten_with_multiple_rules() {
     with_temp_dir(|temp_dir| {
         // Create config with multiple rules
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -854,7 +854,7 @@ no-todo-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write(temp_dir.path().join("ratchet.toml"), config).unwrap();
+        fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
         let counts = r#"
 [no-todo-comments]
@@ -899,7 +899,7 @@ fn test_bump_all_with_empty_initial_counts() {
     with_temp_dir(|temp_dir| {
         // Create config with multiple rules
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -910,7 +910,7 @@ no-fixme-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write(temp_dir.path().join("ratchet.toml"), config).unwrap();
+        fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
         // Create empty counts file
         fs::write(temp_dir.path().join("ratchet-counts.toml"), "").unwrap();
@@ -966,9 +966,9 @@ pattern = "FIXME"
         assert!(counts_content.contains("no-fixme-comments"));
 
         // Parse and verify specific counts
-        let counts = ratchet::config::counts::CountsManager::parse(&counts_content).unwrap();
-        let todo_id = ratchet::types::RuleId::new("no-todo-comments").unwrap();
-        let fixme_id = ratchet::types::RuleId::new("no-fixme-comments").unwrap();
+        let counts = ratchets::config::counts::CountsManager::parse(&counts_content).unwrap();
+        let todo_id = ratchets::types::RuleId::new("no-todo-comments").unwrap();
+        let fixme_id = ratchets::types::RuleId::new("no-fixme-comments").unwrap();
 
         // Both rules should have budget set to 1 (current violation count)
         assert_eq!(counts.get_budget(&todo_id, Path::new(".")), 1);
@@ -981,7 +981,7 @@ fn test_bump_all_with_existing_counts() {
     with_temp_dir(|temp_dir| {
         // Create config with multiple rules
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -992,7 +992,7 @@ no-fixme-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write(temp_dir.path().join("ratchet.toml"), config).unwrap();
+        fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
         // Create counts file with existing budgets
         let counts = r#"
@@ -1049,9 +1049,9 @@ pattern = "FIXME"
         // Verify counts were updated to current violation counts
         let counts_content =
             fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
-        let counts = ratchet::config::counts::CountsManager::parse(&counts_content).unwrap();
-        let todo_id = ratchet::types::RuleId::new("no-todo-comments").unwrap();
-        let fixme_id = ratchet::types::RuleId::new("no-fixme-comments").unwrap();
+        let counts = ratchets::config::counts::CountsManager::parse(&counts_content).unwrap();
+        let todo_id = ratchets::types::RuleId::new("no-todo-comments").unwrap();
+        let fixme_id = ratchets::types::RuleId::new("no-fixme-comments").unwrap();
 
         // Budgets should be set to current violation counts (2 and 1)
         assert_eq!(counts.get_budget(&todo_id, Path::new(".")), 2);
@@ -1064,7 +1064,7 @@ fn test_bump_all_no_violations() {
     with_temp_dir(|temp_dir| {
         // Create config with rules
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -1074,7 +1074,7 @@ no-todo-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write(temp_dir.path().join("ratchet.toml"), config).unwrap();
+        fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
         // Create counts file
         let counts = r#"
@@ -1113,8 +1113,8 @@ pattern = "TODO"
         // Verify budget was set to 0 (no violations)
         let counts_content =
             fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
-        let counts = ratchet::config::counts::CountsManager::parse(&counts_content).unwrap();
-        let todo_id = ratchet::types::RuleId::new("no-todo-comments").unwrap();
+        let counts = ratchets::config::counts::CountsManager::parse(&counts_content).unwrap();
+        let todo_id = ratchets::types::RuleId::new("no-todo-comments").unwrap();
 
         assert_eq!(counts.get_budget(&todo_id, Path::new(".")), 0);
     });
@@ -1125,7 +1125,7 @@ fn test_bump_all_with_unchanged_budgets() {
     with_temp_dir(|temp_dir| {
         // Create config with rules
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -1136,7 +1136,7 @@ no-fixme-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write(temp_dir.path().join("ratchet.toml"), config).unwrap();
+        fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
         // Create counts file with budgets matching current violations
         let counts = r#"
@@ -1193,9 +1193,9 @@ pattern = "FIXME"
         // Verify budgets remained the same
         let counts_content =
             fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
-        let counts = ratchet::config::counts::CountsManager::parse(&counts_content).unwrap();
-        let todo_id = ratchet::types::RuleId::new("no-todo-comments").unwrap();
-        let fixme_id = ratchet::types::RuleId::new("no-fixme-comments").unwrap();
+        let counts = ratchets::config::counts::CountsManager::parse(&counts_content).unwrap();
+        let todo_id = ratchets::types::RuleId::new("no-todo-comments").unwrap();
+        let fixme_id = ratchets::types::RuleId::new("no-fixme-comments").unwrap();
 
         // Budgets should remain at 1
         assert_eq!(counts.get_budget(&todo_id, Path::new(".")), 1);
@@ -1208,14 +1208,14 @@ fn test_bump_all_with_no_rules_enabled() {
     with_temp_dir(|temp_dir| {
         // Create config with no languages (which results in no rules)
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = []
 include = ["**/*.rs"]
 
 [rules]
 "#;
-        fs::write(temp_dir.path().join("ratchet.toml"), config).unwrap();
+        fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
         // Create empty counts file
         fs::write(temp_dir.path().join("ratchet-counts.toml"), "").unwrap();

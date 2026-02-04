@@ -1,4 +1,4 @@
 # Invalid: empty languages array
-[ratchet]
+[ratchets]
 version = "1"
 languages = []

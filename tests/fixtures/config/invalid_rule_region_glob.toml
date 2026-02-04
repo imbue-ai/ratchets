@@ -1,5 +1,5 @@
 # Invalid: malformed glob pattern in rule regions
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 
