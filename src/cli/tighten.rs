@@ -72,7 +72,7 @@ pub fn run_tighten(rule_id: Option<&str>, region: Option<&str>) -> i32 {
                     violation.budget
                 );
             }
-            eprintln!("\nFix the violations first or use 'ratchet bump' to increase budget");
+            eprintln!("\nFix the violations first or use 'ratchets bump' to increase budget");
             EXIT_EXCEEDED
         }
         Err(e) => {

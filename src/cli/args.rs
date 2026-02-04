@@ -24,7 +24,7 @@ pub enum ColorChoice {
 
 /// Ratchet CLI main entry point
 #[derive(Parser, Debug)]
-#[command(name = "ratchet")]
+#[command(name = "ratchets")]
 #[command(about = "Progressive lint enforcement for human and AI developers")]
 #[command(version)]
 pub struct Cli {
@@ -124,7 +124,7 @@ mod tests {
 
     #[test]
     fn test_check_default_args() {
-        let cli = Cli::parse_from(["ratchet", "check"]);
+        let cli = Cli::parse_from(["ratchets", "check"]);
         match cli.command {
             Command::Check {
                 paths,
@@ -142,7 +142,7 @@ mod tests {
 
     #[test]
     fn test_check_with_paths() {
-        let cli = Cli::parse_from(["ratchet", "check", "src/", "tests/"]);
+        let cli = Cli::parse_from(["ratchets", "check", "src/", "tests/"]);
         match cli.command {
             Command::Check { paths, .. } => {
                 assert_eq!(paths, vec!["src/", "tests/"]);
@@ -153,7 +153,7 @@ mod tests {
 
     #[test]
     fn test_check_verbose_flag() {
-        let cli = Cli::parse_from(["ratchet", "check", "--verbose"]);
+        let cli = Cli::parse_from(["ratchets", "check", "--verbose"]);
         match cli.command {
             Command::Check { verbose, .. } => {
                 assert!(verbose);
@@ -164,7 +164,7 @@ mod tests {
 
     #[test]
     fn test_check_verbose_short_flag() {
-        let cli = Cli::parse_from(["ratchet", "check", "-v"]);
+        let cli = Cli::parse_from(["ratchets", "check", "-v"]);
         match cli.command {
             Command::Check { verbose, .. } => {
                 assert!(verbose);
@@ -175,7 +175,7 @@ mod tests {
 
     #[test]
     fn test_check_with_format() {
-        let cli = Cli::parse_from(["ratchet", "check", "--format", "jsonl"]);
+        let cli = Cli::parse_from(["ratchets", "check", "--format", "jsonl"]);
         match cli.command {
             Command::Check { format, .. } => {
                 assert_eq!(format, OutputFormat::Jsonl);
@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn test_check_short_format() {
-        let cli = Cli::parse_from(["ratchet", "check", "-f", "jsonl"]);
+        let cli = Cli::parse_from(["ratchets", "check", "-f", "jsonl"]);
         match cli.command {
             Command::Check { format, .. } => {
                 assert_eq!(format, OutputFormat::Jsonl);
@@ -197,7 +197,7 @@ mod tests {
 
     #[test]
     fn test_init_default() {
-        let cli = Cli::parse_from(["ratchet", "init"]);
+        let cli = Cli::parse_from(["ratchets", "init"]);
         match cli.command {
             Command::Init { force } => {
                 assert!(!force);
@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn test_init_with_force() {
-        let cli = Cli::parse_from(["ratchet", "init", "--force"]);
+        let cli = Cli::parse_from(["ratchets", "init", "--force"]);
         match cli.command {
             Command::Init { force } => {
                 assert!(force);
@@ -219,7 +219,7 @@ mod tests {
 
     #[test]
     fn test_bump_minimal() {
-        let cli = Cli::parse_from(["ratchet", "bump", "no-unwrap"]);
+        let cli = Cli::parse_from(["ratchets", "bump", "no-unwrap"]);
         match cli.command {
             Command::Bump {
                 rule_id,
@@ -238,7 +238,7 @@ mod tests {
 
     #[test]
     fn test_bump_with_region() {
-        let cli = Cli::parse_from(["ratchet", "bump", "no-unwrap", "--region", "src/legacy"]);
+        let cli = Cli::parse_from(["ratchets", "bump", "no-unwrap", "--region", "src/legacy"]);
         match cli.command {
             Command::Bump {
                 rule_id,
@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn test_bump_with_count() {
-        let cli = Cli::parse_from(["ratchet", "bump", "no-unwrap", "--count", "20"]);
+        let cli = Cli::parse_from(["ratchets", "bump", "no-unwrap", "--count", "20"]);
         match cli.command {
             Command::Bump {
                 rule_id,
@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn test_tighten_all() {
-        let cli = Cli::parse_from(["ratchet", "tighten"]);
+        let cli = Cli::parse_from(["ratchets", "tighten"]);
         match cli.command {
             Command::Tighten { rule_id, region } => {
                 assert_eq!(rule_id, None);
@@ -315,7 +315,7 @@ mod tests {
 
     #[test]
     fn test_tighten_specific_rule() {
-        let cli = Cli::parse_from(["ratchet", "tighten", "no-unwrap"]);
+        let cli = Cli::parse_from(["ratchets", "tighten", "no-unwrap"]);
         match cli.command {
             Command::Tighten { rule_id, region } => {
                 assert_eq!(rule_id, Some("no-unwrap".to_string()));
@@ -327,7 +327,7 @@ mod tests {
 
     #[test]
     fn test_tighten_with_region() {
-        let cli = Cli::parse_from(["ratchet", "tighten", "--region", "src/"]);
+        let cli = Cli::parse_from(["ratchets", "tighten", "--region", "src/"]);
         match cli.command {
             Command::Tighten { rule_id, region } => {
                 assert_eq!(rule_id, None);
@@ -339,7 +339,7 @@ mod tests {
 
     #[test]
     fn test_tighten_rule_and_region() {
-        let cli = Cli::parse_from(["ratchet", "tighten", "no-unwrap", "--region", "src/"]);
+        let cli = Cli::parse_from(["ratchets", "tighten", "no-unwrap", "--region", "src/"]);
         match cli.command {
             Command::Tighten { rule_id, region } => {
                 assert_eq!(rule_id, Some("no-unwrap".to_string()));
@@ -351,7 +351,7 @@ mod tests {
 
     #[test]
     fn test_list_default() {
-        let cli = Cli::parse_from(["ratchet", "list"]);
+        let cli = Cli::parse_from(["ratchets", "list"]);
         match cli.command {
             Command::List { format } => {
                 assert_eq!(format, OutputFormat::Human);
@@ -362,7 +362,7 @@ mod tests {
 
     #[test]
     fn test_list_with_format() {
-        let cli = Cli::parse_from(["ratchet", "list", "--format", "jsonl"]);
+        let cli = Cli::parse_from(["ratchets", "list", "--format", "jsonl"]);
         match cli.command {
             Command::List { format } => {
                 assert_eq!(format, OutputFormat::Jsonl);
@@ -373,7 +373,7 @@ mod tests {
 
     #[test]
     fn test_list_short_format() {
-        let cli = Cli::parse_from(["ratchet", "list", "-f", "jsonl"]);
+        let cli = Cli::parse_from(["ratchets", "list", "-f", "jsonl"]);
         match cli.command {
             Command::List { format } => {
                 assert_eq!(format, OutputFormat::Jsonl);
@@ -407,19 +407,19 @@ mod tests {
 
     #[test]
     fn test_global_color_flag() {
-        let cli = Cli::parse_from(["ratchet", "--color", "always", "check"]);
+        let cli = Cli::parse_from(["ratchets", "--color", "always", "check"]);
         assert_eq!(cli.color, ColorChoice::Always);
 
-        let cli = Cli::parse_from(["ratchet", "--color", "never", "list"]);
+        let cli = Cli::parse_from(["ratchets", "--color", "never", "list"]);
         assert_eq!(cli.color, ColorChoice::Never);
 
-        let cli = Cli::parse_from(["ratchet", "--color", "auto", "init"]);
+        let cli = Cli::parse_from(["ratchets", "--color", "auto", "init"]);
         assert_eq!(cli.color, ColorChoice::Auto);
     }
 
     #[test]
     fn test_color_flag_before_subcommand() {
-        let cli = Cli::parse_from(["ratchet", "--color", "always", "check", "src/"]);
+        let cli = Cli::parse_from(["ratchets", "--color", "always", "check", "src/"]);
         assert_eq!(cli.color, ColorChoice::Always);
         match cli.command {
             Command::Check { paths, .. } => {
@@ -438,37 +438,37 @@ mod tests {
     #[test]
     fn test_version_flag() {
         // Just verify that --version doesn't panic
-        let result = Cli::try_parse_from(["ratchet", "--version"]);
+        let result = Cli::try_parse_from(["ratchets", "--version"]);
         // This will fail with DisplayVersion error, which is expected
         assert!(result.is_err());
     }
 
     #[test]
     fn test_invalid_format() {
-        let result = Cli::try_parse_from(["ratchet", "check", "--format", "invalid"]);
+        let result = Cli::try_parse_from(["ratchets", "check", "--format", "invalid"]);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_invalid_color() {
-        let result = Cli::try_parse_from(["ratchet", "--color", "invalid", "check"]);
+        let result = Cli::try_parse_from(["ratchets", "--color", "invalid", "check"]);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_missing_required_args() {
         // Bump requires rule_id when --all is not used
-        let result = Cli::try_parse_from(["ratchet", "bump"]);
+        let result = Cli::try_parse_from(["ratchets", "bump"]);
         assert!(result.is_err());
 
         // MergeDriver requires three positional args
-        let result = Cli::try_parse_from(["ratchet", "merge-driver", "base"]);
+        let result = Cli::try_parse_from(["ratchets", "merge-driver", "base"]);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_bump_all_flag() {
-        let cli = Cli::parse_from(["ratchet", "bump", "--all"]);
+        let cli = Cli::parse_from(["ratchets", "bump", "--all"]);
         match cli.command {
             Command::Bump {
                 rule_id,
@@ -488,7 +488,7 @@ mod tests {
     #[test]
     fn test_bump_all_with_rule_id() {
         // Using both rule_id and --all should work (rule_id is just ignored)
-        let cli = Cli::parse_from(["ratchet", "bump", "no-unwrap", "--all"]);
+        let cli = Cli::parse_from(["ratchets", "bump", "no-unwrap", "--all"]);
         match cli.command {
             Command::Bump {
                 rule_id,
@@ -508,7 +508,7 @@ mod tests {
     #[test]
     fn test_bump_all_conflicts_with_region() {
         // --all conflicts with --region
-        let result = Cli::try_parse_from(["ratchet", "bump", "--all", "--region", "src/"]);
+        let result = Cli::try_parse_from(["ratchets", "bump", "--all", "--region", "src/"]);
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("--all") || err_msg.contains("--region"));
@@ -517,7 +517,7 @@ mod tests {
     #[test]
     fn test_bump_all_conflicts_with_count() {
         // --all conflicts with --count
-        let result = Cli::try_parse_from(["ratchet", "bump", "--all", "--count", "20"]);
+        let result = Cli::try_parse_from(["ratchets", "bump", "--all", "--count", "20"]);
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("--all") || err_msg.contains("--count"));

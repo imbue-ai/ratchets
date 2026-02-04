@@ -409,7 +409,7 @@ impl RuleRegistry {
     ///
     /// # Arguments
     ///
-    /// * `config` - The rules configuration from ratchet.toml
+    /// * `config` - The rules configuration from ratchets.toml
     pub fn filter_by_config(&mut self, config: &RulesConfig) {
         // Collect rule IDs to remove
         let mut to_remove = Vec::new();
@@ -564,7 +564,7 @@ impl RuleRegistry {
         registry.filter_by_config(&config.rules);
 
         // Step 5: Filter by language (remove rules for unconfigured languages)
-        registry.filter_by_languages(&config.ratchet.languages);
+        registry.filter_by_languages(&config.ratchets.languages);
 
         Ok(registry)
     }
@@ -1459,13 +1459,13 @@ query = "(unclosed_paren"
     #[test]
     #[cfg(feature = "lang-rust")]
     fn test_build_from_config_loads_embedded_rules() {
-        use crate::config::ratchet_toml::{Config, OutputConfig, RatchetMeta, RulesConfig};
+        use crate::config::ratchet_toml::{Config, OutputConfig, RatchetsMeta, RulesConfig};
         use crate::types::GlobPattern;
         use std::collections::HashMap;
 
-        // Create a minimal config (without requiring ratchet.toml file)
+        // Create a minimal config (without requiring ratchets.toml file)
         let config = Config {
-            ratchet: RatchetMeta {
+            ratchets: RatchetsMeta {
                 version: "1".to_string(),
                 languages: vec![crate::types::Language::Rust],
                 include: vec![GlobPattern::new("**/*.rs".to_string())],
@@ -1508,7 +1508,7 @@ query = "(unclosed_paren"
     #[test]
     fn test_build_from_config_respects_disabled_rules() {
         use crate::config::ratchet_toml::{
-            Config, OutputConfig, RatchetMeta, RuleValue, RulesConfig,
+            Config, OutputConfig, RatchetsMeta, RuleValue, RulesConfig,
         };
         use crate::types::GlobPattern;
         use std::collections::HashMap;
@@ -1521,7 +1521,7 @@ query = "(unclosed_paren"
         );
 
         let config = Config {
-            ratchet: RatchetMeta {
+            ratchets: RatchetsMeta {
                 version: "1".to_string(),
                 languages: vec![crate::types::Language::Rust],
                 include: vec![GlobPattern::new("**/*".to_string())],
@@ -1564,13 +1564,13 @@ query = "(unclosed_paren"
     #[test]
     #[cfg(feature = "lang-rust")]
     fn test_filter_by_languages_removes_non_matching_rules() {
-        use crate::config::ratchet_toml::{Config, OutputConfig, RatchetMeta, RulesConfig};
+        use crate::config::ratchet_toml::{Config, OutputConfig, RatchetsMeta, RulesConfig};
         use crate::types::{GlobPattern, Language};
         use std::collections::HashMap;
 
         // Create config with only Rust language
         let config = Config {
-            ratchet: RatchetMeta {
+            ratchets: RatchetsMeta {
                 version: "1".to_string(),
                 languages: vec![Language::Rust],
                 include: vec![GlobPattern::new("**/*".to_string())],
@@ -1648,13 +1648,13 @@ query = "(unclosed_paren"
     #[test]
     #[cfg(all(feature = "lang-rust", feature = "lang-python"))]
     fn test_filter_by_languages_keeps_multiple_languages() {
-        use crate::config::ratchet_toml::{Config, OutputConfig, RatchetMeta, RulesConfig};
+        use crate::config::ratchet_toml::{Config, OutputConfig, RatchetsMeta, RulesConfig};
         use crate::types::{GlobPattern, Language};
         use std::collections::HashMap;
 
         // Create config with Rust and Python languages
         let config = Config {
-            ratchet: RatchetMeta {
+            ratchets: RatchetsMeta {
                 version: "1".to_string(),
                 languages: vec![Language::Rust, Language::Python],
                 include: vec![GlobPattern::new("**/*".to_string())],
@@ -1695,13 +1695,13 @@ query = "(unclosed_paren"
 
     #[test]
     fn test_filter_by_languages_keeps_language_agnostic_rules() {
-        use crate::config::ratchet_toml::{Config, OutputConfig, RatchetMeta, RulesConfig};
+        use crate::config::ratchet_toml::{Config, OutputConfig, RatchetsMeta, RulesConfig};
         use crate::types::{GlobPattern, Language};
         use std::collections::HashMap;
 
         // Create config with only Rust language
         let config = Config {
-            ratchet: RatchetMeta {
+            ratchets: RatchetsMeta {
                 version: "1".to_string(),
                 languages: vec![Language::Rust],
                 include: vec![GlobPattern::new("**/*".to_string())],

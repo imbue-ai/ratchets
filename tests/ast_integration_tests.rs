@@ -6,8 +6,8 @@
 //! - Execute queries and find violations
 //! - Report correct positions (line and column numbers)
 
-use ratchet::rules::{AstRule, ParserCache, Rule};
-use ratchet::types::Language;
+use ratchets::rules::{AstRule, ParserCache, Rule};
+use ratchets::types::Language;
 use std::path::Path;
 
 /// Helper function to load a built-in AST rule
@@ -1037,7 +1037,7 @@ def clean_code():
 /// Tests for query validation and error handling
 mod validation_tests {
     use super::*;
-    use ratchet::error::RuleError;
+    use ratchets::error::RuleError;
 
     #[test]
     fn test_invalid_query_syntax() {

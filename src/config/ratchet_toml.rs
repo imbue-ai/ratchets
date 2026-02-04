@@ -1,4 +1,4 @@
-//! Parsing and validation for ratchet.toml configuration files
+//! Parsing and validation for ratchets.toml configuration files
 
 use crate::error::ConfigError;
 use crate::types::{GlobPattern, Language, RuleId, Severity};
@@ -7,11 +7,11 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-/// Main configuration struct for ratchet.toml
+/// Main configuration struct for ratchets.toml
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Config {
-    /// Ratchet metadata
-    pub ratchet: RatchetMeta,
+    /// Ratchets metadata
+    pub ratchets: RatchetsMeta,
 
     /// Rule configuration
     #[serde(default)]
@@ -43,23 +43,23 @@ impl Config {
     /// Validate the configuration
     fn validate(&self) -> Result<(), ConfigError> {
         // Validate version
-        if self.ratchet.version != "1" {
+        if self.ratchets.version != "1" {
             return Err(ConfigError::Validation(format!(
                 "Unsupported configuration version '{}'. Expected '1'",
-                self.ratchet.version
+                self.ratchets.version
             )));
         }
 
         // Validate that at least one language is specified
-        if self.ratchet.languages.is_empty() {
+        if self.ratchets.languages.is_empty() {
             return Err(ConfigError::Validation(
-                "No languages configured. Add languages to ratchet.toml to start checking."
+                "No languages configured. Add languages to ratchets.toml to start checking."
                     .to_string(),
             ));
         }
 
         // Validate glob patterns by attempting to compile them with globset
-        for pattern in &self.ratchet.include {
+        for pattern in &self.ratchets.include {
             globset::Glob::new(pattern.as_str()).map_err(|e| {
                 ConfigError::Validation(format!(
                     "Invalid include glob pattern '{}': {}",
@@ -69,7 +69,7 @@ impl Config {
             })?;
         }
 
-        for pattern in &self.ratchet.exclude {
+        for pattern in &self.ratchets.exclude {
             globset::Glob::new(pattern.as_str()).map_err(|e| {
                 ConfigError::Validation(format!(
                     "Invalid exclude glob pattern '{}': {}",
@@ -132,9 +132,9 @@ impl Config {
     }
 }
 
-/// Ratchet metadata section
+/// Ratchets metadata section
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct RatchetMeta {
+pub struct RatchetsMeta {
     /// Configuration version (must be "1")
     pub version: String,
 
@@ -239,7 +239,7 @@ mod tests {
     use super::*;
 
     const VALID_CONFIG: &str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust", "typescript", "python"]
 include = ["src/**", "tests/**"]
@@ -264,14 +264,14 @@ color = "auto"
     fn test_valid_config_parsing() {
         let config = Config::parse(VALID_CONFIG).unwrap();
 
-        assert_eq!(config.ratchet.version, "1");
-        assert_eq!(config.ratchet.languages.len(), 3);
-        assert!(config.ratchet.languages.contains(&Language::Rust));
-        assert!(config.ratchet.languages.contains(&Language::TypeScript));
-        assert!(config.ratchet.languages.contains(&Language::Python));
+        assert_eq!(config.ratchets.version, "1");
+        assert_eq!(config.ratchets.languages.len(), 3);
+        assert!(config.ratchets.languages.contains(&Language::Rust));
+        assert!(config.ratchets.languages.contains(&Language::TypeScript));
+        assert!(config.ratchets.languages.contains(&Language::Python));
 
-        assert_eq!(config.ratchet.include.len(), 2);
-        assert_eq!(config.ratchet.exclude.len(), 2);
+        assert_eq!(config.ratchets.include.len(), 2);
+        assert_eq!(config.ratchets.exclude.len(), 2);
 
         // Check built-in rules
         assert_eq!(config.rules.builtin.len(), 4);
@@ -321,16 +321,16 @@ color = "auto"
     #[test]
     fn test_minimal_config() {
         let minimal = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 "#;
 
         let config = Config::parse(minimal).unwrap();
-        assert_eq!(config.ratchet.version, "1");
-        assert_eq!(config.ratchet.languages.len(), 1);
-        assert_eq!(config.ratchet.include.len(), 1); // Default "**/*"
-        assert_eq!(config.ratchet.exclude.len(), 0);
+        assert_eq!(config.ratchets.version, "1");
+        assert_eq!(config.ratchets.languages.len(), 1);
+        assert_eq!(config.ratchets.include.len(), 1); // Default "**/*"
+        assert_eq!(config.ratchets.exclude.len(), 0);
         assert_eq!(config.output.format, OutputFormat::Human);
         assert_eq!(config.output.color, ColorOption::Auto);
     }
@@ -338,7 +338,7 @@ languages = ["rust"]
     #[test]
     fn test_invalid_version() {
         let invalid = r#"
-[ratchet]
+[ratchets]
 version = "2"
 languages = ["rust"]
 "#;
@@ -356,7 +356,7 @@ languages = ["rust"]
     #[test]
     fn test_missing_version() {
         let invalid = r#"
-[ratchet]
+[ratchets]
 languages = ["rust"]
 "#;
 
@@ -367,24 +367,22 @@ languages = ["rust"]
     #[test]
     fn test_no_languages() {
         let invalid = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = []
 "#;
 
         let result = Config::parse(invalid);
         assert!(result.is_err());
-        assert!(
-            result.unwrap_err().to_string().contains(
-                "No languages configured. Add languages to ratchet.toml to start checking."
-            )
-        );
+        assert!(result.unwrap_err().to_string().contains(
+            "No languages configured. Add languages to ratchets.toml to start checking."
+        ));
     }
 
     #[test]
     fn test_invalid_glob_pattern_include() {
         let invalid = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["[invalid"]
@@ -403,7 +401,7 @@ include = ["[invalid"]
     #[test]
     fn test_invalid_glob_pattern_exclude() {
         let invalid = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 exclude = ["[invalid"]
@@ -422,7 +420,7 @@ exclude = ["[invalid"]
     #[test]
     fn test_invalid_rule_region_glob() {
         let invalid = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 
@@ -443,7 +441,7 @@ no-unwrap = { regions = ["[invalid"] }
     #[test]
     fn test_jsonl_output_format() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 
@@ -460,7 +458,7 @@ color = "never"
     #[test]
     fn test_color_always() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 
@@ -475,7 +473,7 @@ color = "always"
     #[test]
     fn test_rule_with_severity_and_regions() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 
@@ -496,7 +494,7 @@ my-rule = { severity = "error", regions = ["src/**", "tests/**"] }
     #[test]
     fn test_custom_rules_with_settings() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 
@@ -543,24 +541,24 @@ custom-rule-3 = { regions = ["src/legacy/**"] }
     #[test]
     fn test_multiple_languages() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust", "typescript", "javascript", "python", "go"]
 "#;
 
         let config = Config::parse(config_str).unwrap();
-        assert_eq!(config.ratchet.languages.len(), 5);
-        assert!(config.ratchet.languages.contains(&Language::Rust));
-        assert!(config.ratchet.languages.contains(&Language::TypeScript));
-        assert!(config.ratchet.languages.contains(&Language::JavaScript));
-        assert!(config.ratchet.languages.contains(&Language::Python));
-        assert!(config.ratchet.languages.contains(&Language::Go));
+        assert_eq!(config.ratchets.languages.len(), 5);
+        assert!(config.ratchets.languages.contains(&Language::Rust));
+        assert!(config.ratchets.languages.contains(&Language::TypeScript));
+        assert!(config.ratchets.languages.contains(&Language::JavaScript));
+        assert!(config.ratchets.languages.contains(&Language::Python));
+        assert!(config.ratchets.languages.contains(&Language::Go));
     }
 
     #[test]
     fn test_invalid_language() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust", "invalid"]
 "#;
@@ -576,8 +574,8 @@ languages = ["rust", "invalid"]
         let deserialized = Config::parse(&serialized).unwrap();
 
         // Compare key fields (order may differ in serialization)
-        assert_eq!(config.ratchet.version, deserialized.ratchet.version);
-        assert_eq!(config.ratchet.languages, deserialized.ratchet.languages);
+        assert_eq!(config.ratchets.version, deserialized.ratchets.version);
+        assert_eq!(config.ratchets.languages, deserialized.ratchets.languages);
         assert_eq!(config.output.format, deserialized.output.format);
         assert_eq!(config.output.color, deserialized.output.color);
     }
@@ -585,36 +583,34 @@ languages = ["rust", "invalid"]
     #[test]
     fn test_missing_languages_field() {
         let invalid = r#"
-[ratchet]
+[ratchets]
 version = "1"
 "#;
 
         let result = Config::parse(invalid);
         assert!(result.is_err());
-        assert!(
-            result.unwrap_err().to_string().contains(
-                "No languages configured. Add languages to ratchet.toml to start checking."
-            )
-        );
+        assert!(result.unwrap_err().to_string().contains(
+            "No languages configured. Add languages to ratchets.toml to start checking."
+        ));
     }
 
     #[test]
     fn test_empty_include_patterns() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = []
 "#;
 
         let config = Config::parse(config_str).unwrap();
-        assert_eq!(config.ratchet.include.len(), 0);
+        assert_eq!(config.ratchets.include.len(), 0);
     }
 
     #[test]
     fn test_multiple_glob_patterns() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["src/**/*.rs", "tests/**/*.rs", "benches/**/*.rs"]
@@ -622,14 +618,14 @@ exclude = ["**/target/**", "**/generated/**", "**/*.bak"]
 "#;
 
         let config = Config::parse(config_str).unwrap();
-        assert_eq!(config.ratchet.include.len(), 3);
-        assert_eq!(config.ratchet.exclude.len(), 3);
+        assert_eq!(config.ratchets.include.len(), 3);
+        assert_eq!(config.ratchets.exclude.len(), 3);
     }
 
     #[test]
     fn test_rule_disabled_explicitly() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 
@@ -647,7 +643,7 @@ no-unwrap = false
     #[test]
     fn test_rule_with_only_severity() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 
@@ -668,7 +664,7 @@ my-rule = { severity = "info" }
     #[test]
     fn test_rule_with_only_regions() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 
@@ -689,7 +685,7 @@ my-rule = { regions = ["src/**"] }
     #[test]
     fn test_output_format_default() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 "#;
@@ -701,7 +697,7 @@ languages = ["rust"]
     #[test]
     fn test_color_option_default() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 "#;
@@ -713,7 +709,7 @@ languages = ["rust"]
     #[test]
     fn test_version_must_be_string() {
         let invalid = r#"
-[ratchet]
+[ratchets]
 version = 1
 languages = ["rust"]
 "#;
@@ -725,7 +721,7 @@ languages = ["rust"]
     #[test]
     fn test_complex_rule_combinations() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust", "python"]
 
@@ -749,7 +745,7 @@ custom-2 = { severity = "info" }
     #[test]
     fn test_invalid_output_format() {
         let invalid = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 
@@ -764,7 +760,7 @@ format = "xml"
     #[test]
     fn test_invalid_color_option() {
         let invalid = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 
@@ -779,7 +775,7 @@ color = "sometimes"
     #[test]
     fn test_invalid_severity() {
         let invalid = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 
@@ -794,7 +790,7 @@ my-rule = { severity = "critical" }
     #[test]
     fn test_custom_rule_with_invalid_region_glob() {
         let invalid = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 
@@ -815,13 +811,13 @@ my-rule = { regions = ["[invalid"] }
     #[test]
     fn test_all_supported_languages() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust", "typescript", "javascript", "python", "go"]
 "#;
 
         let config = Config::parse(config_str).unwrap();
-        assert_eq!(config.ratchet.languages.len(), 5);
+        assert_eq!(config.ratchets.languages.len(), 5);
     }
 
     #[test]
@@ -829,7 +825,7 @@ languages = ["rust", "typescript", "javascript", "python", "go"]
         for lang in &["rust", "typescript", "javascript", "python", "go"] {
             let config_str = format!(
                 r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["{}"]
 "#,
@@ -837,14 +833,14 @@ languages = ["{}"]
             );
 
             let config = Config::parse(&config_str).unwrap();
-            assert_eq!(config.ratchet.languages.len(), 1);
+            assert_eq!(config.ratchets.languages.len(), 1);
         }
     }
 
     #[test]
     fn test_patterns_section() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 
@@ -864,7 +860,7 @@ generated = ["**/generated/**", "**/vendor/**"]
     #[test]
     fn test_patterns_section_empty() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 "#;
@@ -876,7 +872,7 @@ languages = ["rust"]
     #[test]
     fn test_patterns_section_invalid_glob() {
         let config_str = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 

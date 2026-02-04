@@ -1,6 +1,6 @@
-//! Error types for Ratchet
+//! Error types for Ratchets
 //!
-//! This module defines the error types used throughout Ratchet, following
+//! This module defines the error types used throughout Ratchets, following
 //! a hierarchical structure with specific error variants for different
 //! error categories.
 
@@ -54,7 +54,7 @@ pub enum RuleError {
     InvalidQuery(String),
 }
 
-/// Top-level error type for Ratchet
+/// Top-level error type for Ratchets
 #[derive(Debug, thiserror::Error)]
 pub enum RatchetError {
     /// Configuration error

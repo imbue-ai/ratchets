@@ -1,8 +1,8 @@
-# Ratchet Design Specification
+# Ratchets Design Specification
 
 ## Overview
 
-Ratchet is a progressive lint enforcement tool that allows codebases to contain existing violations while preventing new ones. Unlike traditional linters that enforce binary pass/fail, Ratchet permits a budgeted number of violations per rule per region. These budgets can only decrease over time (the "ratchet" mechanism), ensuring technical debt monotonically decreases.
+Ratchets is a progressive lint enforcement tool that allows codebases to contain existing violations while preventing new ones. Unlike traditional linters that enforce binary pass/fail, Ratchets permits a budgeted number of violations per rule per region. These budgets can only decrease over time (the "ratchet" mechanism), ensuring technical debt monotonically decreases.
 
 ## Core Concepts
 
@@ -46,11 +46,11 @@ Agents and automated processes may tighten but never bump.
 
 ## File Structure
 
-A ratchet-enabled repository contains:
+A ratchets-enabled repository contains:
 
 ```
 project/
-├── ratchet.toml           # Configuration: enabled rules, languages, options
+├── ratchets.toml           # Configuration: enabled rules, languages, options
 ├── ratchet-counts.toml    # Violation budgets per rule per region
 ├── ratchets/              # Custom rule definitions
 │   ├── regex/             # Custom regex rules (*.toml)
@@ -58,14 +58,14 @@ project/
 └── src/                   # Source code to be checked
 ```
 
-### ratchet.toml
+### ratchets.toml
 
 The configuration file specifies which rules are enabled and global settings.
 
 ```toml
-# Ratchet configuration
+# Ratchets configuration
 
-[ratchet]
+[ratchets]
 version = "1"
 
 # Languages to analyze (determines which parsers to load)
@@ -106,7 +106,7 @@ color = "auto"
 The counts file stores violation budgets. Structure is `[rule-id.region-path]`.
 
 ```toml
-# Ratchet violation budgets
+# Ratchets violation budgets
 # These counts represent the maximum tolerated violations.
 # Counts can only be reduced (tightened) or explicitly bumped with justification.
 
@@ -180,27 +180,27 @@ exclude = ["tests/**", "benches/**"]
 
 ## Commands
 
-### `ratchet init`
+### `ratchets init`
 
-Initialize a repository for use with Ratchet.
+Initialize a repository for use with Ratchets.
 
 ```
-ratchet init [--force]
+ratchets init [--force]
 ```
 
 Behavior:
-- Creates `ratchet.toml` with sensible defaults
+- Creates `ratchets.toml` with sensible defaults
 - Creates empty `ratchet-counts.toml`
 - Creates `ratchets/regex/` and `ratchets/ast/` directories
 - If files exist: skip without `--force`, overwrite with `--force`
 - Idempotent: safe to run multiple times
 
-### `ratchet check`
+### `ratchets check`
 
 Verify that the codebase complies with all enabled rules within budgets.
 
 ```
-ratchet check [--format human|jsonl] [PATH...]
+ratchets check [--format human|jsonl] [PATH...]
 ```
 
 Behavior:
@@ -216,13 +216,13 @@ Exit codes:
 - `1`: At least one rule exceeded budget
 - `2`: Configuration or usage error (invalid config, missing files, bad arguments)
 
-### `ratchet bump <rule-id> [--region <path>] [--count <n>]`
+### `ratchets bump <rule-id> [--region <path>] [--count <n>]`
 
 Increase the violation budget for a rule.
 
 ```
-ratchet bump no-unwrap --region src/legacy --count 20
-ratchet bump no-unwrap --region src/legacy  # Auto-detect current count
+ratchets bump no-unwrap --region src/legacy --count 20
+ratchets bump no-unwrap --region src/legacy  # Auto-detect current count
 ```
 
 Behavior:
@@ -233,14 +233,14 @@ Behavior:
 
 **Important**: Bumping should be accompanied by justification in the git commit message. This is a social contract, not enforced by the tool.
 
-### `ratchet tighten [<rule-id>] [--region <path>]`
+### `ratchets tighten [<rule-id>] [--region <path>]`
 
 Reduce budgets to match current violation counts.
 
 ```
-ratchet tighten                    # Tighten all rules, all regions
-ratchet tighten no-unwrap          # Tighten specific rule, all regions
-ratchet tighten --region src/      # Tighten all rules in region
+ratchets tighten                    # Tighten all rules, all regions
+ratchets tighten no-unwrap          # Tighten specific rule, all regions
+ratchets tighten --region src/      # Tighten all rules in region
 ```
 
 Behavior:
@@ -249,18 +249,18 @@ Behavior:
 - Fails if any current > budget (violations exist beyond budget)
 - Updates `ratchet-counts.toml`
 
-### `ratchet merge-driver`
+### `ratchets merge-driver`
 
 Git merge driver for `ratchet-counts.toml` that resolves conflicts by taking the minimum count.
 
 ```
 # In .gitattributes:
-ratchet-counts.toml merge=ratchet
+ratchet-counts.toml merge=ratchets
 
 # In .git/config or ~/.gitconfig:
-[merge "ratchet"]
-    name = Ratchet counts merge driver (minimum wins)
-    driver = ratchet merge-driver %O %A %B
+[merge "ratchets"]
+    name = Ratchets counts merge driver (minimum wins)
+    driver = ratchets merge-driver %O %A %B
 ```
 
 Behavior:
@@ -269,12 +269,12 @@ Behavior:
 - Writes merged result to `%A`
 - Exit `0` on success, non-zero on parse failure
 
-### `ratchet list`
+### `ratchets list`
 
 List all enabled rules and their current status.
 
 ```
-ratchet list [--format human|jsonl]
+ratchets list [--format human|jsonl]
 ```
 
 Output includes:
@@ -352,7 +352,7 @@ Codes 4-127 are reserved for future use.
 
 ### Single Point of Interface
 
-The **RuleRegistry** is the canonical interface for loading and managing rules in Ratchet. All rule loading in normal operation MUST go through the `RuleRegistry::build_from_config()` method. This single point of interface ensures:
+The **RuleRegistry** is the canonical interface for loading and managing rules in Ratchets. All rule loading in normal operation MUST go through the `RuleRegistry::build_from_config()` method. This single point of interface ensures:
 
 - **Consistency**: All components load rules the same way
 - **No duplicates**: Rules with the same ID are properly deduplicated through override behavior
@@ -365,7 +365,7 @@ The **RuleRegistry** is the canonical interface for loading and managing rules i
 1. **Embedded rules**: Built-in rules compiled into the binary (from `include_str!` macros)
 2. **Filesystem builtin rules**: Rules from `builtin-ratchets/` directory (for development/overrides)
 3. **Custom rules**: User-defined rules from `ratchets/` directory
-4. **Config filter**: Remove disabled rules based on `ratchet.toml` settings
+4. **Config filter**: Remove disabled rules based on `ratchets.toml` settings
 5. **Language filter**: Remove rules for unconfigured languages
 
 Later rules override earlier rules with the same ID. This allows filesystem rules to override embedded rules, and custom rules to override builtin rules.
@@ -397,10 +397,10 @@ ratchets/
 
 All commands that need rules use `RuleRegistry::build_from_config()`:
 
-- `ratchet check`: Loads all enabled rules filtered by config
-- `ratchet bump`: Validates rule exists before bumping budget
-- `ratchet tighten`: Loads all enabled rules to count violations
-- `ratchet list`: Lists all enabled rules with their status
+- `ratchets check`: Loads all enabled rules filtered by config
+- `ratchets bump`: Validates rule exists before bumping budget
+- `ratchets tighten`: Loads all enabled rules to count violations
+- `ratchets list`: Lists all enabled rules with their status
 
 This centralization eliminates rule loading duplication and ensures all commands see the same set of rules.
 

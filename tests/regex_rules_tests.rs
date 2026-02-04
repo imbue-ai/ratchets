@@ -5,8 +5,8 @@
 //! These tests verify that regex rules work correctly with actual built-in rules
 //! and fixture files.
 
-use ratchet::rules::{ExecutionContext, RegexRule, Rule, RuleRegistry};
-use ratchet::types::{RuleId, Severity};
+use ratchets::rules::{ExecutionContext, RegexRule, Rule, RuleRegistry};
+use ratchets::types::{RuleId, Severity};
 use std::path::{Path, PathBuf};
 
 /// Helper function to get the fixtures directory path

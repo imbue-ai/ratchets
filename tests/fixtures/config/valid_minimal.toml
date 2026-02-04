@@ -1,4 +1,4 @@
 # Minimal valid ratchet configuration
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]

@@ -11,7 +11,7 @@
 //! NOTE: These tests change the current directory and use std::sync::Mutex
 //! to ensure they don't interfere with each other.
 
-use ratchet::cli;
+use ratchets::cli;
 use std::fs;
 use std::path::Path;
 use std::sync::Mutex;
@@ -192,7 +192,7 @@ fn test_e2e_full_workflow_init_add_check_tighten() {
     with_temp_dir(|temp_dir| {
         // Step 1: Initialize ratchet project
         let init_result = cli::init::run_init(false).expect("init should succeed");
-        assert!(init_result.created.contains(&"ratchet.toml".to_string()));
+        assert!(init_result.created.contains(&"ratchets.toml".to_string()));
         assert!(
             init_result
                 .created
@@ -205,7 +205,7 @@ fn test_e2e_full_workflow_init_add_check_tighten() {
 
         // Update config to enable rust and include patterns
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -220,7 +220,7 @@ no-expect = false
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write("ratchet.toml", config).unwrap();
+        fs::write("ratchets.toml", config).unwrap();
 
         // Step 3: Run check (should find violations but with default budget 0, will fail)
         let check_exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false);
@@ -271,7 +271,7 @@ fn test_e2e_multi_file_project_with_regions() {
         create_multi_file_rust_project(temp_dir.path());
 
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -286,7 +286,7 @@ no-expect = false
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write("ratchet.toml", config).unwrap();
+        fs::write("ratchets.toml", config).unwrap();
 
         // Set different budgets for different regions
         let counts = r#"
@@ -349,7 +349,7 @@ fn main() {
         .unwrap();
 
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -360,7 +360,7 @@ no-unwrap = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write("ratchet.toml", config).unwrap();
+        fs::write("ratchets.toml", config).unwrap();
 
         // Check should fail (no budgets set)
         let exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false);
@@ -424,7 +424,7 @@ fn test_e2e_region_inheritance() {
         fs::write(utils.join("helpers.rs"), "// TODO: 3\n").unwrap();
 
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -434,7 +434,7 @@ no-todo-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write("ratchet.toml", config).unwrap();
+        fs::write("ratchets.toml", config).unwrap();
 
         // Set budget only at root - should apply to all nested regions
         let counts = r#"
@@ -505,7 +505,7 @@ fn test_e2e_gitignore_respected() {
         fs::write(src.join("main.rs"), "// TODO: this counts\n").unwrap();
 
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -515,7 +515,7 @@ no-todo-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write("ratchet.toml", config).unwrap();
+        fs::write("ratchets.toml", config).unwrap();
 
         let counts = r#"
 [no-todo-comments]
@@ -550,7 +550,7 @@ fn test_e2e_all_exit_codes() {
         fs::write(temp_dir.path().join("test.rs"), "// TODO: test\n").unwrap();
 
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -560,7 +560,7 @@ no-todo-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write("ratchet.toml", config).unwrap();
+        fs::write("ratchets.toml", config).unwrap();
 
         let counts = r#"
 [no-todo-comments]
@@ -582,19 +582,19 @@ rust-no-fixme-comments = false
         assert_eq!(exit, cli::common::EXIT_EXCEEDED);
 
         // EXIT_ERROR (2): Missing config
-        fs::remove_file("ratchet.toml").unwrap();
+        fs::remove_file("ratchets.toml").unwrap();
 
         let exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false);
         assert_eq!(exit, cli::common::EXIT_ERROR);
 
         // EXIT_PARSE_ERROR (3): Invalid TOML syntax
         let invalid_config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"
 # Missing closing bracket - invalid TOML
 "#;
-        fs::write("ratchet.toml", invalid_config).unwrap();
+        fs::write("ratchets.toml", invalid_config).unwrap();
 
         let exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false);
         assert_eq!(exit, cli::common::EXIT_PARSE_ERROR);
@@ -661,7 +661,7 @@ fn main() {
         .unwrap();
 
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -673,7 +673,7 @@ no-unwrap = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write("ratchet.toml", config).unwrap();
+        fs::write("ratchets.toml", config).unwrap();
 
         // Set different budgets per rule per region
         let counts = r#"
@@ -736,7 +736,7 @@ fn test_e2e_gradual_cleanup_workflow() {
         }
 
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -746,7 +746,7 @@ no-todo-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write("ratchet.toml", config).unwrap();
+        fs::write("ratchets.toml", config).unwrap();
 
         // Week 1: Establish baseline - set budget to current count (10)
         let counts = r#"
@@ -803,7 +803,7 @@ fn test_e2e_multiple_paths_check() {
         fs::write(tests.join("test.rs"), "// TODO: test todo\n").unwrap();
 
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -813,7 +813,7 @@ no-todo-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write("ratchet.toml", config).unwrap();
+        fs::write("ratchets.toml", config).unwrap();
 
         let counts = r#"
 [no-todo-comments]
@@ -847,7 +847,7 @@ fn test_e2e_jsonl_output_format() {
         fs::write(src.join("main.rs"), "// TODO: test\n").unwrap();
 
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -857,7 +857,7 @@ no-todo-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write("ratchet.toml", config).unwrap();
+        fs::write("ratchets.toml", config).unwrap();
 
         let counts = r#"
 [no-todo-comments]
@@ -885,7 +885,7 @@ fn test_e2e_tighten_with_violations_fails() {
         fs::write(temp_dir.path().join("test.rs"), "// TODO: test\n").unwrap();
 
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -895,7 +895,7 @@ no-todo-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write("ratchet.toml", config).unwrap();
+        fs::write("ratchets.toml", config).unwrap();
 
         // Set budget to 0 (below current count)
         let counts = r#"
@@ -921,14 +921,14 @@ fn test_e2e_empty_project() {
         cli::init::run_init(false).expect("init should succeed");
 
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
 "#;
-        fs::write("ratchet.toml", config).unwrap();
+        fs::write("ratchets.toml", config).unwrap();
 
         // Check empty project - should succeed with warning
         let exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false);
@@ -949,7 +949,7 @@ fn test_e2e_no_violations_found() {
         fs::write(src.join("main.rs"), "fn main() {}\n").unwrap();
 
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -959,7 +959,7 @@ no-todo-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write("ratchet.toml", config).unwrap();
+        fs::write("ratchets.toml", config).unwrap();
 
         // Check should succeed (no violations)
         let exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false);
@@ -986,7 +986,7 @@ fn test_e2e_rule_disabled_in_config() {
 
         // Disable the rule
         let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -996,7 +996,7 @@ no-todo-comments = false
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-        fs::write("ratchet.toml", config).unwrap();
+        fs::write("ratchets.toml", config).unwrap();
 
         // Check should succeed (rule disabled)
         let exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false);
@@ -1011,20 +1011,20 @@ fn test_e2e_init_force_overwrites() {
         cli::init::run_init(false).expect("init should succeed");
 
         // Modify config
-        fs::write(temp_dir.path().join("ratchet.toml"), "modified content").unwrap();
+        fs::write(temp_dir.path().join("ratchets.toml"), "modified content").unwrap();
 
         // Init without force should skip
         let result = cli::init::run_init(false).expect("init should succeed");
-        assert!(result.skipped.contains(&"ratchet.toml".to_string()));
+        assert!(result.skipped.contains(&"ratchets.toml".to_string()));
 
-        let content = fs::read_to_string(temp_dir.path().join("ratchet.toml")).unwrap();
+        let content = fs::read_to_string(temp_dir.path().join("ratchets.toml")).unwrap();
         assert_eq!(content, "modified content");
 
         // Init with force should overwrite
         let result = cli::init::run_init(true).expect("init should succeed");
-        assert!(result.overwritten.contains(&"ratchet.toml".to_string()));
+        assert!(result.overwritten.contains(&"ratchets.toml".to_string()));
 
-        let content = fs::read_to_string(temp_dir.path().join("ratchet.toml")).unwrap();
-        assert!(content.contains("[ratchet]"));
+        let content = fs::read_to_string(temp_dir.path().join("ratchets.toml")).unwrap();
+        assert!(content.contains("[ratchets]"));
     });
 }

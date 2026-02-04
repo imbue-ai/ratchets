@@ -33,7 +33,7 @@ Run these automated checks to validate the code:
 - `cargo fmt --check`
 - `cargo clippy --all-targets --all-features`
 - `cargo nextest run`
-- `ratchet --check`
+- `ratchets --check`
 
 ## Verdict
 - Render a **PASS** if no errors detected and all checks succeed

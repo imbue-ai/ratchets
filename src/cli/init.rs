@@ -5,8 +5,8 @@
 use std::fs;
 use std::path::Path;
 
-/// Default content for ratchet.toml
-const DEFAULT_RATCHET_TOML: &str = r#"[ratchet]
+/// Default content for ratchets.toml
+const DEFAULT_RATCHET_TOML: &str = r#"[ratchets]
 version = "1"
 
 # Languages to enable (uncomment as needed)
@@ -75,7 +75,7 @@ impl InitResult {
 /// Run the init command
 ///
 /// Creates the following files and directories:
-/// - ratchet.toml (main configuration)
+/// - ratchets.toml (main configuration)
 /// - ratchet-counts.toml (violation budgets)
 /// - ratchets/regex/ (directory for custom regex rules)
 /// - ratchets/ast/ (directory for custom AST rules)
@@ -89,9 +89,9 @@ impl InitResult {
 pub fn run_init(force: bool) -> Result<InitResult, InitError> {
     let mut result = InitResult::new();
 
-    // Create ratchet.toml
+    // Create ratchets.toml
     handle_file(
-        Path::new("ratchet.toml"),
+        Path::new("ratchets.toml"),
         DEFAULT_RATCHET_TOML,
         force,
         &mut result,
@@ -211,7 +211,7 @@ mod tests {
             let result = run_init(false).expect("init should succeed");
 
             // Check that all expected items were created
-            assert!(result.created.contains(&"ratchet.toml".to_string()));
+            assert!(result.created.contains(&"ratchets.toml".to_string()));
             assert!(result.created.contains(&"ratchet-counts.toml".to_string()));
             assert!(result.created.contains(&"ratchets/regex/".to_string()));
             assert!(result.created.contains(&"ratchets/ast/".to_string()));
@@ -219,10 +219,10 @@ mod tests {
             assert!(result.overwritten.is_empty());
 
             // Check that files exist with correct content
-            let ratchet_toml = temp_dir.path().join("ratchet.toml");
+            let ratchet_toml = temp_dir.path().join("ratchets.toml");
             assert!(ratchet_toml.exists());
             let content = fs::read_to_string(&ratchet_toml).unwrap();
-            assert!(content.contains("[ratchet]"));
+            assert!(content.contains("[ratchets]"));
             assert!(content.contains("version = \"1\""));
 
             let counts_toml = temp_dir.path().join("ratchet-counts.toml");
@@ -240,18 +240,18 @@ mod tests {
     fn test_init_skips_existing_files_without_force() {
         with_temp_dir(|temp_dir| {
             // Create an existing file with different content
-            fs::write("ratchet.toml", "existing content").unwrap();
+            fs::write("ratchets.toml", "existing content").unwrap();
 
             // Run init without force
             let result = run_init(false).expect("init should succeed");
 
             // Check that existing file was skipped
-            assert!(result.skipped.contains(&"ratchet.toml".to_string()));
-            assert!(!result.created.contains(&"ratchet.toml".to_string()));
-            assert!(!result.overwritten.contains(&"ratchet.toml".to_string()));
+            assert!(result.skipped.contains(&"ratchets.toml".to_string()));
+            assert!(!result.created.contains(&"ratchets.toml".to_string()));
+            assert!(!result.overwritten.contains(&"ratchets.toml".to_string()));
 
             // Verify file content wasn't changed
-            let content = fs::read_to_string(temp_dir.path().join("ratchet.toml")).unwrap();
+            let content = fs::read_to_string(temp_dir.path().join("ratchets.toml")).unwrap();
             assert_eq!(content, "existing content");
 
             // Other files should still be created
@@ -263,25 +263,25 @@ mod tests {
     fn test_init_overwrites_existing_files_with_force() {
         with_temp_dir(|temp_dir| {
             // Create existing files with different content
-            fs::write("ratchet.toml", "old content").unwrap();
+            fs::write("ratchets.toml", "old content").unwrap();
             fs::write("ratchet-counts.toml", "old counts").unwrap();
 
             // Run init with force
             let result = run_init(true).expect("init should succeed");
 
             // Check that existing files were overwritten
-            assert!(result.overwritten.contains(&"ratchet.toml".to_string()));
+            assert!(result.overwritten.contains(&"ratchets.toml".to_string()));
             assert!(
                 result
                     .overwritten
                     .contains(&"ratchet-counts.toml".to_string())
             );
-            assert!(!result.skipped.contains(&"ratchet.toml".to_string()));
+            assert!(!result.skipped.contains(&"ratchets.toml".to_string()));
             assert!(!result.skipped.contains(&"ratchet-counts.toml".to_string()));
 
             // Verify file content was changed
-            let content = fs::read_to_string(temp_dir.path().join("ratchet.toml")).unwrap();
-            assert!(content.contains("[ratchet]"));
+            let content = fs::read_to_string(temp_dir.path().join("ratchets.toml")).unwrap();
+            assert!(content.contains("[ratchets]"));
             assert_ne!(content, "old content");
         });
     }
@@ -297,7 +297,7 @@ mod tests {
 
             // Second run should skip files but not list directories (they already exist)
             let result2 = run_init(false).expect("second init should succeed");
-            assert!(result2.skipped.contains(&"ratchet.toml".to_string()));
+            assert!(result2.skipped.contains(&"ratchets.toml".to_string()));
             assert!(result2.skipped.contains(&"ratchet-counts.toml".to_string()));
             assert!(result2.created.is_empty());
             assert!(result2.overwritten.is_empty());
@@ -335,7 +335,7 @@ mod tests {
             assert!(!result.created.contains(&"ratchets/ast/".to_string()));
 
             // But files should be created
-            assert!(result.created.contains(&"ratchet.toml".to_string()));
+            assert!(result.created.contains(&"ratchets.toml".to_string()));
             assert!(result.created.contains(&"ratchet-counts.toml".to_string()));
         });
     }
@@ -359,7 +359,7 @@ mod tests {
 
     #[test]
     fn test_default_ratchet_toml_content() {
-        assert!(DEFAULT_RATCHET_TOML.contains("[ratchet]"));
+        assert!(DEFAULT_RATCHET_TOML.contains("[ratchets]"));
         assert!(DEFAULT_RATCHET_TOML.contains("version = \"1\""));
         assert!(DEFAULT_RATCHET_TOML.contains("[rules]"));
         assert!(DEFAULT_RATCHET_TOML.contains("[output]"));

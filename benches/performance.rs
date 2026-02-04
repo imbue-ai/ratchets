@@ -52,9 +52,9 @@
 //! - Should scale well up to number of CPU cores
 
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
-use ratchet::engine::file_walker::{FileEntry, FileWalker};
-use ratchet::rules::{AstRule, ExecutionContext, ParserCache, RegexRule, Rule, RuleRegistry};
-use ratchet::types::{GlobPattern, Language};
+use ratchets::engine::file_walker::{FileEntry, FileWalker};
+use ratchets::rules::{AstRule, ExecutionContext, ParserCache, RegexRule, Rule, RuleRegistry};
+use ratchets::types::{GlobPattern, Language};
 use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
@@ -357,7 +357,7 @@ pattern = "TODO"
                     let walker = FileWalker::new(temp_dir.path(), &[], &[]).unwrap();
                     let files: Vec<FileEntry> = walker.walk().filter_map(Result::ok).collect();
 
-                    let engine = ratchet::engine::executor::ExecutionEngine::new(registry);
+                    let engine = ratchets::engine::executor::ExecutionEngine::new(registry);
                     let result = engine.execute(files);
                     black_box(result)
                 });
@@ -404,7 +404,7 @@ pattern = "TODO"
             let mut registry = RuleRegistry::new();
             registry.load_custom_regex_rules(&rule_dir, None).unwrap();
 
-            let engine = ratchet::engine::executor::ExecutionEngine::new(registry);
+            let engine = ratchets::engine::executor::ExecutionEngine::new(registry);
             let result = engine.execute(files.clone());
             black_box(result)
         });

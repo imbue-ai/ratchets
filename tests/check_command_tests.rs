@@ -10,9 +10,9 @@ use tempfile::TempDir;
 
 /// Helper to create a test project structure
 fn setup_test_project(temp_dir: &Path) {
-    // Create ratchet.toml
+    // Create ratchets.toml
     let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -22,7 +22,7 @@ no-todo-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-    fs::write(temp_dir.join("ratchet.toml"), config).unwrap();
+    fs::write(temp_dir.join("ratchets.toml"), config).unwrap();
 
     // Create ratchet-counts.toml
     let counts = r#"
@@ -69,14 +69,14 @@ fn test_check_command_within_budget() {
     std::env::set_current_dir(temp_dir.path()).unwrap();
 
     // Run the check command
-    let exit_code = ratchet::cli::check::run_check(
+    let exit_code = ratchets::cli::check::run_check(
         &[".".to_string()],
-        ratchet::cli::OutputFormat::Human,
+        ratchets::cli::OutputFormat::Human,
         false,
     );
 
     // Should pass because we have 1 TODO and budget is 2
-    assert_eq!(exit_code, ratchet::cli::common::EXIT_SUCCESS);
+    assert_eq!(exit_code, ratchets::cli::common::EXIT_SUCCESS);
 
     // Restore original directory
     std::env::set_current_dir(original_dir).unwrap();
@@ -87,9 +87,9 @@ fn test_check_command_within_budget() {
 fn test_check_command_exceeded_budget() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create ratchet.toml with lower budget
+    // Create ratchets.toml with lower budget
     let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -97,7 +97,7 @@ include = ["**/*.rs"]
 [rules]
 no-todo-comments = true
 "#;
-    fs::write(temp_dir.path().join("ratchet.toml"), config).unwrap();
+    fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
     // Create ratchet-counts.toml with budget of 1
     let counts = r#"
@@ -141,14 +141,14 @@ pattern = "TODO"
     std::env::set_current_dir(temp_dir.path()).unwrap();
 
     // Run the check command
-    let exit_code = ratchet::cli::check::run_check(
+    let exit_code = ratchets::cli::check::run_check(
         &[".".to_string()],
-        ratchet::cli::OutputFormat::Human,
+        ratchets::cli::OutputFormat::Human,
         false,
     );
 
     // Should fail because we have 2 TODOs and budget is 1
-    assert_eq!(exit_code, ratchet::cli::common::EXIT_EXCEEDED);
+    assert_eq!(exit_code, ratchets::cli::common::EXIT_EXCEEDED);
 
     std::env::set_current_dir(original_dir).unwrap();
 }
@@ -161,20 +161,20 @@ fn test_check_command_missing_config() {
     // Create a subdirectory to ensure isolation
     let test_subdir = temp_dir.path().join("empty_project");
     fs::create_dir(&test_subdir).unwrap();
-    // Don't create ratchet.toml - this is the test condition
+    // Don't create ratchets.toml - this is the test condition
 
     let original_dir = std::env::current_dir().unwrap();
     std::env::set_current_dir(&test_subdir).unwrap();
 
     // Run the check command
-    let exit_code = ratchet::cli::check::run_check(
+    let exit_code = ratchets::cli::check::run_check(
         &[".".to_string()],
-        ratchet::cli::OutputFormat::Human,
+        ratchets::cli::OutputFormat::Human,
         false,
     );
 
     // Should return error code
-    assert_eq!(exit_code, ratchet::cli::common::EXIT_ERROR);
+    assert_eq!(exit_code, ratchets::cli::common::EXIT_ERROR);
 
     std::env::set_current_dir(original_dir).unwrap();
 }
@@ -186,7 +186,7 @@ fn test_check_command_no_files() {
 
     // Create config but no source files
     let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -194,20 +194,20 @@ include = ["**/*.rs"]
 [rules]
 no-todo-comments = true
 "#;
-    fs::write(temp_dir.path().join("ratchet.toml"), config).unwrap();
+    fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
     let original_dir = std::env::current_dir().unwrap();
     std::env::set_current_dir(temp_dir.path()).unwrap();
 
     // Run the check command
-    let exit_code = ratchet::cli::check::run_check(
+    let exit_code = ratchets::cli::check::run_check(
         &[".".to_string()],
-        ratchet::cli::OutputFormat::Human,
+        ratchets::cli::OutputFormat::Human,
         false,
     );
 
     // Should succeed with warning (no files to check)
-    assert_eq!(exit_code, ratchet::cli::common::EXIT_SUCCESS);
+    assert_eq!(exit_code, ratchets::cli::common::EXIT_SUCCESS);
 
     std::env::set_current_dir(original_dir).unwrap();
 }
@@ -222,14 +222,14 @@ fn test_check_command_jsonl_format() {
     std::env::set_current_dir(temp_dir.path()).unwrap();
 
     // Run the check command with JSONL format
-    let exit_code = ratchet::cli::check::run_check(
+    let exit_code = ratchets::cli::check::run_check(
         &[".".to_string()],
-        ratchet::cli::OutputFormat::Jsonl,
+        ratchets::cli::OutputFormat::Jsonl,
         false,
     );
 
     // Should pass because we have 1 TODO and budget is 2
-    assert_eq!(exit_code, ratchet::cli::common::EXIT_SUCCESS);
+    assert_eq!(exit_code, ratchets::cli::common::EXIT_SUCCESS);
 
     std::env::set_current_dir(original_dir).unwrap();
 }
@@ -239,9 +239,9 @@ fn test_check_command_jsonl_format() {
 fn test_check_verbose_flag() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create ratchet.toml
+    // Create ratchets.toml
     let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -252,7 +252,7 @@ no-todo-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-    fs::write(temp_dir.path().join("ratchet.toml"), config).unwrap();
+    fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
     // Create ratchet-counts.toml
     let counts = r#"
@@ -301,14 +301,14 @@ pattern = "TODO"
 
     // Run check with verbose flag (stderr output will go to console during test)
     // We're testing that it doesn't crash and completes successfully
-    let exit_code = ratchet::cli::check::run_check(
+    let exit_code = ratchets::cli::check::run_check(
         &[".".to_string()],
-        ratchet::cli::OutputFormat::Human,
+        ratchets::cli::OutputFormat::Human,
         true, // verbose = true
     );
 
     // Should succeed - we have 1 TODO and budget is 10
-    assert_eq!(exit_code, ratchet::cli::common::EXIT_SUCCESS);
+    assert_eq!(exit_code, ratchets::cli::common::EXIT_SUCCESS);
 
     std::env::set_current_dir(original_dir).unwrap();
 }
@@ -324,14 +324,14 @@ fn test_check_verbose_short_flag_behavior() {
 
     // Run check with verbose flag (simulating -v short flag)
     // This tests that the verbose parameter works correctly
-    let exit_code = ratchet::cli::check::run_check(
+    let exit_code = ratchets::cli::check::run_check(
         &[".".to_string()],
-        ratchet::cli::OutputFormat::Human,
+        ratchets::cli::OutputFormat::Human,
         true, // verbose = true (equivalent to -v)
     );
 
     // Should pass because we have 1 TODO and budget is 2
-    assert_eq!(exit_code, ratchet::cli::common::EXIT_SUCCESS);
+    assert_eq!(exit_code, ratchets::cli::common::EXIT_SUCCESS);
 
     std::env::set_current_dir(original_dir).unwrap();
 }
@@ -341,9 +341,9 @@ fn test_check_verbose_short_flag_behavior() {
 fn test_check_verbose_with_jsonl_format() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create ratchet.toml with specific include pattern
+    // Create ratchets.toml with specific include pattern
     let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["src/**/*.rs"]
@@ -351,7 +351,7 @@ include = ["src/**/*.rs"]
 [rules]
 no-todo-comments = true
 "#;
-    fs::write(temp_dir.path().join("ratchet.toml"), config).unwrap();
+    fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
     // Create ratchet-counts.toml
     let counts = r#"
@@ -392,14 +392,14 @@ pattern = "TODO"
 
     // Run check with verbose flag and JSONL format
     // Verbose messages should go to stderr, JSONL to stdout
-    let exit_code = ratchet::cli::check::run_check(
+    let exit_code = ratchets::cli::check::run_check(
         &[".".to_string()],
-        ratchet::cli::OutputFormat::Jsonl,
+        ratchets::cli::OutputFormat::Jsonl,
         true, // verbose = true
     );
 
     // Should succeed
-    assert_eq!(exit_code, ratchet::cli::common::EXIT_SUCCESS);
+    assert_eq!(exit_code, ratchets::cli::common::EXIT_SUCCESS);
 
     std::env::set_current_dir(original_dir).unwrap();
 }
@@ -409,9 +409,9 @@ pattern = "TODO"
 fn test_check_non_verbose_hides_violations() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create ratchet.toml
+    // Create ratchets.toml
     let config = r#"
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust"]
 include = ["**/*.rs"]
@@ -421,7 +421,7 @@ no-todo-comments = true
 rust-no-todo-comments = false
 rust-no-fixme-comments = false
 "#;
-    fs::write(temp_dir.path().join("ratchet.toml"), config).unwrap();
+    fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
     // Create ratchet-counts.toml with budget of 10 (so check will pass)
     let counts = r#"
@@ -467,14 +467,14 @@ pattern = "TODO"
     // Capture stdout/stderr to verify output
     // Since we can't easily capture stdout in this test, we'll just verify
     // that the check command completes successfully with verbose=false
-    let exit_code = ratchet::cli::check::run_check(
+    let exit_code = ratchets::cli::check::run_check(
         &[".".to_string()],
-        ratchet::cli::OutputFormat::Human,
+        ratchets::cli::OutputFormat::Human,
         false, // verbose = false
     );
 
     // Should pass because we have 2 TODOs and budget is 10
-    assert_eq!(exit_code, ratchet::cli::common::EXIT_SUCCESS);
+    assert_eq!(exit_code, ratchets::cli::common::EXIT_SUCCESS);
 
     // Note: We can't easily verify that violation details are NOT in output
     // from this integration test because stdout goes directly to the terminal.

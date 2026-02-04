@@ -1,7 +1,7 @@
 //! Check command implementation
 //!
 //! This module implements the `ratchet check` command, which:
-//! - Loads configuration from ratchet.toml
+//! - Loads configuration from ratchets.toml
 //! - Loads violation budgets from ratchet-counts.toml
 //! - Discovers files to check
 //! - Executes all enabled rules in parallel
@@ -88,7 +88,7 @@ fn run_check_inner(
     format: OutputFormat,
     verbose: bool,
 ) -> Result<bool, CheckError> {
-    // 1. Load ratchet.toml config
+    // 1. Load ratchets.toml config
     let config = super::common::load_config()?;
 
     // 2. Load ratchet-counts.toml

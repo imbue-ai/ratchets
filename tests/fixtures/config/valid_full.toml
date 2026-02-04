@@ -1,5 +1,5 @@
 # Full valid ratchet configuration with all options
-[ratchet]
+[ratchets]
 version = "1"
 languages = ["rust", "typescript", "python"]
 include = ["src/**", "tests/**"]

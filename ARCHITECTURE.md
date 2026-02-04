@@ -1,15 +1,15 @@
-# Ratchet Architecture
+# Ratchets Architecture
 
 ## Philosophy
 
-Ratchet collaborates with coding agents, verification tools, and human developers to enable long-horizon coding. By providing fast, deterministic verification, it enables rapid iteration while maintaining code quality invariants.
+Ratchets collaborates with coding agents, verification tools, and human developers to enable long-horizon coding. By providing fast, deterministic verification, it enables rapid iteration while maintaining code quality invariants.
 
 Core tenets:
 - **Agent-first**: Structured JSONL output, TOML configuration, actionable error messages
 - **Unix principles**: Do one thing well, compose with other tools, no network calls
 - **Best-of-breed dependencies**: Rely on established Rust crates rather than reimplementing
 
-Ratchet is a compiled binary that runs locally, exits cleanly, and never communicates over the network.
+Ratchets is a compiled binary that runs locally, exits cleanly, and never communicates over the network.
 
 ## High-Level Architecture
 
@@ -52,15 +52,15 @@ src/
 ├── cli/
 │   ├── mod.rs              # CLI module root
 │   ├── args.rs             # Argument definitions (clap)
-│   ├── check.rs            # `ratchet check` command
-│   ├── init.rs             # `ratchet init` command
-│   ├── bump.rs             # `ratchet bump` command
-│   ├── tighten.rs          # `ratchet tighten` command
-│   ├── list.rs             # `ratchet list` command
-│   └── merge_driver.rs     # `ratchet merge-driver` command
+│   ├── check.rs            # `ratchets check` command
+│   ├── init.rs             # `ratchets init` command
+│   ├── bump.rs             # `ratchets bump` command
+│   ├── tighten.rs          # `ratchets tighten` command
+│   ├── list.rs             # `ratchets list` command
+│   └── merge_driver.rs     # `ratchets merge-driver` command
 ├── config/
 │   ├── mod.rs              # Configuration module root
-│   ├── ratchet_toml.rs     # ratchet.toml parsing and validation
+│   ├── ratchet_toml.rs     # ratchets.toml parsing and validation
 │   └── counts.rs           # ratchet-counts.toml parsing and manipulation
 ├── rules/
 │   ├── mod.rs              # Rules module root
@@ -112,7 +112,7 @@ builtin-ratchets/           # Built-in rules in language-first organization
 ### Config Loader
 
 Responsibilities:
-- Parse `ratchet.toml` from current directory (or specified path)
+- Parse `ratchets.toml` from current directory (or specified path)
 - Validate configuration schema
 - Resolve rule references (built-in names, custom paths)
 - Merge CLI overrides with file configuration
@@ -254,11 +254,11 @@ Additional languages added via feature flags.
 
 ## Data Flow
 
-### `ratchet check` Flow
+### `ratchets check` Flow
 
 ```
 1. Parse CLI arguments
-2. Load ratchet.toml → Config
+2. Load ratchets.toml → Config
 3. Load ratchet-counts.toml → CountsManager
 4. Load rules (built-in + custom) → RuleRegistry
 5. Discover files (respecting include/exclude)
@@ -275,7 +275,7 @@ Additional languages added via feature flags.
 10. Exit with appropriate code
 ```
 
-### `ratchet tighten` Flow
+### `ratchets tighten` Flow
 
 ```
 1. Run check flow (steps 1-8)
@@ -285,7 +285,7 @@ Additional languages added via feature flags.
 4. Report changes made
 ```
 
-### `ratchet merge-driver` Flow
+### `ratchets merge-driver` Flow
 
 ```
 1. Parse base, ours, theirs TOML files
@@ -300,7 +300,7 @@ Additional languages added via feature flags.
 
 ## Parallelism Model
 
-Ratchet uses `rayon` for parallel execution:
+Ratchets uses `rayon` for parallel execution:
 
 1. **File-level parallelism**: Files are processed in parallel
 2. **Rule-level parallelism**: Independent rules run concurrently
@@ -316,7 +316,7 @@ Synchronization points:
 
 ## Error Handling
 
-Ratchet uses typed errors with `thiserror`:
+Ratchets uses typed errors with `thiserror`:
 
 ```rust
 #[derive(Debug, thiserror::Error)]
