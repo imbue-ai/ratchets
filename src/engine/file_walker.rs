@@ -293,10 +293,22 @@ impl FileWalker {
                         }
                     }
 
-                    Some(Ok(WalkResult::File(FileEntry::new(
-                        path.to_path_buf(),
-                        &language_detector,
-                    ))))
+                    // Create FileEntry and check if it has a recognized language
+                    let file_entry = FileEntry::new(path.to_path_buf(), &language_detector);
+
+                    // Filter out non-program files (no recognized language)
+                    if file_entry.language.is_none() {
+                        if verbose {
+                            return Some(Ok(WalkResult::Skipped {
+                                path: path.to_path_buf(),
+                                reason: SkipReason::NoMatchingLanguage,
+                            }));
+                        } else {
+                            return None;
+                        }
+                    }
+
+                    Some(Ok(WalkResult::File(file_entry)))
                 }
                 Err(e) => Some(Err(FileWalkerError::Walk(e))),
             }
@@ -470,12 +482,13 @@ mod tests {
         let walker = FileWalker::new(&temp_dir, &[], &[]).expect("Failed to create walker");
         let files: Vec<_> = walker.walk().collect();
 
-        // Should find at least the two files we created
-        assert!(files.len() >= 2);
+        // Should find only the .rs file - .txt is filtered out (no recognized language)
+        assert_eq!(files.len(), 1);
 
-        // Check that all results are Ok
+        // Check that all results are Ok and are program files
         for result in &files {
-            assert!(result.is_ok());
+            let file = result.as_ref().expect("Should be Ok");
+            assert!(file.language.is_some(), "All files should have a language");
         }
 
         // Cleanup

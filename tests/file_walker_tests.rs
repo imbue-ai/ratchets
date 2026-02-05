@@ -70,7 +70,7 @@ fn test_walk_with_gitignore() {
 
     let filenames = extract_filenames(&files);
 
-    // Should find main.rs
+    // Should find main.rs (program file)
     assert!(
         filenames.contains("main.rs"),
         "Should find main.rs in with_gitignore fixture"
@@ -88,10 +88,11 @@ fn test_walk_with_gitignore() {
         "Should not find .log files (gitignored)"
     );
 
-    // Should find .gitignore itself
+    // .gitignore is filtered out (no recognized programming language)
+    // This is correct behavior - ratchets only checks program files
     assert!(
-        filenames.contains(".gitignore"),
-        "Should find .gitignore file"
+        !filenames.contains(".gitignore"),
+        ".gitignore should be filtered out (not a program file)"
     );
 }
 
@@ -403,6 +404,7 @@ fn test_multiple_exclude_patterns() {
 
 #[test]
 fn test_language_detection_edge_cases() {
+    use ratchets::engine::file_walker::{SkipReason, WalkResult};
     use std::fs;
 
     // Create temporary directory with edge case files
@@ -419,33 +421,40 @@ fn test_language_detection_edge_cases() {
     // File with double extension
     fs::write(temp_dir.join("file.test.rs"), "test").expect("Failed to write file.test.rs");
 
-    let walker = FileWalker::new(&temp_dir, &[], &[]).expect("Failed to create walker");
-    let files = collect_files(walker);
+    // Use walk_with_skip_info to see both files and skipped entries
+    let walker =
+        FileWalker::with_verbose(&temp_dir, &[], &[], true).expect("Failed to create walker");
+    let results: Vec<_> = walker
+        .walk_with_skip_info()
+        .filter_map(Result::ok)
+        .collect();
 
-    // Find each file and check language detection
-    let makefile = files
-        .iter()
-        .find(|f| f.path.file_name().is_some_and(|n| n == "Makefile"));
-    assert!(makefile.is_some(), "Should find Makefile");
-    assert_eq!(
-        makefile.unwrap().language,
-        None,
-        "Makefile should have no language"
+    // Files without recognized language should be skipped
+    let makefile_skip = results.iter().find(|r| {
+        matches!(r, WalkResult::Skipped { path, reason }
+            if path.file_name().is_some_and(|n| n == "Makefile")
+            && *reason == SkipReason::NoMatchingLanguage)
+    });
+    assert!(
+        makefile_skip.is_some(),
+        "Makefile should be skipped (no matching language)"
     );
 
-    let unknown = files
-        .iter()
-        .find(|f| f.path.file_name().is_some_and(|n| n == "file.unknown"));
-    assert!(unknown.is_some(), "Should find file.unknown");
-    assert_eq!(
-        unknown.unwrap().language,
-        None,
-        "Unknown extension should have no language"
+    let unknown_skip = results.iter().find(|r| {
+        matches!(r, WalkResult::Skipped { path, reason }
+            if path.file_name().is_some_and(|n| n == "file.unknown")
+            && *reason == SkipReason::NoMatchingLanguage)
+    });
+    assert!(
+        unknown_skip.is_some(),
+        "file.unknown should be skipped (no matching language)"
     );
 
-    let double_ext = files
-        .iter()
-        .find(|f| f.path.file_name().is_some_and(|n| n == "file.test.rs"));
+    // File with .rs extension should be found as Rust
+    let double_ext = results.iter().find_map(|r| match r {
+        WalkResult::File(f) if f.path.file_name().is_some_and(|n| n == "file.test.rs") => Some(f),
+        _ => None,
+    });
     assert!(double_ext.is_some(), "Should find file.test.rs");
     assert_eq!(
         double_ext.unwrap().language,
