@@ -237,6 +237,7 @@ Behavior:
 - If `--count` omitted: run check for that rule/region, use current violation count
 - Updates `ratchet-counts.toml`
 - Fails if new count is lower than current violations (use `tighten` instead)
+- **Never creates new regions**: the specified region must already exist in configuration
 
 **Important**: Bumping should be accompanied by justification in the git commit message. This is a social contract, not enforced by the tool.
 
@@ -252,9 +253,10 @@ ratchets tighten --region src/      # Tighten all rules in region
 
 Behavior:
 - Runs check to get current violation counts
-- For each rule/region: if current < budget, reduce budget to current
+- For each **configured** rule/region: if current < budget, reduce budget to current
 - Fails if any current > budget (violations exist beyond budget)
 - Updates `ratchet-counts.toml`
+- **Never creates new regions**: only updates budgets for regions already in configuration
 
 ### `ratchets merge-driver`
 
