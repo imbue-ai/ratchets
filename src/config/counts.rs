@@ -6,7 +6,7 @@
 
 use crate::error::ConfigError;
 use crate::types::{RegionPath, RuleId};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 /// Manages violation budgets for all rules across all regions
@@ -23,28 +23,40 @@ pub struct CountsManager {
 /// Each rule has a RegionTree that stores:
 /// - A root count (default 0) that applies to all regions unless overridden
 /// - Explicit overrides for specific region paths
+/// - A set of explicitly configured regions
 ///
 /// Regions inherit from their parent unless they have an explicit override.
 #[derive(Debug, Clone)]
 pub struct RegionTree {
     root_count: u64,
     overrides: HashMap<RegionPath, u64>,
+    configured_regions: HashSet<RegionPath>,
 }
 
 impl RegionTree {
     /// Creates a new RegionTree with default root count of 0
+    ///
+    /// The root region "." is always implicitly configured.
     pub fn new() -> Self {
+        let mut configured_regions = HashSet::new();
+        configured_regions.insert(RegionPath::new("."));
         RegionTree {
             root_count: 0,
             overrides: HashMap::new(),
+            configured_regions,
         }
     }
 
     /// Creates a new RegionTree with a specific root count
+    ///
+    /// The root region "." is always implicitly configured.
     pub fn with_root_count(count: u64) -> Self {
+        let mut configured_regions = HashSet::new();
+        configured_regions.insert(RegionPath::new("."));
         RegionTree {
             root_count: count,
             overrides: HashMap::new(),
+            configured_regions,
         }
     }
 
@@ -144,11 +156,23 @@ impl RegionTree {
     }
 
     /// Sets the count for a specific region
+    ///
+    /// This also marks the region as explicitly configured.
     pub fn set_count(&mut self, region: &RegionPath, count: u64) {
         if region.as_str() == "." {
             self.root_count = count;
         }
         self.overrides.insert(region.clone(), count);
+        self.configured_regions.insert(region.clone());
+    }
+
+    /// Returns true if the given region is explicitly configured
+    ///
+    /// The root region "." is always considered configured.
+    /// Other regions are considered configured only if they have been
+    /// explicitly added via `set_count()` or parsed from configuration.
+    pub fn is_configured(&self, region: &RegionPath) -> bool {
+        self.configured_regions.contains(region)
     }
 }
 
@@ -1092,5 +1116,56 @@ no-unwrap = 5
         // Verify alphabetical ordering
         assert!(a_pos < m_pos);
         assert!(m_pos < z_pos);
+    }
+
+    #[test]
+    fn test_region_tree_configured_regions_from_parsing() {
+        // Verify that parsing TOML populates configured_regions correctly
+        let toml = r#"
+[no-unwrap]
+"." = 0
+"src/legacy" = 15
+"src/legacy/parser" = 7
+"tests" = 50
+        "#;
+
+        let manager = CountsManager::parse(toml).unwrap();
+        let rule_id = RuleId::new("no-unwrap").unwrap();
+
+        // Get the region tree for this rule
+        let tree = manager.counts.get(&rule_id).unwrap();
+
+        // Verify all configured regions are tracked
+        assert!(tree.is_configured(&RegionPath::new(".")));
+        assert!(tree.is_configured(&RegionPath::new("src/legacy")));
+        assert!(tree.is_configured(&RegionPath::new("src/legacy/parser")));
+        assert!(tree.is_configured(&RegionPath::new("tests")));
+
+        // Verify unconfigured regions are not in the set
+        assert!(!tree.is_configured(&RegionPath::new("src")));
+        assert!(!tree.is_configured(&RegionPath::new("src/new")));
+    }
+
+    #[test]
+    fn test_region_tree_is_configured_region() {
+        // Test the is_configured method returns true for configured regions
+        // and false for unconfigured ones
+        let mut tree = RegionTree::new();
+
+        // Root "." should always be considered configured
+        assert!(tree.is_configured(&RegionPath::new(".")));
+
+        // Set some explicit regions
+        tree.set_count(&RegionPath::new("src/legacy"), 15);
+        tree.set_count(&RegionPath::new("tests"), 50);
+
+        // Explicitly configured regions should return true
+        assert!(tree.is_configured(&RegionPath::new("src/legacy")));
+        assert!(tree.is_configured(&RegionPath::new("tests")));
+
+        // Regions not explicitly configured should return false
+        assert!(!tree.is_configured(&RegionPath::new("src")));
+        assert!(!tree.is_configured(&RegionPath::new("src/legacy/parser")));
+        assert!(!tree.is_configured(&RegionPath::new("other")));
     }
 }
