@@ -30,12 +30,13 @@ Region paths are always relative to the repository root and use forward slashes 
 
 ### Counts
 
-A **count** is the maximum number of tolerated violations for a specific rule in a specific region. Counts are stored in version control and represent a contract: the code must not exceed these limits.
+A **count** (or **budget**) is the maximum number of tolerated violations for a specific rule in a specific region. Counts are stored in version control and represent a contract: the code must not exceed these limits.
 
 Semantics:
-- If a region has no explicit count for a rule, it inherits from its parent
-- The root region defaults to count `0` (no violations permitted) for all enabled rules
-- A count of `0` means the rule is strictly enforced (no violations allowed)
+- Each configured region has its own explicit budget
+- Files in unconfigured directories count toward their nearest configured ancestor region's budget
+- The root region `"."` defaults to count `0` (no violations permitted) if not explicitly set
+- A count of `0` means the rule is strictly enforced (no violations allowed in that region)
 
 ### The Ratchet Mechanism
 
