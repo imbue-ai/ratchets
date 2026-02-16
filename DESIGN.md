@@ -17,11 +17,14 @@ Rules come in two forms:
 
 ### Regions
 
-A **region** is a directory subtree within the repository. Regions form a hierarchy:
+A **region** is a directory path explicitly configured in `ratchet-counts.toml` for a specific rule. Regions are scoped per-rule: the same directory may be a region for one rule but not another.
 
-- The repository root is the top-level region
-- Any subdirectory can be a region with its own violation budgets
-- Child regions inherit parent budgets unless explicitly overridden
+Key principles:
+
+- Regions exist **only** when explicitly listed in configuration
+- The root region `"."` is always implicitly available
+- Files in unconfigured directories are counted toward their nearest configured ancestor region
+- The same directory path may be a region for some rules but not others (per-rule scoping)
 
 Region paths are always relative to the repository root and use forward slashes (e.g., `src/parser`, `tests`).
 
