@@ -129,10 +129,13 @@ The counts file stores violation budgets. Structure is `[rule-id.region-path]`.
 "src/experimental" = 5
 ```
 
-**Inheritance example**: For rule `no-unwrap`:
-- `src/foo/bar.rs` inherits from `"."` → budget 0
-- `src/legacy/foo.rs` inherits from `"src/legacy"` → budget 15
-- `src/legacy/parser/x.rs` uses explicit `"src/legacy/parser"` → budget 7
+**Region membership example**: For rule `no-unwrap` with configured regions `"."`, `"src/legacy"`, and `"src/legacy/parser"`:
+- `src/foo/bar.rs` → belongs to region `"."` (no configured region matches `src/foo`) → budget 0
+- `src/legacy/foo.rs` → belongs to region `"src/legacy"` → budget 15
+- `src/legacy/parser/x.rs` → belongs to region `"src/legacy/parser"` → budget 7
+- `src/legacy/parser/nested/deep.rs` → belongs to region `"src/legacy/parser"` (most specific match) → budget 7
+
+Note: `tests/test.rs` would also belong to region `"."` since `"tests"` is not configured for this rule.
 
 ### Custom Rule Definitions
 
