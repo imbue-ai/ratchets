@@ -48,6 +48,17 @@ The tool enforces monotonic improvement:
 
 Agents and automated processes may tighten but never bump.
 
+### Region Creation Policy
+
+**Regions are created only by humans, never by ratchet commands.**
+
+- `ratchets init`: Creates default configuration with only the root region `"."`
+- `ratchets check`: Read-only; never modifies configuration
+- `ratchets bump`: Updates budgets for existing regions only; fails if region doesn't exist
+- `ratchets tighten`: Updates budgets for existing regions only; never adds new regions
+
+To create a new region, a human must manually edit `ratchet-counts.toml` and add the region path as a key under the relevant rule section. This ensures that region structure is an intentional architectural decision, not an artifact of tool behavior.
+
 ## File Structure
 
 A ratchets-enabled repository contains:
