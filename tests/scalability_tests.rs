@@ -124,7 +124,7 @@ pattern = "TODO"
 
     // Execute rules
     let start = Instant::now();
-    let engine = ExecutionEngine::new(registry);
+    let engine = ExecutionEngine::new(registry, None);
     let result = engine.execute(files);
     let exec_time = start.elapsed();
 
@@ -186,7 +186,7 @@ language = "rust"
 
     // Execute rules
     let start = Instant::now();
-    let engine = ExecutionEngine::new(registry);
+    let engine = ExecutionEngine::new(registry, None);
     let result = engine.execute(files);
     let exec_time = start.elapsed();
 
@@ -240,7 +240,7 @@ pattern = "println!"
     let walker = FileWalker::new(temp_dir.path(), &include, &[]).unwrap();
     let files: Vec<FileEntry> = walker.walk().filter_map(Result::ok).collect();
 
-    let engine = ExecutionEngine::new(registry);
+    let engine = ExecutionEngine::new(registry, None);
     let result = engine.execute(files);
 
     // Verify all files were processed
@@ -287,7 +287,7 @@ pattern = "TODO"
 
     // Execute with parallel processing (default behavior)
     let start = Instant::now();
-    let engine = ExecutionEngine::new(registry);
+    let engine = ExecutionEngine::new(registry, None);
     let result = engine.execute(files);
     let parallel_time = start.elapsed();
 
@@ -342,7 +342,7 @@ language = "rust"
 
     // Execute - parser should be cached after first use
     let start = Instant::now();
-    let engine = ExecutionEngine::new(registry);
+    let engine = ExecutionEngine::new(registry, None);
     let result = engine.execute(files);
     let exec_time = start.elapsed();
 
@@ -406,7 +406,7 @@ pattern = "TODO"
     let files: Vec<FileEntry> = walker.walk().filter_map(Result::ok).collect();
 
     let start = Instant::now();
-    let engine = ExecutionEngine::new(registry);
+    let engine = ExecutionEngine::new(registry, None);
     let result = engine.execute(files);
     let exec_time = start.elapsed();
 
@@ -481,7 +481,7 @@ pattern = "fn "
     let files: Vec<FileEntry> = walker.walk().filter_map(Result::ok).collect();
 
     let start = Instant::now();
-    let engine = ExecutionEngine::new(registry);
+    let engine = ExecutionEngine::new(registry, None);
     let result = engine.execute(files);
     let exec_time = start.elapsed();
 

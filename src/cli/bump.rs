@@ -257,8 +257,11 @@ fn get_current_violation_count(
     // Discover files in the region
     let files = super::common::discover_files(&[region.to_string()], config)?;
 
-    // Run execution engine with the single rule
-    let engine = ExecutionEngine::new(single_rule_registry);
+    // Run execution engine with the single rule and CountsManager for region resolution
+    let engine = ExecutionEngine::new(
+        single_rule_registry,
+        Some(std::sync::Arc::new(counts.clone())),
+    );
     let execution_result = engine.execute(files);
 
     // Aggregate violations

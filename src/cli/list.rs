@@ -96,7 +96,7 @@ fn run_list_inner(format: OutputFormat) -> Result<(), ListError> {
         })
         .collect();
 
-    let engine = ExecutionEngine::new(registry);
+    let engine = ExecutionEngine::new(registry, Some(std::sync::Arc::new(counts.clone())));
     let execution_result = engine.execute(files);
 
     // 7. Aggregate violations to get per-rule counts

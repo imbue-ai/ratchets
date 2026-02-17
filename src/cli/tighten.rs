@@ -223,8 +223,8 @@ fn run_full_check(
         return Err(TightenError::Other("No files found to check.".to_string()));
     }
 
-    // Run execution engine
-    let engine = ExecutionEngine::new(registry);
+    // Run execution engine with CountsManager for region resolution
+    let engine = ExecutionEngine::new(registry, Some(std::sync::Arc::new(counts.clone())));
     let execution_result = engine.execute(files);
 
     // Aggregate violations

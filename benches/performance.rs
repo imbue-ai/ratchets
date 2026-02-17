@@ -359,7 +359,7 @@ pattern = "TODO"
                     let walker = FileWalker::new(temp_dir.path(), &[], &[]).unwrap();
                     let files: Vec<FileEntry> = walker.walk().filter_map(Result::ok).collect();
 
-                    let engine = ratchets::engine::executor::ExecutionEngine::new(registry);
+                    let engine = ratchets::engine::executor::ExecutionEngine::new(registry, None);
                     let result = engine.execute(files);
                     black_box(result)
                 });
@@ -406,7 +406,7 @@ pattern = "TODO"
             let mut registry = RuleRegistry::new();
             registry.load_custom_regex_rules(&rule_dir, None).unwrap();
 
-            let engine = ratchets::engine::executor::ExecutionEngine::new(registry);
+            let engine = ratchets::engine::executor::ExecutionEngine::new(registry, None);
             let result = engine.execute(files.clone());
             black_box(result)
         });
