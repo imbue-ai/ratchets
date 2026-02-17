@@ -7,7 +7,7 @@
 
 use crate::error::RuleError;
 use crate::rules::{ExecutionContext, Rule, RuleContext, Violation};
-use crate::types::{GlobPattern, Language, RegionPath, RuleId, Severity};
+use crate::types::{GlobPattern, Language, RuleId, Severity};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use regex::Regex;
 use serde::Deserialize;
@@ -347,12 +347,8 @@ impl Rule for RegexRule {
             let (line, column) = offset_to_line_col(match_start, &line_offsets);
             let (end_line, end_column) = offset_to_line_col(match_end, &line_offsets);
 
-            // Determine region from file path
-            let region = if let Some(parent) = ctx.file_path.parent() {
-                RegionPath::new(parent.to_string_lossy().to_string())
-            } else {
-                RegionPath::new(".")
-            };
+            // Determine region using resolver if available, else fall back to parent directory
+            let region = ctx.resolve_region(&self.id);
 
             violations.push(Violation {
                 rule_id: self.id.clone(),
@@ -904,5 +900,41 @@ exclude = ["**/tests/**"]
 
         let result = RegexRule::from_toml(toml);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_regex_rule_uses_configured_region() {
+        use crate::rules::RegionResolver;
+        use crate::types::RegionPath;
+        use std::sync::Arc;
+
+        let rule = RegexRule::from_toml(
+            r#"
+[rule]
+id = "test-rule"
+description = "Test rule"
+severity = "error"
+
+[match]
+pattern = "TODO"
+languages = ["rust"]
+"#,
+        )
+        .unwrap();
+
+        // Create a resolver that always returns "configured/region"
+        let resolver: RegionResolver =
+            Arc::new(|_path, _rule_id| RegionPath::new("configured/region"));
+
+        let ctx = ExecutionContext {
+            file_path: Path::new("src/deep/nested/file.rs"),
+            content: "// TODO: test",
+            ast: None,
+            region_resolver: Some(resolver),
+        };
+
+        let violations = rule.execute(&ctx);
+        assert_eq!(violations.len(), 1);
+        assert_eq!(violations[0].region.as_str(), "configured/region");
     }
 }
