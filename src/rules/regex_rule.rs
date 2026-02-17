@@ -546,6 +546,7 @@ pattern = "TODO"
             file_path: Path::new("test.rs"),
             content: "// TODO: fix this\nfn main() {}",
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -572,6 +573,7 @@ pattern = "TODO"
             file_path: Path::new("test.rs"),
             content: "// TODO: fix\n// TODO: also fix\nfn main() {}",
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -598,6 +600,7 @@ pattern = "TODO"
             file_path: Path::new("test.rs"),
             content: "fn main() { println!(\"Hello\"); }",
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -624,6 +627,7 @@ include = ["src/**"]
             file_path: Path::new("src/main.rs"),
             content: "// TODO: fix",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
@@ -633,6 +637,7 @@ include = ["src/**"]
             file_path: Path::new("tests/test.rs"),
             content: "// TODO: fix",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 0);
@@ -658,6 +663,7 @@ exclude = ["tests/**"]
             file_path: Path::new("tests/test.rs"),
             content: "// TODO: fix",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 0);
@@ -667,6 +673,7 @@ exclude = ["tests/**"]
             file_path: Path::new("src/main.rs"),
             content: "// TODO: fix",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
@@ -690,6 +697,7 @@ pattern = "(?i)\\bTODO\\b"
             file_path: Path::new("test.rs"),
             content: "// TODO: fix\n// todo: also\n// Todo: and this",
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -715,6 +723,7 @@ pattern = "FIXME"
             file_path: Path::new("test.rs"),
             content,
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -758,6 +767,7 @@ exclude = "@test_files"
             file_path: Path::new("test_foo.py"),
             content: "// TODO: fix this",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx_test);
         assert_eq!(violations.len(), 0);
@@ -767,6 +777,7 @@ exclude = "@test_files"
             file_path: Path::new("main.py"),
             content: "// TODO: fix this",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx_normal);
         assert_eq!(violations.len(), 1);
@@ -803,6 +814,7 @@ exclude = ["@test_files", "build/**"]
             file_path: Path::new("test_foo.py"),
             content: "// TODO: fix this",
             ast: None,
+            region_resolver: None,
         };
         assert_eq!(rule.execute(&ctx1).len(), 0);
 
@@ -811,6 +823,7 @@ exclude = ["@test_files", "build/**"]
             file_path: Path::new("build/main.py"),
             content: "// TODO: fix this",
             ast: None,
+            region_resolver: None,
         };
         assert_eq!(rule.execute(&ctx2).len(), 0);
 
@@ -819,6 +832,7 @@ exclude = ["@test_files", "build/**"]
             file_path: Path::new("src/main.py"),
             content: "// TODO: fix this",
             ast: None,
+            region_resolver: None,
         };
         assert_eq!(rule.execute(&ctx3).len(), 1);
     }

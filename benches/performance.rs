@@ -204,6 +204,7 @@ fn bench_regex_execution(c: &mut Criterion) {
                     file_path: Path::new("test.rs"),
                     content,
                     ast: None,
+                    region_resolver: None,
                 };
                 let violations = rule.execute(&ctx);
                 black_box(violations)
@@ -247,6 +248,7 @@ fn bench_ast_execution(c: &mut Criterion) {
                         file_path: Path::new("test.rs"),
                         content,
                         ast: None,
+                        region_resolver: None,
                     };
                     let violations = rule.execute(&ctx);
                     black_box(violations)

@@ -139,6 +139,7 @@ impl ExecutionEngine {
                             file_path: &file.path,
                             content: &content,
                             ast: None,
+                            region_resolver: None,
                         };
                         rule.execute(&ctx)
                     }
@@ -155,6 +156,7 @@ impl ExecutionEngine {
                     file_path: &file.path,
                     content: &content,
                     ast: None,
+                    region_resolver: None,
                 };
                 rule.execute(&ctx)
             })

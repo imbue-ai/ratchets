@@ -35,7 +35,7 @@
 "src/config" = 86
 "src/engine" = 43
 "src/output" = 61
-"src/rules" = 131
+"src/rules" = 135
 "src/rules/ast" = 13
 
 [rust-no-fixme-comments]

@@ -636,6 +636,7 @@ language = "rust"
             file_path: Path::new("test.rs"),
             content: "fn main() { let x = Some(5).unwrap(); }",
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -668,6 +669,7 @@ language = "rust"
             file_path: Path::new("test.rs"),
             content: "fn main() {\n    let x = Some(5).unwrap();\n    let y = Some(10).unwrap();\n}",
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -699,6 +701,7 @@ language = "rust"
             file_path: Path::new("test.rs"),
             content: "fn main() { let x = Some(5); }",
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -732,6 +735,7 @@ include = ["src/**"]
             file_path: Path::new("src/main.rs"),
             content: "fn main() { Some(5).unwrap(); }",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
@@ -741,6 +745,7 @@ include = ["src/**"]
             file_path: Path::new("tests/test.rs"),
             content: "fn test() { Some(5).unwrap(); }",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 0);
@@ -773,6 +778,7 @@ exclude = ["tests/**"]
             file_path: Path::new("tests/test.rs"),
             content: "fn test() { Some(5).unwrap(); }",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 0);
@@ -782,6 +788,7 @@ exclude = ["tests/**"]
             file_path: Path::new("src/main.rs"),
             content: "fn main() { Some(5).unwrap(); }",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
@@ -808,6 +815,7 @@ language = "rust"
             file_path: Path::new("test.rs"),
             content,
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -836,6 +844,7 @@ language = "rust"
             file_path: Path::new("test.rs"),
             content: "fn main() {}",
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
