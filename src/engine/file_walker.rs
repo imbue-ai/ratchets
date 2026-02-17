@@ -485,9 +485,13 @@ mod tests {
         // Should find only the .rs file - .txt is filtered out (no recognized language)
         assert_eq!(files.len(), 1);
 
-        // Check that all results are Ok and are program files
-        for result in &files {
-            let file = result.as_ref().expect("Should be Ok");
+        // Assert all results are Ok first
+        assert!(
+            files.iter().all(|r| r.is_ok()),
+            "All walk results should be Ok"
+        );
+        // Then check file properties using filter_map to extract Ok values
+        for file in files.iter().filter_map(|r| r.as_ref().ok()) {
             assert!(file.language.is_some(), "All files should have a language");
         }
 
