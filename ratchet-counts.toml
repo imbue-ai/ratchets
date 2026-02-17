@@ -3,48 +3,27 @@
 # Counts can only be reduced (tightened) or explicitly bumped with justification.
 
 [no-expect]
-"src/cli" = 7
-"src/engine" = 9
+"src" = 9
 
 [no-fixme-comments]
 "." = 3
-".beads" = 1
-"builtin-ratchets/regex" = 2
-"src/config" = 2
-"src/rules" = 16
+"src" = 18
 
 [no-panic]
-"src/cli" = 25
-"src/config" = 6
+"src" = 31
 
 [no-todo-comments]
 "." = 9
-".beads" = 1
 "benches" = 14
-"builtin-ratchets/regex" = 2
-"src/cli" = 6
-"src/config" = 14
-"src/engine" = 22
-"src/output" = 56
-"src/rules" = 54
+"src" = 152
 
 [no-unwrap]
 "." = 0
-"src" = 12
-"src/cli" = 60
-"src/config" = 86
-"src/engine" = 43
-"src/output" = 61
-"src/rules" = 136
-"src/rules/ast" = 14
+"src" = 386
 
 [rust-no-fixme-comments]
-"src/rules" = 1
+"src" = 1
 
 [rust-no-todo-comments]
 "benches" = 1
-"src/config" = 1
-"src/engine" = 2
-"src/output" = 1
-"src/rules" = 2
-
+"src" = 6

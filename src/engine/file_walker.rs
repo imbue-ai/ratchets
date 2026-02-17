@@ -470,42 +470,65 @@ mod tests {
     }
 
     #[test]
-    fn test_walk_basic() {
+    fn test_walk_basic() -> Result<(), Box<dyn std::error::Error>> {
         // Create a temporary directory with some test files
         let temp_dir = std::env::temp_dir().join("ratchet_test_walk_basic");
         let _ = fs::remove_dir_all(&temp_dir);
-        fs::create_dir_all(&temp_dir).expect("Failed to create temp dir");
+        assert!(
+            fs::create_dir_all(&temp_dir).is_ok(),
+            "Failed to create temp dir"
+        );
 
-        fs::write(temp_dir.join("test.rs"), "fn main() {}").expect("Failed to write test.rs");
-        fs::write(temp_dir.join("test.txt"), "hello").expect("Failed to write test.txt");
+        assert!(
+            fs::write(temp_dir.join("test.rs"), "fn main() {}").is_ok(),
+            "Failed to write test.rs"
+        );
+        assert!(
+            fs::write(temp_dir.join("test.txt"), "hello").is_ok(),
+            "Failed to write test.txt"
+        );
 
-        let walker = FileWalker::new(&temp_dir, &[], &[]).expect("Failed to create walker");
+        let walker = FileWalker::new(&temp_dir, &[], &[])?;
         let files: Vec<_> = walker.walk().collect();
 
         // Should find only the .rs file - .txt is filtered out (no recognized language)
         assert_eq!(files.len(), 1);
 
-        // Check that all results are Ok and are program files
-        for result in &files {
-            let file = result.as_ref().expect("Should be Ok");
+        // Assert all results are Ok first
+        assert!(
+            files.iter().all(|r| r.is_ok()),
+            "All walk results should be Ok"
+        );
+        // Then check file properties using filter_map to extract Ok values
+        for file in files.iter().filter_map(|r| r.as_ref().ok()) {
             assert!(file.language.is_some(), "All files should have a language");
         }
 
         // Cleanup
         let _ = fs::remove_dir_all(&temp_dir);
+        Ok(())
     }
 
     #[test]
-    fn test_walk_with_include_filter() {
+    fn test_walk_with_include_filter() -> Result<(), Box<dyn std::error::Error>> {
         let temp_dir = std::env::temp_dir().join("ratchet_test_walk_include");
         let _ = fs::remove_dir_all(&temp_dir);
-        fs::create_dir_all(&temp_dir).expect("Failed to create temp dir");
+        assert!(
+            fs::create_dir_all(&temp_dir).is_ok(),
+            "Failed to create temp dir"
+        );
 
-        fs::write(temp_dir.join("test.rs"), "fn main() {}").expect("Failed to write test.rs");
-        fs::write(temp_dir.join("test.txt"), "hello").expect("Failed to write test.txt");
+        assert!(
+            fs::write(temp_dir.join("test.rs"), "fn main() {}").is_ok(),
+            "Failed to write test.rs"
+        );
+        assert!(
+            fs::write(temp_dir.join("test.txt"), "hello").is_ok(),
+            "Failed to write test.txt"
+        );
 
         let include = vec![GlobPattern::new("*.rs")];
-        let walker = FileWalker::new(&temp_dir, &include, &[]).expect("Failed to create walker");
+        let walker = FileWalker::new(&temp_dir, &include, &[])?;
         let files: Vec<_> = walker.walk().filter_map(Result::ok).collect();
 
         // Should only find .rs files
@@ -518,5 +541,6 @@ mod tests {
 
         // Cleanup
         let _ = fs::remove_dir_all(&temp_dir);
+        Ok(())
     }
 }

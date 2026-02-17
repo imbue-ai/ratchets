@@ -590,25 +590,26 @@ mod tests {
     }
 
     #[test]
-    fn test_counts_manager_parse_simple() {
+    fn test_counts_manager_parse_simple() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [no-unwrap]
 "." = 0
 "src/legacy" = 15
         "#;
 
-        let manager = CountsManager::parse(toml).unwrap();
+        let manager = CountsManager::parse(toml)?;
 
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
         assert_eq!(
             manager.get_budget(&rule_id, Path::new("src/legacy/foo.rs")),
             15
         );
         assert_eq!(manager.get_budget(&rule_id, Path::new("src/main.rs")), 0);
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_parse_multiple_rules() {
+    fn test_counts_manager_parse_multiple_rules() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [no-unwrap]
 "." = 0
@@ -619,20 +620,21 @@ mod tests {
 "src" = 23
         "#;
 
-        let manager = CountsManager::parse(toml).unwrap();
+        let manager = CountsManager::parse(toml)?;
 
-        let no_unwrap = RuleId::new("no-unwrap").unwrap();
-        let no_todo = RuleId::new("no-todo-comments").unwrap();
+        let no_unwrap = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
+        let no_todo = RuleId::new("no-todo-comments").ok_or("invalid rule id")?;
 
         assert_eq!(
             manager.get_budget(&no_unwrap, Path::new("src/legacy/foo.rs")),
             15
         );
         assert_eq!(manager.get_budget(&no_todo, Path::new("src/main.rs")), 23);
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_parse_complex_example() {
+    fn test_counts_manager_parse_complex_example() -> Result<(), Box<dyn std::error::Error>> {
         // Example from DESIGN.md
         let toml = r#"
 # Ratchet violation budgets
@@ -654,10 +656,10 @@ mod tests {
 "src/experimental" = 5
         "#;
 
-        let manager = CountsManager::parse(toml).unwrap();
+        let manager = CountsManager::parse(toml)?;
 
         // Test no-unwrap rule
-        let no_unwrap = RuleId::new("no-unwrap").unwrap();
+        let no_unwrap = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
         assert_eq!(
             manager.get_budget(&no_unwrap, Path::new("src/foo/bar.rs")),
             0
@@ -676,12 +678,12 @@ mod tests {
         );
 
         // Test no-todo-comments rule
-        let no_todo = RuleId::new("no-todo-comments").unwrap();
+        let no_todo = RuleId::new("no-todo-comments").ok_or("invalid rule id")?;
         assert_eq!(manager.get_budget(&no_todo, Path::new("src/main.rs")), 23);
         assert_eq!(manager.get_budget(&no_todo, Path::new("tests/test.rs")), 0);
 
         // Test my-company-rule
-        let company_rule = RuleId::new("my-company-rule").unwrap();
+        let company_rule = RuleId::new("my-company-rule").ok_or("invalid rule id")?;
         assert_eq!(
             manager.get_budget(&company_rule, Path::new("src/experimental/foo.rs")),
             5
@@ -690,6 +692,7 @@ mod tests {
             manager.get_budget(&company_rule, Path::new("src/main.rs")),
             0
         );
+        Ok(())
     }
 
     #[test]
@@ -1048,31 +1051,56 @@ mod tests {
     }
 
     #[test]
-    fn test_counts_manager_to_toml_string_sorted_output() {
+    fn test_counts_manager_to_toml_string_sorted_output() -> Result<(), Box<dyn std::error::Error>>
+    {
         let mut manager = CountsManager::new();
 
         // Add rules in non-alphabetical order
         manager.set_count(
-            &RuleId::new("zebra-rule").unwrap(),
+            &RuleId::new("zebra-rule").ok_or("invalid rule id")?,
             &RegionPath::new("."),
             1,
         );
         manager.set_count(
-            &RuleId::new("alpha-rule").unwrap(),
+            &RuleId::new("alpha-rule").ok_or("invalid rule id")?,
             &RegionPath::new("."),
             2,
         );
-        manager.set_count(&RuleId::new("beta-rule").unwrap(), &RegionPath::new("."), 3);
+        manager.set_count(
+            &RuleId::new("beta-rule").ok_or("invalid rule id")?,
+            &RegionPath::new("."),
+            3,
+        );
 
         let toml = manager.to_toml_string();
 
         // Verify alphabetical ordering in output
-        let alpha_pos = toml.find("[alpha-rule]").unwrap();
-        let beta_pos = toml.find("[beta-rule]").unwrap();
-        let zebra_pos = toml.find("[zebra-rule]").unwrap();
+        assert!(
+            toml.contains("[alpha-rule]"),
+            "output should contain [alpha-rule]"
+        );
+        assert!(
+            toml.contains("[beta-rule]"),
+            "output should contain [beta-rule]"
+        );
+        assert!(
+            toml.contains("[zebra-rule]"),
+            "output should contain [zebra-rule]"
+        );
+
+        let alpha_pos = toml
+            .find("[alpha-rule]")
+            .ok_or("alpha-rule not found in output")?;
+        let beta_pos = toml
+            .find("[beta-rule]")
+            .ok_or("beta-rule not found in output")?;
+        let zebra_pos = toml
+            .find("[zebra-rule]")
+            .ok_or("zebra-rule not found in output")?;
 
         assert!(alpha_pos < beta_pos);
         assert!(beta_pos < zebra_pos);
+        Ok(())
     }
 
     #[test]
