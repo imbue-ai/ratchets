@@ -31,7 +31,7 @@
 "." = 0
 "src" = 12
 "src/cli" = 49
-"src/config" = 79
+"src/config" = 71
 "src/engine" = 43
 "src/output" = 61
 "src/rules" = 136
@@ -46,3 +46,4 @@
 "src/engine" = 2
 "src/output" = 1
 "src/rules" = 2
+
