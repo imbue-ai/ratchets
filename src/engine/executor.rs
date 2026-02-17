@@ -132,7 +132,11 @@ impl ExecutionEngine {
                 .flat_map(|&rule| {
                     // Try to downcast to AstRule to use execute_with_tree
                     if let Some(ast_rule) = self.try_downcast_ast_rule(rule) {
-                        ast_rule.execute_with_tree(tree, &content, &file.path)
+                        // NOTE: region_resolver is None here because the executor doesn't
+                        // have access to it. When the fallback path below is taken (which
+                        // is always, since try_downcast_ast_rule returns None), the region
+                        // resolver would be passed through the ExecutionContext.
+                        ast_rule.execute_with_tree(tree, &content, &file.path, None)
                     } else {
                         // Fallback to regular execute (will re-parse internally)
                         let ctx = ExecutionContext {
