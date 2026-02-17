@@ -7,7 +7,7 @@
 
 use crate::error::RuleError;
 use crate::rules::ast::ParserCache;
-use crate::rules::{ExecutionContext, Rule, RuleContext, Violation};
+use crate::rules::{ExecutionContext, RegionResolver, Rule, RuleContext, Violation};
 use crate::types::{GlobPattern, Language, RegionPath, RuleId, Severity};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use serde::Deserialize;
@@ -223,6 +223,7 @@ impl AstRule {
         tree: &Tree,
         content: &str,
         file_path: &Path,
+        region_resolver: Option<&RegionResolver>,
     ) -> Vec<Violation> {
         // Compile the query
         let parser_cache = ParserCache::new();
@@ -289,8 +290,10 @@ impl AstRule {
             // Extract snippet
             let snippet = content[node.byte_range()].to_string();
 
-            // Determine region from file path
-            let region = if let Some(parent) = file_path.parent() {
+            // Determine region using resolver if available, else fall back to parent directory
+            let region = if let Some(resolver) = region_resolver {
+                resolver(file_path, &self.id)
+            } else if let Some(parent) = file_path.parent() {
                 RegionPath::new(parent.to_string_lossy().to_string())
             } else {
                 RegionPath::new(".")
@@ -505,7 +508,12 @@ impl Rule for AstRule {
         };
 
         // Execute the query using our stored query_source
-        self.execute_with_tree(&tree, ctx.content, ctx.file_path)
+        self.execute_with_tree(
+            &tree,
+            ctx.content,
+            ctx.file_path,
+            ctx.region_resolver.as_ref(),
+        )
     }
 }
 
@@ -636,6 +644,7 @@ language = "rust"
             file_path: Path::new("test.rs"),
             content: "fn main() { let x = Some(5).unwrap(); }",
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -668,6 +677,7 @@ language = "rust"
             file_path: Path::new("test.rs"),
             content: "fn main() {\n    let x = Some(5).unwrap();\n    let y = Some(10).unwrap();\n}",
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -699,6 +709,7 @@ language = "rust"
             file_path: Path::new("test.rs"),
             content: "fn main() { let x = Some(5); }",
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -732,6 +743,7 @@ include = ["src/**"]
             file_path: Path::new("src/main.rs"),
             content: "fn main() { Some(5).unwrap(); }",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
@@ -741,6 +753,7 @@ include = ["src/**"]
             file_path: Path::new("tests/test.rs"),
             content: "fn test() { Some(5).unwrap(); }",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 0);
@@ -773,6 +786,7 @@ exclude = ["tests/**"]
             file_path: Path::new("tests/test.rs"),
             content: "fn test() { Some(5).unwrap(); }",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 0);
@@ -782,6 +796,7 @@ exclude = ["tests/**"]
             file_path: Path::new("src/main.rs"),
             content: "fn main() { Some(5).unwrap(); }",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
@@ -808,6 +823,7 @@ language = "rust"
             file_path: Path::new("test.rs"),
             content,
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -836,6 +852,7 @@ language = "rust"
             file_path: Path::new("test.rs"),
             content: "fn main() {}",
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -871,8 +888,45 @@ language = "rust"
         let tree = parser.parse(content, None).unwrap();
 
         // Execute with tree
-        let violations = rule.execute_with_tree(&tree, content, Path::new("test.rs"));
+        let violations = rule.execute_with_tree(&tree, content, Path::new("test.rs"), None);
         assert_eq!(violations.len(), 1);
         assert!(violations[0].snippet.contains("unwrap"));
+    }
+
+    #[cfg(feature = "lang-rust")]
+    #[test]
+    fn test_ast_rule_uses_configured_region() {
+        use crate::rules::RegionResolver;
+        use crate::types::RegionPath;
+        use std::sync::Arc;
+
+        let rule = AstRule::from_toml(
+            r#"
+[rule]
+id = "test-rule"
+description = "Test rule"
+severity = "error"
+
+[match]
+query = "(call_expression) @violation"
+language = "rust"
+"#,
+        )
+        .unwrap();
+
+        // Create a resolver that always returns "configured/region"
+        let resolver: RegionResolver =
+            Arc::new(|_path, _rule_id| RegionPath::new("configured/region"));
+
+        let ctx = ExecutionContext {
+            file_path: Path::new("src/deep/nested/file.rs"),
+            content: "fn main() { foo(); }",
+            ast: None,
+            region_resolver: Some(resolver),
+        };
+
+        let violations = rule.execute(&ctx);
+        assert_eq!(violations.len(), 1);
+        assert_eq!(violations[0].region.as_str(), "configured/region");
     }
 }

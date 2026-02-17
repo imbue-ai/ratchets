@@ -129,24 +129,34 @@ fn run_bump_inner(
 
     // 5. Load existing counts
     let counts_path = Path::new("ratchet-counts.toml");
-    let mut counts = if counts_path.exists() {
+    let counts = if counts_path.exists() {
         CountsManager::load(counts_path)?
     } else {
         CountsManager::new()
     };
 
-    // Get the old count for display purposes
+    // 6. Validate region is configured (unless it's the root region ".")
     let region_path = RegionPath::new(region);
+    if region != "." && !counts.is_configured_region(&rule_id, &region_path) {
+        return Err(BumpError::Other(format!(
+            "Region '{}' is not configured for rule '{}'. Add it to ratchet-counts.toml first.",
+            region,
+            rule_id.as_str()
+        )));
+    }
+
+    // Make counts mutable for updates
+    let mut counts = counts;
     let old_count = counts.get_budget_by_region(&rule_id, &region_path);
 
-    // 6. Update the count
+    // 7. Update the count
     counts.set_count(&rule_id, &region_path, new_count);
 
-    // 7. Write back to file
+    // 8. Write back to file
     let toml_content = counts.to_toml_string();
     std::fs::write(counts_path, toml_content)?;
 
-    // 8. Print success message
+    // 9. Print success message
     if old_count == new_count {
         println!(
             "Budget for '{}' in region '{}' is already {}",
@@ -257,8 +267,11 @@ fn get_current_violation_count(
     // Discover files in the region
     let files = super::common::discover_files(&[region.to_string()], config)?;
 
-    // Run execution engine with the single rule
-    let engine = ExecutionEngine::new(single_rule_registry);
+    // Run execution engine with the single rule and CountsManager for region resolution
+    let engine = ExecutionEngine::new(
+        single_rule_registry,
+        Some(std::sync::Arc::new(counts.clone())),
+    );
     let execution_result = engine.execute(files);
 
     // Aggregate violations

@@ -126,8 +126,8 @@ fn run_check_inner(
         );
     }
 
-    // 6. Run ExecutionEngine
-    let engine = ExecutionEngine::new(registry);
+    // 6. Run ExecutionEngine with CountsManager for region resolution
+    let engine = ExecutionEngine::new(registry, Some(std::sync::Arc::new(counts.clone())));
     let execution_result = engine.execute(files);
 
     // 7. Aggregate violations with ViolationAggregator

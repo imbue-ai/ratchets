@@ -7,7 +7,7 @@
 
 use crate::error::RuleError;
 use crate::rules::{ExecutionContext, Rule, RuleContext, Violation};
-use crate::types::{GlobPattern, Language, RegionPath, RuleId, Severity};
+use crate::types::{GlobPattern, Language, RuleId, Severity};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use regex::Regex;
 use serde::Deserialize;
@@ -347,12 +347,8 @@ impl Rule for RegexRule {
             let (line, column) = offset_to_line_col(match_start, &line_offsets);
             let (end_line, end_column) = offset_to_line_col(match_end, &line_offsets);
 
-            // Determine region from file path
-            let region = if let Some(parent) = ctx.file_path.parent() {
-                RegionPath::new(parent.to_string_lossy().to_string())
-            } else {
-                RegionPath::new(".")
-            };
+            // Determine region using resolver if available, else fall back to parent directory
+            let region = ctx.resolve_region(&self.id);
 
             violations.push(Violation {
                 rule_id: self.id.clone(),
@@ -546,6 +542,7 @@ pattern = "TODO"
             file_path: Path::new("test.rs"),
             content: "// TODO: fix this\nfn main() {}",
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -572,6 +569,7 @@ pattern = "TODO"
             file_path: Path::new("test.rs"),
             content: "// TODO: fix\n// TODO: also fix\nfn main() {}",
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -598,6 +596,7 @@ pattern = "TODO"
             file_path: Path::new("test.rs"),
             content: "fn main() { println!(\"Hello\"); }",
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -624,6 +623,7 @@ include = ["src/**"]
             file_path: Path::new("src/main.rs"),
             content: "// TODO: fix",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
@@ -633,6 +633,7 @@ include = ["src/**"]
             file_path: Path::new("tests/test.rs"),
             content: "// TODO: fix",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 0);
@@ -658,6 +659,7 @@ exclude = ["tests/**"]
             file_path: Path::new("tests/test.rs"),
             content: "// TODO: fix",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 0);
@@ -667,6 +669,7 @@ exclude = ["tests/**"]
             file_path: Path::new("src/main.rs"),
             content: "// TODO: fix",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
@@ -690,6 +693,7 @@ pattern = "(?i)\\bTODO\\b"
             file_path: Path::new("test.rs"),
             content: "// TODO: fix\n// todo: also\n// Todo: and this",
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -715,6 +719,7 @@ pattern = "FIXME"
             file_path: Path::new("test.rs"),
             content,
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
@@ -758,6 +763,7 @@ exclude = "@test_files"
             file_path: Path::new("test_foo.py"),
             content: "// TODO: fix this",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx_test);
         assert_eq!(violations.len(), 0);
@@ -767,6 +773,7 @@ exclude = "@test_files"
             file_path: Path::new("main.py"),
             content: "// TODO: fix this",
             ast: None,
+            region_resolver: None,
         };
         let violations = rule.execute(&ctx_normal);
         assert_eq!(violations.len(), 1);
@@ -803,6 +810,7 @@ exclude = ["@test_files", "build/**"]
             file_path: Path::new("test_foo.py"),
             content: "// TODO: fix this",
             ast: None,
+            region_resolver: None,
         };
         assert_eq!(rule.execute(&ctx1).len(), 0);
 
@@ -811,6 +819,7 @@ exclude = ["@test_files", "build/**"]
             file_path: Path::new("build/main.py"),
             content: "// TODO: fix this",
             ast: None,
+            region_resolver: None,
         };
         assert_eq!(rule.execute(&ctx2).len(), 0);
 
@@ -819,6 +828,7 @@ exclude = ["@test_files", "build/**"]
             file_path: Path::new("src/main.py"),
             content: "// TODO: fix this",
             ast: None,
+            region_resolver: None,
         };
         assert_eq!(rule.execute(&ctx3).len(), 1);
     }
@@ -890,5 +900,41 @@ exclude = ["**/tests/**"]
 
         let result = RegexRule::from_toml(toml);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_regex_rule_uses_configured_region() {
+        use crate::rules::RegionResolver;
+        use crate::types::RegionPath;
+        use std::sync::Arc;
+
+        let rule = RegexRule::from_toml(
+            r#"
+[rule]
+id = "test-rule"
+description = "Test rule"
+severity = "error"
+
+[match]
+pattern = "TODO"
+languages = ["rust"]
+"#,
+        )
+        .unwrap();
+
+        // Create a resolver that always returns "configured/region"
+        let resolver: RegionResolver =
+            Arc::new(|_path, _rule_id| RegionPath::new("configured/region"));
+
+        let ctx = ExecutionContext {
+            file_path: Path::new("src/deep/nested/file.rs"),
+            content: "// TODO: test",
+            ast: None,
+            region_resolver: Some(resolver),
+        };
+
+        let violations = rule.execute(&ctx);
+        assert_eq!(violations.len(), 1);
+        assert_eq!(violations[0].region.as_str(), "configured/region");
     }
 }

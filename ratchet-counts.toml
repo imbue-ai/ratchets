@@ -4,7 +4,7 @@
 
 [no-expect]
 "src/cli" = 7
-"src/engine" = 8
+"src/engine" = 9
 
 [no-fixme-comments]
 "." = 3
@@ -26,17 +26,17 @@
 "src/config" = 14
 "src/engine" = 22
 "src/output" = 56
-"src/rules" = 52
+"src/rules" = 54
 
 [no-unwrap]
 "." = 0
 "src" = 12
 "src/cli" = 60
-"src/config" = 79
+"src/config" = 86
 "src/engine" = 43
 "src/output" = 61
-"src/rules" = 131
-"src/rules/ast" = 13
+"src/rules" = 136
+"src/rules/ast" = 14
 
 [rust-no-fixme-comments]
 "src/rules" = 1

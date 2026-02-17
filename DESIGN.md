@@ -17,22 +17,26 @@ Rules come in two forms:
 
 ### Regions
 
-A **region** is a directory subtree within the repository. Regions form a hierarchy:
+A **region** is a directory path explicitly configured in `ratchet-counts.toml` for a specific rule. Regions are scoped per-rule: the same directory may be a region for one rule but not another.
 
-- The repository root is the top-level region
-- Any subdirectory can be a region with its own violation budgets
-- Child regions inherit parent budgets unless explicitly overridden
+Key principles:
+
+- Regions exist **only** when explicitly listed in configuration
+- The root region `"."` is always implicitly available
+- Files in unconfigured directories are counted toward their nearest configured ancestor region
+- The same directory path may be a region for some rules but not others (per-rule scoping)
 
 Region paths are always relative to the repository root and use forward slashes (e.g., `src/parser`, `tests`).
 
 ### Counts
 
-A **count** is the maximum number of tolerated violations for a specific rule in a specific region. Counts are stored in version control and represent a contract: the code must not exceed these limits.
+A **count** (or **budget**) is the maximum number of tolerated violations for a specific rule in a specific region. Counts are stored in version control and represent a contract: the code must not exceed these limits.
 
 Semantics:
-- If a region has no explicit count for a rule, it inherits from its parent
-- The root region defaults to count `0` (no violations permitted) for all enabled rules
-- A count of `0` means the rule is strictly enforced (no violations allowed)
+- Each configured region has its own explicit budget
+- Files in unconfigured directories count toward their nearest configured ancestor region's budget
+- The root region `"."` defaults to count `0` (no violations permitted) if not explicitly set
+- A count of `0` means the rule is strictly enforced (no violations allowed in that region)
 
 ### The Ratchet Mechanism
 
@@ -43,6 +47,17 @@ The tool enforces monotonic improvement:
 3. **Bump**: Budgets can be increased only by explicit human action with justification in the commit message
 
 Agents and automated processes may tighten but never bump.
+
+### Region Creation Policy
+
+**Regions are created only by humans, never by ratchet commands.**
+
+- `ratchets init`: Creates default configuration with only the root region `"."`
+- `ratchets check`: Read-only; never modifies configuration
+- `ratchets bump`: Updates budgets for existing regions only; fails if region doesn't exist
+- `ratchets tighten`: Updates budgets for existing regions only; never adds new regions
+
+To create a new region, a human must manually edit `ratchet-counts.toml` and add the region path as a key under the relevant rule section. This ensures that region structure is an intentional architectural decision, not an artifact of tool behavior.
 
 ## File Structure
 
@@ -125,10 +140,13 @@ The counts file stores violation budgets. Structure is `[rule-id.region-path]`.
 "src/experimental" = 5
 ```
 
-**Inheritance example**: For rule `no-unwrap`:
-- `src/foo/bar.rs` inherits from `"."` → budget 0
-- `src/legacy/foo.rs` inherits from `"src/legacy"` → budget 15
-- `src/legacy/parser/x.rs` uses explicit `"src/legacy/parser"` → budget 7
+**Region membership example**: For rule `no-unwrap` with configured regions `"."`, `"src/legacy"`, and `"src/legacy/parser"`:
+- `src/foo/bar.rs` → belongs to region `"."` (no configured region matches `src/foo`) → budget 0
+- `src/legacy/foo.rs` → belongs to region `"src/legacy"` → budget 15
+- `src/legacy/parser/x.rs` → belongs to region `"src/legacy/parser"` → budget 7
+- `src/legacy/parser/nested/deep.rs` → belongs to region `"src/legacy/parser"` (most specific match) → budget 7
+
+Note: `tests/test.rs` would also belong to region `"."` since `"tests"` is not configured for this rule.
 
 ### Custom Rule Definitions
 
@@ -230,6 +248,7 @@ Behavior:
 - If `--count` omitted: run check for that rule/region, use current violation count
 - Updates `ratchet-counts.toml`
 - Fails if new count is lower than current violations (use `tighten` instead)
+- **Never creates new regions**: the specified region must already exist in configuration
 
 **Important**: Bumping should be accompanied by justification in the git commit message. This is a social contract, not enforced by the tool.
 
@@ -245,9 +264,10 @@ ratchets tighten --region src/      # Tighten all rules in region
 
 Behavior:
 - Runs check to get current violation counts
-- For each rule/region: if current < budget, reduce budget to current
+- For each **configured** rule/region: if current < budget, reduce budget to current
 - Fails if any current > budget (violations exist beyond budget)
 - Updates `ratchet-counts.toml`
+- **Never creates new regions**: only updates budgets for regions already in configuration
 
 ### `ratchets merge-driver`
 

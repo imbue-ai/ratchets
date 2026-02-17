@@ -6,7 +6,7 @@
 
 use crate::error::ConfigError;
 use crate::types::{RegionPath, RuleId};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 /// Manages violation budgets for all rules across all regions
@@ -23,28 +23,40 @@ pub struct CountsManager {
 /// Each rule has a RegionTree that stores:
 /// - A root count (default 0) that applies to all regions unless overridden
 /// - Explicit overrides for specific region paths
+/// - A set of explicitly configured regions
 ///
 /// Regions inherit from their parent unless they have an explicit override.
 #[derive(Debug, Clone)]
 pub struct RegionTree {
     root_count: u64,
     overrides: HashMap<RegionPath, u64>,
+    configured_regions: HashSet<RegionPath>,
 }
 
 impl RegionTree {
     /// Creates a new RegionTree with default root count of 0
+    ///
+    /// The root region "." is always implicitly configured.
     pub fn new() -> Self {
+        let mut configured_regions = HashSet::new();
+        configured_regions.insert(RegionPath::new("."));
         RegionTree {
             root_count: 0,
             overrides: HashMap::new(),
+            configured_regions,
         }
     }
 
     /// Creates a new RegionTree with a specific root count
+    ///
+    /// The root region "." is always implicitly configured.
     pub fn with_root_count(count: u64) -> Self {
+        let mut configured_regions = HashSet::new();
+        configured_regions.insert(RegionPath::new("."));
         RegionTree {
             root_count: count,
             overrides: HashMap::new(),
+            configured_regions,
         }
     }
 
@@ -144,11 +156,72 @@ impl RegionTree {
     }
 
     /// Sets the count for a specific region
+    ///
+    /// This also marks the region as explicitly configured.
     pub fn set_count(&mut self, region: &RegionPath, count: u64) {
         if region.as_str() == "." {
             self.root_count = count;
         }
         self.overrides.insert(region.clone(), count);
+        self.configured_regions.insert(region.clone());
+    }
+
+    /// Returns true if the given region is explicitly configured
+    ///
+    /// The root region "." is always considered configured.
+    /// Other regions are considered configured only if they have been
+    /// explicitly added via `set_count()` or parsed from configuration.
+    pub fn is_configured(&self, region: &RegionPath) -> bool {
+        self.configured_regions.contains(region)
+    }
+
+    /// Finds the configured region that contains the given file path
+    ///
+    /// Walks up the path hierarchy and returns the first (most specific)
+    /// configured region found. Falls back to "." which is always configured.
+    ///
+    /// # Arguments
+    ///
+    /// * `file_path` - The file path to find the containing region for
+    ///
+    /// # Returns
+    ///
+    /// The most specific configured region that contains the file path.
+    /// Always returns a valid region (falls back to "." if no other match).
+    ///
+    /// # Examples
+    ///
+    /// Given configured regions: `"."`, `"src/legacy"`, `"tests"`
+    /// - `find_configured_region("src/legacy/foo.rs")` returns `"src/legacy"`
+    /// - `find_configured_region("src/legacy/parser/bar.rs")` returns `"src/legacy"` (parser not configured)
+    /// - `find_configured_region("src/main.rs")` returns `"."` (src not configured)
+    pub fn find_configured_region(&self, file_path: &Path) -> RegionPath {
+        // Get the parent directory of the file
+        let mut current_path = file_path.parent().unwrap_or(Path::new("."));
+
+        loop {
+            let region = RegionPath::new(current_path.to_string_lossy().to_string());
+
+            // Check if this directory is a configured region
+            if self.configured_regions.contains(&region) {
+                return region;
+            }
+
+            // Try to go up to the parent
+            if let Some(parent) = current_path.parent() {
+                if parent == Path::new("") || parent == current_path {
+                    // We've reached the root
+                    break;
+                }
+                current_path = parent;
+            } else {
+                // No parent, we're at the root
+                break;
+            }
+        }
+
+        // Fall back to root "." which is always configured
+        RegionPath::new(".")
     }
 }
 
@@ -280,6 +353,27 @@ impl CountsManager {
             .get(rule_id)
             .map(|tree| tree.get_budget_by_region(region))
             .unwrap_or(0)
+    }
+
+    /// Finds the configured region for a file path under a specific rule
+    ///
+    /// Returns the most specific configured region that contains the file.
+    /// If the rule has no configuration, falls back to ".".
+    pub fn find_configured_region(&self, rule_id: &RuleId, file_path: &Path) -> RegionPath {
+        self.counts
+            .get(rule_id)
+            .map(|tree| tree.find_configured_region(file_path))
+            .unwrap_or_else(|| RegionPath::new("."))
+    }
+
+    /// Returns true if the given region is explicitly configured for a rule
+    ///
+    /// If the rule has no configuration, returns true only for "." (root).
+    pub fn is_configured_region(&self, rule_id: &RuleId, region: &RegionPath) -> bool {
+        self.counts
+            .get(rule_id)
+            .map(|tree| tree.is_configured(region))
+            .unwrap_or_else(|| region.as_str() == ".")
     }
 
     /// Sets the count for a specific rule and region
@@ -1092,5 +1186,215 @@ no-unwrap = 5
         // Verify alphabetical ordering
         assert!(a_pos < m_pos);
         assert!(m_pos < z_pos);
+    }
+
+    #[test]
+    fn test_region_tree_configured_regions_from_parsing() {
+        // Verify that parsing TOML populates configured_regions correctly
+        let toml = r#"
+[no-unwrap]
+"." = 0
+"src/legacy" = 15
+"src/legacy/parser" = 7
+"tests" = 50
+        "#;
+
+        let manager = CountsManager::parse(toml).unwrap();
+        let rule_id = RuleId::new("no-unwrap").unwrap();
+
+        // Get the region tree for this rule
+        let tree = manager.counts.get(&rule_id).unwrap();
+
+        // Verify all configured regions are tracked
+        assert!(tree.is_configured(&RegionPath::new(".")));
+        assert!(tree.is_configured(&RegionPath::new("src/legacy")));
+        assert!(tree.is_configured(&RegionPath::new("src/legacy/parser")));
+        assert!(tree.is_configured(&RegionPath::new("tests")));
+
+        // Verify unconfigured regions are not in the set
+        assert!(!tree.is_configured(&RegionPath::new("src")));
+        assert!(!tree.is_configured(&RegionPath::new("src/new")));
+    }
+
+    #[test]
+    fn test_region_tree_is_configured_region() {
+        // Test the is_configured method returns true for configured regions
+        // and false for unconfigured ones
+        let mut tree = RegionTree::new();
+
+        // Root "." should always be considered configured
+        assert!(tree.is_configured(&RegionPath::new(".")));
+
+        // Set some explicit regions
+        tree.set_count(&RegionPath::new("src/legacy"), 15);
+        tree.set_count(&RegionPath::new("tests"), 50);
+
+        // Explicitly configured regions should return true
+        assert!(tree.is_configured(&RegionPath::new("src/legacy")));
+        assert!(tree.is_configured(&RegionPath::new("tests")));
+
+        // Regions not explicitly configured should return false
+        assert!(!tree.is_configured(&RegionPath::new("src")));
+        assert!(!tree.is_configured(&RegionPath::new("src/legacy/parser")));
+        assert!(!tree.is_configured(&RegionPath::new("other")));
+    }
+
+    #[test]
+    fn test_find_configured_region_exact_match() {
+        // File in a configured region returns that region
+        let mut tree = RegionTree::new();
+        tree.set_count(&RegionPath::new("."), 0);
+        tree.set_count(&RegionPath::new("src/legacy"), 15);
+        tree.set_count(&RegionPath::new("tests"), 50);
+
+        // File directly in configured region
+        assert_eq!(
+            tree.find_configured_region(Path::new("src/legacy/foo.rs")),
+            RegionPath::new("src/legacy")
+        );
+        assert_eq!(
+            tree.find_configured_region(Path::new("tests/test.rs")),
+            RegionPath::new("tests")
+        );
+    }
+
+    #[test]
+    fn test_find_configured_region_ancestor() {
+        // File in unconfigured subdirectory returns nearest configured ancestor
+        let mut tree = RegionTree::new();
+        tree.set_count(&RegionPath::new("."), 0);
+        tree.set_count(&RegionPath::new("src/legacy"), 15);
+        tree.set_count(&RegionPath::new("tests"), 50);
+
+        // parser is not configured, should find src/legacy as ancestor
+        assert_eq!(
+            tree.find_configured_region(Path::new("src/legacy/parser/bar.rs")),
+            RegionPath::new("src/legacy")
+        );
+
+        // deeply nested should still find configured ancestor
+        assert_eq!(
+            tree.find_configured_region(Path::new("src/legacy/parser/nested/deep.rs")),
+            RegionPath::new("src/legacy")
+        );
+
+        // tests/unit is not configured, should find tests
+        assert_eq!(
+            tree.find_configured_region(Path::new("tests/unit/helper.rs")),
+            RegionPath::new("tests")
+        );
+    }
+
+    #[test]
+    fn test_find_configured_region_root_fallback() {
+        // File with no configured ancestors returns "."
+        let mut tree = RegionTree::new();
+        tree.set_count(&RegionPath::new("."), 0);
+        tree.set_count(&RegionPath::new("src/legacy"), 15);
+        tree.set_count(&RegionPath::new("tests"), 50);
+
+        // src is not configured, and neither is src/new - should fall back to root
+        assert_eq!(
+            tree.find_configured_region(Path::new("src/main.rs")),
+            RegionPath::new(".")
+        );
+        assert_eq!(
+            tree.find_configured_region(Path::new("src/new/feature.rs")),
+            RegionPath::new(".")
+        );
+
+        // docs is not configured - should fall back to root
+        assert_eq!(
+            tree.find_configured_region(Path::new("docs/readme.md")),
+            RegionPath::new(".")
+        );
+
+        // root level file should return root
+        assert_eq!(
+            tree.find_configured_region(Path::new("Cargo.toml")),
+            RegionPath::new(".")
+        );
+    }
+
+    #[test]
+    fn test_counts_manager_find_configured_region() {
+        // Test finding configured region for a rule through CountsManager
+        let mut manager = CountsManager::new();
+        let rule_id = RuleId::new("no-unwrap").unwrap();
+
+        manager.set_count(&rule_id, &RegionPath::new("."), 0);
+        manager.set_count(&rule_id, &RegionPath::new("src/legacy"), 15);
+        manager.set_count(&rule_id, &RegionPath::new("tests"), 50);
+
+        // File in configured region
+        assert_eq!(
+            manager.find_configured_region(&rule_id, Path::new("src/legacy/foo.rs")),
+            RegionPath::new("src/legacy")
+        );
+
+        // File in unconfigured subdirectory returns nearest configured ancestor
+        assert_eq!(
+            manager.find_configured_region(&rule_id, Path::new("src/legacy/parser/bar.rs")),
+            RegionPath::new("src/legacy")
+        );
+
+        // File with no configured ancestor returns root
+        assert_eq!(
+            manager.find_configured_region(&rule_id, Path::new("src/main.rs")),
+            RegionPath::new(".")
+        );
+    }
+
+    #[test]
+    fn test_counts_manager_find_configured_region_missing_rule() {
+        // Test behavior when rule not in config
+        let manager = CountsManager::new();
+        let rule_id = RuleId::new("missing-rule").unwrap();
+
+        // Missing rule should fall back to "."
+        assert_eq!(
+            manager.find_configured_region(&rule_id, Path::new("src/foo.rs")),
+            RegionPath::new(".")
+        );
+        assert_eq!(
+            manager.find_configured_region(&rule_id, Path::new("any/path/file.rs")),
+            RegionPath::new(".")
+        );
+    }
+
+    #[test]
+    fn test_counts_manager_is_configured_region() {
+        // Test checking if region is configured for a rule
+        let mut manager = CountsManager::new();
+        let rule_id = RuleId::new("no-unwrap").unwrap();
+
+        manager.set_count(&rule_id, &RegionPath::new("."), 0);
+        manager.set_count(&rule_id, &RegionPath::new("src/legacy"), 15);
+        manager.set_count(&rule_id, &RegionPath::new("tests"), 50);
+
+        // Configured regions should return true
+        assert!(manager.is_configured_region(&rule_id, &RegionPath::new(".")));
+        assert!(manager.is_configured_region(&rule_id, &RegionPath::new("src/legacy")));
+        assert!(manager.is_configured_region(&rule_id, &RegionPath::new("tests")));
+
+        // Unconfigured regions should return false
+        assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("src")));
+        assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("src/legacy/parser")));
+        assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("other")));
+    }
+
+    #[test]
+    fn test_counts_manager_is_configured_region_missing_rule() {
+        // Test behavior when rule not in config
+        let manager = CountsManager::new();
+        let rule_id = RuleId::new("missing-rule").unwrap();
+
+        // For missing rule, only root "." should be considered configured
+        assert!(manager.is_configured_region(&rule_id, &RegionPath::new(".")));
+
+        // Any other region should not be considered configured
+        assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("src")));
+        assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("tests")));
+        assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("any/path")));
     }
 }

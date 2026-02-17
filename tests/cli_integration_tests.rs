@@ -336,15 +336,25 @@ fn test_bump_with_custom_region() {
         )
         .unwrap();
 
-        // Bump the src region
+        // First, explicitly configure the "src" region in ratchet-counts.toml
+        // (Regions must be configured before they can be bumped)
+        let counts = r#"
+[no-todo-comments]
+"." = 5
+"src" = 0
+"#;
+        fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
+
+        // Now bump the src region
         let exit_code = cli::bump::run_bump(Some("no-todo-comments"), "src", Some(5), false);
 
         assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
 
-        // Verify counts file has the src region
+        // Verify counts file has the src region with updated budget
         let counts_content =
             fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
         assert!(counts_content.contains("src"));
+        assert!(counts_content.contains("5"));
     });
 }
 
@@ -370,6 +380,105 @@ fn test_bump_missing_config() {
 
         // Should fail
         assert_eq!(exit_code, cli::common::EXIT_ERROR);
+    });
+}
+
+#[test]
+fn test_bump_fails_for_unconfigured_region() {
+    with_temp_dir(|temp_dir| {
+        setup_basic_project(temp_dir.path());
+
+        // Create src directory with files
+        fs::create_dir_all(temp_dir.path().join("src")).unwrap();
+        fs::write(
+            temp_dir.path().join("src/lib.rs"),
+            "// TODO: impl\nfn lib() {}",
+        )
+        .unwrap();
+
+        // Note: setup_basic_project creates ratchet-counts.toml with only "." configured
+        // for no-todo-comments. The "src" region is NOT configured.
+
+        // Try to bump an unconfigured region - should fail
+        let exit_code = cli::bump::run_bump(Some("no-todo-comments"), "src", Some(5), false);
+
+        // Should fail because "src" is not configured for this rule
+        assert_eq!(exit_code, cli::common::EXIT_ERROR);
+
+        // Verify the counts file was NOT modified to add "src" region
+        let counts_content =
+            fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
+        assert!(
+            !counts_content.contains("\"src\""),
+            "Counts file should not contain 'src' region"
+        );
+    });
+}
+
+#[test]
+fn test_bump_succeeds_for_root_region_even_when_not_explicitly_configured() {
+    with_temp_dir(|temp_dir| {
+        setup_basic_project(temp_dir.path());
+
+        // Remove the counts file to start fresh
+        fs::remove_file(temp_dir.path().join("ratchet-counts.toml")).unwrap();
+
+        // Create an empty counts file (no explicit regions configured)
+        fs::write(temp_dir.path().join("ratchet-counts.toml"), "").unwrap();
+
+        // Bumping the root region "." should always succeed
+        let exit_code = cli::bump::run_bump(Some("no-todo-comments"), ".", Some(10), false);
+
+        // Should succeed because "." is always implicitly configured
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
+
+        // Verify the counts file was updated
+        let counts_content =
+            fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
+        assert!(
+            counts_content.contains("\".\""),
+            "Counts file should contain root region"
+        );
+    });
+}
+
+#[test]
+fn test_bump_succeeds_for_explicitly_configured_region() {
+    with_temp_dir(|temp_dir| {
+        setup_basic_project(temp_dir.path());
+
+        // Create src directory with files
+        fs::create_dir_all(temp_dir.path().join("src")).unwrap();
+        fs::write(
+            temp_dir.path().join("src/lib.rs"),
+            "// TODO: impl\nfn lib() {}",
+        )
+        .unwrap();
+
+        // Explicitly configure the "src" region in ratchet-counts.toml
+        let counts = r#"
+[no-todo-comments]
+"." = 5
+"src" = 3
+"#;
+        fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
+
+        // Now bumping "src" should succeed
+        let exit_code = cli::bump::run_bump(Some("no-todo-comments"), "src", Some(10), false);
+
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
+
+        // Verify the counts file was updated
+        let counts_content =
+            fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
+        assert!(
+            counts_content.contains("\"src\""),
+            "Counts file should contain 'src' region"
+        );
+        assert!(
+            counts_content.contains("10"),
+            "Counts file should have updated budget"
+        );
     });
 }
 
@@ -1237,5 +1346,451 @@ fn test_bump_all_missing_config() {
 
         // Should fail
         assert_eq!(exit_code, cli::common::EXIT_ERROR);
+    });
+}
+
+// ============================================================================
+// TIGHTEN REGION BEHAVIOR TESTS
+// ============================================================================
+
+#[test]
+fn test_tighten_only_updates_configured_regions() {
+    // Test that tighten only updates configured regions, not unconfigured subdirectories
+    // Setup:
+    //   - Configure regions: ".", "a"
+    //   - Create violations in: a/, a/b/, c/
+    // Expected:
+    //   - a/b/ violations count toward "a" (configured ancestor)
+    //   - c/ violations count toward "." (root fallback)
+    //   - tighten should NOT create "a/b" or "c" regions
+    with_temp_dir(|temp_dir| {
+        // Create config with rule enabled
+        let config = r#"
+[ratchets]
+version = "1"
+languages = ["rust"]
+include = ["**/*.rs"]
+
+[rules]
+no-todo-comments = true
+rust-no-todo-comments = false
+rust-no-fixme-comments = false
+"#;
+        fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
+
+        // Configure only "." and "a" regions - NOT "a/b" or "c"
+        let counts = r#"
+[no-todo-comments]
+"." = 100
+"a" = 100
+"#;
+        fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
+
+        // Create builtin rule
+        let builtin_regex_dir = temp_dir
+            .path()
+            .join("builtin-ratchets")
+            .join("common")
+            .join("regex");
+        fs::create_dir_all(&builtin_regex_dir).unwrap();
+
+        let rule_toml = r#"
+[rule]
+id = "no-todo-comments"
+description = "Disallow TODO comments"
+severity = "warning"
+
+[match]
+pattern = "TODO"
+"#;
+        fs::write(builtin_regex_dir.join("no-todo-comments.toml"), rule_toml).unwrap();
+
+        // Create directory structure
+        fs::create_dir_all(temp_dir.path().join("a/b")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("c")).unwrap();
+
+        // Create violations in various directories:
+        // - 1 in "a" directly
+        // - 2 in "a/b" (unconfigured subdirectory of "a")
+        // - 1 in "c" (unconfigured, should count toward root)
+        fs::write(temp_dir.path().join("a/file.rs"), "// TODO: in a\n").unwrap();
+        fs::write(
+            temp_dir.path().join("a/b/file.rs"),
+            "// TODO: in a/b\n// TODO: another in a/b\n",
+        )
+        .unwrap();
+        fs::write(temp_dir.path().join("c/file.rs"), "// TODO: in c\n").unwrap();
+
+        // Run tighten
+        let exit_code = cli::tighten::run_tighten(None, None);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
+
+        // Read and verify the counts file
+        let counts_content =
+            fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
+
+        // Parse the updated counts
+        let counts = ratchets::config::counts::CountsManager::parse(&counts_content).unwrap();
+        let rule_id = ratchets::types::RuleId::new("no-todo-comments").unwrap();
+
+        // "a" should have 3 violations (1 in a/ + 2 in a/b/)
+        assert_eq!(counts.get_budget(&rule_id, Path::new("a/file.rs")), 3);
+
+        // "." should have 1 violation (from c/)
+        assert_eq!(counts.get_budget(&rule_id, Path::new("x.rs")), 1);
+
+        // Verify NO new regions were created - only "." and "a" should exist
+        // The counts file should NOT contain "a/b" or "c" as explicit regions
+        assert!(
+            !counts_content.contains("\"a/b\""),
+            "Counts file should NOT contain 'a/b' region: {}",
+            counts_content
+        );
+        assert!(
+            !counts_content.contains("\"c\""),
+            "Counts file should NOT contain 'c' region: {}",
+            counts_content
+        );
+
+        // Verify the configured regions ARE present
+        assert!(
+            counts_content.contains("\".\""),
+            "Counts file should contain '.' region"
+        );
+        assert!(
+            counts_content.contains("\"a\""),
+            "Counts file should contain 'a' region"
+        );
+    });
+}
+
+#[test]
+fn test_tighten_does_not_create_new_regions() {
+    // Verify that tighten never creates new regions in the config
+    // Setup:
+    //   - Configure only root region "."
+    //   - Create violations in: src/, tests/, docs/
+    // Expected:
+    //   - All violations count toward "."
+    //   - tighten should NOT create "src", "tests", or "docs" regions
+    with_temp_dir(|temp_dir| {
+        // Create config with rule enabled
+        let config = r#"
+[ratchets]
+version = "1"
+languages = ["rust"]
+include = ["**/*.rs"]
+
+[rules]
+no-todo-comments = true
+rust-no-todo-comments = false
+rust-no-fixme-comments = false
+"#;
+        fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
+
+        // Configure ONLY the root region
+        let counts = r#"
+[no-todo-comments]
+"." = 100
+"#;
+        fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
+
+        // Create builtin rule
+        let builtin_regex_dir = temp_dir
+            .path()
+            .join("builtin-ratchets")
+            .join("common")
+            .join("regex");
+        fs::create_dir_all(&builtin_regex_dir).unwrap();
+
+        let rule_toml = r#"
+[rule]
+id = "no-todo-comments"
+description = "Disallow TODO comments"
+severity = "warning"
+
+[match]
+pattern = "TODO"
+"#;
+        fs::write(builtin_regex_dir.join("no-todo-comments.toml"), rule_toml).unwrap();
+
+        // Create directory structure with violations in multiple places
+        fs::create_dir_all(temp_dir.path().join("src")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("tests")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("docs")).unwrap();
+
+        fs::write(temp_dir.path().join("src/lib.rs"), "// TODO: src\n").unwrap();
+        fs::write(
+            temp_dir.path().join("tests/test.rs"),
+            "// TODO: tests\n// TODO: another\n",
+        )
+        .unwrap();
+        fs::write(temp_dir.path().join("docs/example.rs"), "// TODO: docs\n").unwrap();
+        fs::write(temp_dir.path().join("root.rs"), "// TODO: root\n").unwrap();
+
+        // Run tighten
+        let exit_code = cli::tighten::run_tighten(None, None);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
+
+        // Read and verify the counts file
+        let counts_content =
+            fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
+
+        // Parse the updated counts
+        let counts = ratchets::config::counts::CountsManager::parse(&counts_content).unwrap();
+        let rule_id = ratchets::types::RuleId::new("no-todo-comments").unwrap();
+
+        // Root should have all 5 violations
+        assert_eq!(counts.get_budget(&rule_id, Path::new("any/file.rs")), 5);
+
+        // Verify NO new regions were created
+        assert!(
+            !counts_content.contains("\"src\""),
+            "Counts file should NOT contain 'src' region"
+        );
+        assert!(
+            !counts_content.contains("\"tests\""),
+            "Counts file should NOT contain 'tests' region"
+        );
+        assert!(
+            !counts_content.contains("\"docs\""),
+            "Counts file should NOT contain 'docs' region"
+        );
+
+        // Only root should be present
+        assert!(
+            counts_content.contains("\".\""),
+            "Counts file should contain '.' region"
+        );
+
+        // Count the number of region entries (should be exactly 1)
+        let region_count = counts_content.matches(" = ").count();
+        assert_eq!(
+            region_count, 1,
+            "Should have exactly one region entry (root)"
+        );
+    });
+}
+
+#[test]
+fn test_tighten_with_deeply_nested_unconfigured_directories() {
+    // Test that deeply nested violations still count toward configured ancestors
+    // Setup:
+    //   - Configure: ".", "src"
+    //   - Create violations in: src/a/b/c/d/e/
+    // Expected:
+    //   - All nested violations count toward "src"
+    //   - No intermediate directories created as regions
+    with_temp_dir(|temp_dir| {
+        // Create config with rule enabled
+        let config = r#"
+[ratchets]
+version = "1"
+languages = ["rust"]
+include = ["**/*.rs"]
+
+[rules]
+no-todo-comments = true
+rust-no-todo-comments = false
+rust-no-fixme-comments = false
+"#;
+        fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
+
+        // Configure only root and src
+        let counts = r#"
+[no-todo-comments]
+"." = 100
+"src" = 100
+"#;
+        fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
+
+        // Create builtin rule
+        let builtin_regex_dir = temp_dir
+            .path()
+            .join("builtin-ratchets")
+            .join("common")
+            .join("regex");
+        fs::create_dir_all(&builtin_regex_dir).unwrap();
+
+        let rule_toml = r#"
+[rule]
+id = "no-todo-comments"
+description = "Disallow TODO comments"
+severity = "warning"
+
+[match]
+pattern = "TODO"
+"#;
+        fs::write(builtin_regex_dir.join("no-todo-comments.toml"), rule_toml).unwrap();
+
+        // Create deeply nested directory structure
+        fs::create_dir_all(temp_dir.path().join("src/a/b/c/d/e")).unwrap();
+
+        // Create violations at various depths
+        fs::write(temp_dir.path().join("src/file.rs"), "// TODO: src\n").unwrap();
+        fs::write(temp_dir.path().join("src/a/file.rs"), "// TODO: a\n").unwrap();
+        fs::write(temp_dir.path().join("src/a/b/file.rs"), "// TODO: b\n").unwrap();
+        fs::write(temp_dir.path().join("src/a/b/c/file.rs"), "// TODO: c\n").unwrap();
+        fs::write(
+            temp_dir.path().join("src/a/b/c/d/e/file.rs"),
+            "// TODO: deep\n",
+        )
+        .unwrap();
+
+        // Run tighten
+        let exit_code = cli::tighten::run_tighten(None, None);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
+
+        // Read and verify the counts file
+        let counts_content =
+            fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
+
+        // Parse the updated counts
+        let counts = ratchets::config::counts::CountsManager::parse(&counts_content).unwrap();
+        let rule_id = ratchets::types::RuleId::new("no-todo-comments").unwrap();
+
+        // src should have all 5 violations from nested directories
+        assert_eq!(counts.get_budget(&rule_id, Path::new("src/file.rs")), 5);
+
+        // Verify NO intermediate regions were created
+        for dir in &[
+            "src/a",
+            "src/a/b",
+            "src/a/b/c",
+            "src/a/b/c/d",
+            "src/a/b/c/d/e",
+        ] {
+            assert!(
+                !counts_content.contains(&format!("\"{}\"", dir)),
+                "Counts file should NOT contain '{}' region",
+                dir
+            );
+        }
+
+        // Only root and src should be present
+        assert!(
+            counts_content.contains("\".\""),
+            "Counts file should contain '.' region"
+        );
+        assert!(
+            counts_content.contains("\"src\""),
+            "Counts file should contain 'src' region"
+        );
+
+        // Count the number of region entries (should be exactly 2)
+        let region_count = counts_content.matches(" = ").count();
+        assert_eq!(region_count, 2, "Should have exactly two region entries");
+    });
+}
+
+#[test]
+fn test_tighten_preserves_configured_regions_with_zero_violations() {
+    // Test that tighten preserves configured regions even when they have zero violations
+    // Setup:
+    //   - Configure: ".", "src", "tests"
+    //   - Create violations only in src/
+    // Expected:
+    //   - src gets tightened to actual count
+    //   - tests budget is unchanged (no violations means no status to process)
+    //   - root budget is unchanged (no violations means no status to process)
+    //   - No new regions created
+    //
+    // Note: Tighten only updates regions that have violations. Regions with zero
+    // violations are not touched because no status is generated for them.
+    with_temp_dir(|temp_dir| {
+        // Create config with rule enabled
+        let config = r#"
+[ratchets]
+version = "1"
+languages = ["rust"]
+include = ["**/*.rs"]
+
+[rules]
+no-todo-comments = true
+rust-no-todo-comments = false
+rust-no-fixme-comments = false
+"#;
+        fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
+
+        // Configure root, src, and tests
+        let counts = r#"
+[no-todo-comments]
+"." = 100
+"src" = 100
+"tests" = 50
+"#;
+        fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
+
+        // Create builtin rule
+        let builtin_regex_dir = temp_dir
+            .path()
+            .join("builtin-ratchets")
+            .join("common")
+            .join("regex");
+        fs::create_dir_all(&builtin_regex_dir).unwrap();
+
+        let rule_toml = r#"
+[rule]
+id = "no-todo-comments"
+description = "Disallow TODO comments"
+severity = "warning"
+
+[match]
+pattern = "TODO"
+"#;
+        fs::write(builtin_regex_dir.join("no-todo-comments.toml"), rule_toml).unwrap();
+
+        // Create directories
+        fs::create_dir_all(temp_dir.path().join("src")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("tests")).unwrap();
+
+        // Create violations ONLY in src
+        fs::write(
+            temp_dir.path().join("src/lib.rs"),
+            "// TODO: one\n// TODO: two\n",
+        )
+        .unwrap();
+
+        // Create empty test file (no violations)
+        fs::write(temp_dir.path().join("tests/test.rs"), "fn test() {}\n").unwrap();
+
+        // Run tighten
+        let exit_code = cli::tighten::run_tighten(None, None);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
+
+        // Read and verify the counts file
+        let counts_content =
+            fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
+
+        // Parse the updated counts
+        let counts = ratchets::config::counts::CountsManager::parse(&counts_content).unwrap();
+        let rule_id = ratchets::types::RuleId::new("no-todo-comments").unwrap();
+
+        // src should be tightened to 2 (actual violations)
+        assert_eq!(counts.get_budget(&rule_id, Path::new("src/file.rs")), 2);
+
+        // tests should remain unchanged at 50 (no violations, so no status created)
+        // Tighten only updates regions that have violations; zero-violation regions are not touched
+        assert_eq!(counts.get_budget(&rule_id, Path::new("tests/file.rs")), 50);
+
+        // root should remain unchanged at 100 (no violations, so no status created)
+        assert_eq!(counts.get_budget(&rule_id, Path::new("other.rs")), 100);
+
+        // All configured regions should still be present
+        assert!(
+            counts_content.contains("\".\""),
+            "Counts file should contain '.' region"
+        );
+        assert!(
+            counts_content.contains("\"src\""),
+            "Counts file should contain 'src' region"
+        );
+        assert!(
+            counts_content.contains("\"tests\""),
+            "Counts file should contain 'tests' region"
+        );
+
+        // Importantly, no new regions were created
+        // (this verifies the core tighten behavior)
     });
 }

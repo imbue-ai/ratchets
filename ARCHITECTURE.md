@@ -154,9 +154,10 @@ pub struct AstRule { /* ... */ }
 
 Responsibilities:
 - Parse `ratchet-counts.toml`
-- Resolve region inheritance (child inherits from parent)
+- Determine configured regions per rule (regions exist only when explicitly listed)
+- Find region membership: `find_region(rule_id, file_path) -> RegionPath` (most specific configured region)
 - Provide budget lookup: `get_budget(rule_id, file_path) -> u64`
-- Mutate counts for `bump` and `tighten` commands
+- Mutate counts for `bump` and `tighten` commands (existing regions only; never creates regions)
 - Serialize counts back to TOML
 
 Key types:
@@ -167,9 +168,11 @@ pub struct CountsManager {
 
 pub struct RegionTree {
     root_count: u64,
-    overrides: HashMap<PathBuf, u64>,
+    overrides: HashMap<RegionPath, u64>,  // Only explicitly configured regions
 }
 ```
+
+Region membership algorithm: Given a file path, walk up the directory hierarchy and return the first (most specific) configured region found. Files in unconfigured directories belong to their nearest configured ancestor region.
 
 ### Execution Engine
 

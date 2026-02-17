@@ -46,7 +46,7 @@ mod rust_tests {
         let tree = parser.parse(&content, None).unwrap();
 
         // Execute the rule
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_unwrap.rs"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_unwrap.rs"), None);
 
         // Should find 5 unwrap calls:
         // Line 6: option.unwrap()
@@ -70,7 +70,7 @@ mod rust_tests {
         let mut parser = parser_cache.get_parser(Language::Rust).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_unwrap.rs"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_unwrap.rs"), None);
 
         // Verify line numbers (should be 1-indexed)
         let lines: Vec<u32> = violations.iter().map(|v| v.line).collect();
@@ -107,7 +107,7 @@ fn clean_code() {
         let mut parser = parser_cache.get_parser(Language::Rust).unwrap();
         let tree = parser.parse(content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, content, Path::new("clean.rs"));
+        let violations = rule.execute_with_tree(&tree, content, Path::new("clean.rs"), None);
 
         assert_eq!(violations.len(), 0, "Clean code should have no violations");
     }
@@ -128,7 +128,7 @@ fn clean_code() {
         let mut parser = parser_cache.get_parser(Language::Rust).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_expect.rs"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_expect.rs"), None);
 
         // Should find 5 expect calls:
         // Line 6: option.expect()
@@ -152,7 +152,7 @@ fn clean_code() {
         let mut parser = parser_cache.get_parser(Language::Rust).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_expect.rs"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_expect.rs"), None);
 
         // Verify line numbers
         let lines: Vec<u32> = violations.iter().map(|v| v.line).collect();
@@ -178,7 +178,7 @@ fn clean_code() {
         let mut parser = parser_cache.get_parser(Language::Rust).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_panic.rs"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_panic.rs"), None);
 
         // Should find 4 panic calls
         assert_eq!(
@@ -198,7 +198,7 @@ fn clean_code() {
         let mut parser = parser_cache.get_parser(Language::Rust).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_panic.rs"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_panic.rs"), None);
 
         // Verify line numbers
         let lines: Vec<u32> = violations.iter().map(|v| v.line).collect();
@@ -217,7 +217,7 @@ fn clean_code() {
         let mut parser = parser_cache.get_parser(Language::Rust).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_unwrap.rs"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_unwrap.rs"), None);
 
         // Verify snippets contain the expected pattern
         for violation in &violations {
@@ -246,7 +246,8 @@ fn clean_code() {
         let mut parser = parser_cache.get_parser(Language::Rust).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_comments.rs"));
+        let violations =
+            rule.execute_with_tree(&tree, &content, Path::new("rust_comments.rs"), None);
 
         // Should find at least 5 TODO comments (line comments, block comments, doc comments)
         assert!(
@@ -274,7 +275,8 @@ fn clean_code() {
         let mut parser = parser_cache.get_parser(Language::Rust).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_comments.rs"));
+        let violations =
+            rule.execute_with_tree(&tree, &content, Path::new("rust_comments.rs"), None);
 
         // AST rules only match actual comment nodes, not strings
         // Verify all violations are actual comments (start with // or /* or ///)
@@ -314,7 +316,8 @@ fn clean_code() {
         let mut parser = parser_cache.get_parser(Language::Rust).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_comments.rs"));
+        let violations =
+            rule.execute_with_tree(&tree, &content, Path::new("rust_comments.rs"), None);
 
         // Should find at least 5 FIXME comments (line comments, block comments, doc comments)
         assert!(
@@ -342,7 +345,8 @@ fn clean_code() {
         let mut parser = parser_cache.get_parser(Language::Rust).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("rust_comments.rs"));
+        let violations =
+            rule.execute_with_tree(&tree, &content, Path::new("rust_comments.rs"), None);
 
         // AST rules only match actual comment nodes, not strings
         // Verify all violations are actual comments (start with // or /* or ///)
@@ -386,7 +390,8 @@ mod typescript_tests {
         let mut parser = parser_cache.get_parser(Language::TypeScript).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("typescript_any.ts"));
+        let violations =
+            rule.execute_with_tree(&tree, &content, Path::new("typescript_any.ts"), None);
 
         // Debug: print what we found
         if violations.is_empty() {
@@ -412,7 +417,8 @@ mod typescript_tests {
         let mut parser = parser_cache.get_parser(Language::TypeScript).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("typescript_any.ts"));
+        let violations =
+            rule.execute_with_tree(&tree, &content, Path::new("typescript_any.ts"), None);
 
         // The TypeScript query may not find violations due to predicate matching
         // This is a known limitation we're documenting
@@ -441,7 +447,7 @@ function cleanCode(param: string): number {
         let mut parser = parser_cache.get_parser(Language::TypeScript).unwrap();
         let tree = parser.parse(content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, content, Path::new("clean.ts"));
+        let violations = rule.execute_with_tree(&tree, content, Path::new("clean.ts"), None);
 
         assert_eq!(violations.len(), 0, "Clean code should have no violations");
     }
@@ -455,7 +461,8 @@ function cleanCode(param: string): number {
         let mut parser = parser_cache.get_parser(Language::TypeScript).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("typescript_any.ts"));
+        let violations =
+            rule.execute_with_tree(&tree, &content, Path::new("typescript_any.ts"), None);
 
         // The TypeScript query may not find violations due to predicate matching
         // This is a known limitation we're documenting
@@ -491,7 +498,8 @@ mod python_tests {
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("python_except.py"));
+        let violations =
+            rule.execute_with_tree(&tree, &content, Path::new("python_except.py"), None);
 
         // Should find 4 bare except clauses
         // Note: The query may find except_clause nodes, some of which might have exception types
@@ -511,7 +519,8 @@ mod python_tests {
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("python_except.py"));
+        let violations =
+            rule.execute_with_tree(&tree, &content, Path::new("python_except.py"), None);
 
         // Verify all violations have valid positions
         for violation in &violations {
@@ -541,7 +550,7 @@ def clean_code():
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, content, Path::new("clean.py"));
+        let violations = rule.execute_with_tree(&tree, content, Path::new("clean.py"), None);
 
         // This test might be tricky because the query might still match except clauses
         // The query in the TOML is simplified and catches all except clauses with blocks
@@ -568,7 +577,7 @@ def clean_code():
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"), None);
 
         // Should detect both `except BaseException:` and `except BaseException as e:`
         assert_eq!(
@@ -602,7 +611,7 @@ def clean_code():
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"), None);
 
         for violation in &violations {
             assert!(violation.line > 0, "Line should be 1-indexed");
@@ -632,7 +641,7 @@ def clean_code():
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"), None);
 
         // Should detect both `except Exception:` and `except Exception as e:`
         assert_eq!(
@@ -674,7 +683,7 @@ def clean_code():
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"), None);
 
         // Should find 3 eval() calls
         assert_eq!(
@@ -700,7 +709,7 @@ def clean_code():
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"), None);
 
         // Verify no violations from strings or variable names
         for v in &violations {
@@ -736,7 +745,7 @@ def clean_code():
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"), None);
 
         // Should find 3 exec() calls
         assert_eq!(
@@ -770,7 +779,7 @@ def clean_code():
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"), None);
 
         // Should find 3 while True loops
         assert_eq!(
@@ -796,7 +805,7 @@ def clean_code():
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"), None);
 
         // Verify all violations are actual while True statements
         for v in &violations {
@@ -825,7 +834,7 @@ def clean_code():
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"), None);
 
         // Should find 3 global statements
         assert_eq!(
@@ -859,7 +868,7 @@ def clean_code():
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"), None);
 
         // Should find 5 print() calls (including line 7 in the while loop)
         assert_eq!(
@@ -887,7 +896,7 @@ def clean_code():
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"), None);
 
         // Verify all violations are actual print() calls
         for v in &violations {
@@ -916,7 +925,7 @@ def clean_code():
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"), None);
 
         // Should find 5 TODO comments
         assert_eq!(
@@ -953,7 +962,7 @@ def clean_code():
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"), None);
 
         // AST rules only match actual comment nodes, not strings or docstrings
         // Verify all violations are actual comments (start with #)
@@ -983,7 +992,7 @@ def clean_code():
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"), None);
 
         // Should find 5 FIXME comments
         assert_eq!(
@@ -1020,7 +1029,7 @@ def clean_code():
         let mut parser = parser_cache.get_parser(Language::Python).unwrap();
         let tree = parser.parse(&content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"));
+        let violations = rule.execute_with_tree(&tree, &content, Path::new("test.py"), None);
 
         // AST rules only match actual comment nodes, not strings or docstrings
         // Verify all violations are actual comments (start with #)
@@ -1170,7 +1179,7 @@ language = "rust"
         let mut parser = parser_cache.get_parser(Language::Rust).unwrap();
         let tree = parser.parse(content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, content, Path::new("test.rs"));
+        let violations = rule.execute_with_tree(&tree, content, Path::new("test.rs"), None);
         assert!(
             !violations.is_empty(),
             "Should find violations using first capture"
@@ -1204,7 +1213,7 @@ fn test3() {
         let mut parser = parser_cache.get_parser(Language::Rust).unwrap();
         let tree = parser.parse(content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, content, Path::new("test.rs"));
+        let violations = rule.execute_with_tree(&tree, content, Path::new("test.rs"), None);
 
         assert_eq!(violations.len(), 3, "Should find exactly 3 violations");
 
@@ -1224,7 +1233,7 @@ fn test3() {
         let mut parser = parser_cache.get_parser(Language::Rust).unwrap();
         let tree = parser.parse(content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, content, Path::new("test.rs"));
+        let violations = rule.execute_with_tree(&tree, content, Path::new("test.rs"), None);
 
         assert_eq!(violations.len(), 1, "Should find 1 violation");
 
@@ -1253,7 +1262,7 @@ fn test3() {
         let mut parser = parser_cache.get_parser(Language::Rust).unwrap();
         let tree = parser.parse(content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, content, Path::new("test.rs"));
+        let violations = rule.execute_with_tree(&tree, content, Path::new("test.rs"), None);
 
         assert_eq!(violations.len(), 1, "Should find 1 violation");
 
@@ -1276,7 +1285,7 @@ fn test3() {
         let mut parser = parser_cache.get_parser(Language::Rust).unwrap();
         let tree = parser.parse(content, None).unwrap();
 
-        let violations = rule.execute_with_tree(&tree, content, Path::new("test.rs"));
+        let violations = rule.execute_with_tree(&tree, content, Path::new("test.rs"), None);
 
         for violation in &violations {
             // Line 1 in the content should be reported as line 1 (not line 0)

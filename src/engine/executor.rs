@@ -5,8 +5,11 @@
 //! This module provides the ExecutionEngine which coordinates all components
 //! to execute rules against discovered files in parallel using rayon.
 
+use crate::config::counts::CountsManager;
 use crate::engine::file_walker::FileEntry;
-use crate::rules::{AstRule, ExecutionContext, ParserCache, Rule, RuleRegistry, Violation};
+use crate::rules::{
+    AstRule, ExecutionContext, ParserCache, RegionResolver, Rule, RuleRegistry, Violation,
+};
 use crate::types::Language;
 use rayon::prelude::*;
 use std::fs;
@@ -33,6 +36,7 @@ pub struct ExecutionResult {
 pub struct ExecutionEngine {
     registry: Arc<RuleRegistry>,
     parser_cache: Arc<ParserCache>,
+    region_resolver: Option<RegionResolver>,
 }
 
 impl ExecutionEngine {
@@ -41,10 +45,21 @@ impl ExecutionEngine {
     /// # Arguments
     ///
     /// * `registry` - The rule registry containing all enabled rules
-    pub fn new(registry: RuleRegistry) -> Self {
+    /// * `counts_manager` - Optional counts manager for region resolution
+    pub fn new(registry: RuleRegistry, counts_manager: Option<Arc<CountsManager>>) -> Self {
+        // Create region resolver if counts_manager is provided
+        let region_resolver = counts_manager.map(|cm| {
+            Arc::new(
+                move |file_path: &std::path::Path, rule_id: &crate::types::RuleId| {
+                    cm.find_configured_region(rule_id, file_path)
+                },
+            ) as RegionResolver
+        });
+
         Self {
             registry: Arc::new(registry),
             parser_cache: Arc::new(ParserCache::new()),
+            region_resolver,
         }
     }
 
@@ -132,13 +147,19 @@ impl ExecutionEngine {
                 .flat_map(|&rule| {
                     // Try to downcast to AstRule to use execute_with_tree
                     if let Some(ast_rule) = self.try_downcast_ast_rule(rule) {
-                        ast_rule.execute_with_tree(tree, &content, &file.path)
+                        ast_rule.execute_with_tree(
+                            tree,
+                            &content,
+                            &file.path,
+                            self.region_resolver.as_ref(),
+                        )
                     } else {
                         // Fallback to regular execute (will re-parse internally)
                         let ctx = ExecutionContext {
                             file_path: &file.path,
                             content: &content,
                             ast: None,
+                            region_resolver: self.region_resolver.clone(),
                         };
                         rule.execute(&ctx)
                     }
@@ -155,6 +176,7 @@ impl ExecutionEngine {
                     file_path: &file.path,
                     content: &content,
                     ast: None,
+                    region_resolver: self.region_resolver.clone(),
                 };
                 rule.execute(&ctx)
             })
@@ -249,7 +271,7 @@ pattern = "TODO"
     #[test]
     fn test_execution_engine_creation() {
         let registry = RuleRegistry::new();
-        let engine = ExecutionEngine::new(registry);
+        let engine = ExecutionEngine::new(registry, None);
         // Just verify it compiles and constructs
         drop(engine);
     }
@@ -257,7 +279,7 @@ pattern = "TODO"
     #[test]
     fn test_execute_empty_files() {
         let registry = RuleRegistry::new();
-        let engine = ExecutionEngine::new(registry);
+        let engine = ExecutionEngine::new(registry, None);
 
         let result = engine.execute(vec![]);
         assert_eq!(result.violations.len(), 0);
@@ -278,7 +300,7 @@ pattern = "TODO"
         // We need to use a different approach for testing
         // For now, let's test with an empty registry
 
-        let engine = ExecutionEngine::new(registry);
+        let engine = ExecutionEngine::new(registry, None);
         let detector = test_detector();
 
         let files = vec![FileEntry::new(test_file.clone(), &detector)];
@@ -300,7 +322,7 @@ pattern = "TODO"
         fs::write(&file2, "fn test() {}").unwrap();
 
         let registry = RuleRegistry::new();
-        let engine = ExecutionEngine::new(registry);
+        let engine = ExecutionEngine::new(registry, None);
         let detector = test_detector();
 
         let files = vec![
@@ -315,7 +337,7 @@ pattern = "TODO"
     #[test]
     fn test_execute_unreadable_file() {
         let registry = RuleRegistry::new();
-        let engine = ExecutionEngine::new(registry);
+        let engine = ExecutionEngine::new(registry, None);
 
         // File that doesn't exist - use with_language since the file doesn't exist
         let files = vec![FileEntry::with_language(
@@ -332,7 +354,7 @@ pattern = "TODO"
     #[test]
     fn test_rule_applies_to_file_no_language_restriction() {
         let registry = RuleRegistry::new();
-        let engine = ExecutionEngine::new(registry);
+        let engine = ExecutionEngine::new(registry, None);
 
         // Create a mock rule with no language restrictions
         let rule = create_test_regex_rule();
@@ -356,7 +378,7 @@ pattern = "TODO"
     #[test]
     fn test_rule_applies_to_file_with_language() {
         let registry = RuleRegistry::new();
-        let engine = ExecutionEngine::new(registry);
+        let engine = ExecutionEngine::new(registry, None);
 
         // Create a rule that applies to Rust
         let toml = r#"
@@ -382,7 +404,7 @@ languages = ["rust"]
     #[test]
     fn test_is_ast_rule_heuristic() {
         let registry = RuleRegistry::new();
-        let engine = ExecutionEngine::new(registry);
+        let engine = ExecutionEngine::new(registry, None);
 
         // Regex rule with no language restrictions
         let regex_rule = create_test_regex_rule();
@@ -407,7 +429,7 @@ languages = ["rust", "python"]
     #[test]
     fn test_parse_ast() {
         let registry = RuleRegistry::new();
-        let engine = ExecutionEngine::new(registry);
+        let engine = ExecutionEngine::new(registry, None);
 
         let content = "fn main() {}";
         let tree = engine.parse_ast(content, Language::Rust);
@@ -442,7 +464,7 @@ languages = ["rust", "python"]
         }
 
         let registry = RuleRegistry::new();
-        let engine = ExecutionEngine::new(registry);
+        let engine = ExecutionEngine::new(registry, None);
 
         let result = engine.execute(files);
 
@@ -483,7 +505,7 @@ language = "rust"
         // Load the AST rule
         registry.load_custom_ast_rules(&ast_dir, None).unwrap();
 
-        let engine = ExecutionEngine::new(registry);
+        let engine = ExecutionEngine::new(registry, None);
         let detector = test_detector();
         let files = vec![FileEntry::new(test_file, &detector)];
         let result = engine.execute(files);
@@ -519,7 +541,7 @@ pattern = "TODO"
 
         registry.load_custom_regex_rules(&regex_dir, None).unwrap();
 
-        let engine = ExecutionEngine::new(registry);
+        let engine = ExecutionEngine::new(registry, None);
         let detector = test_detector();
         let files = vec![FileEntry::new(test_file, &detector)];
         let result = engine.execute(files);

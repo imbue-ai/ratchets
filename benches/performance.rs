@@ -204,6 +204,7 @@ fn bench_regex_execution(c: &mut Criterion) {
                     file_path: Path::new("test.rs"),
                     content,
                     ast: None,
+                    region_resolver: None,
                 };
                 let violations = rule.execute(&ctx);
                 black_box(violations)
@@ -247,6 +248,7 @@ fn bench_ast_execution(c: &mut Criterion) {
                         file_path: Path::new("test.rs"),
                         content,
                         ast: None,
+                        region_resolver: None,
                     };
                     let violations = rule.execute(&ctx);
                     black_box(violations)
@@ -357,7 +359,7 @@ pattern = "TODO"
                     let walker = FileWalker::new(temp_dir.path(), &[], &[]).unwrap();
                     let files: Vec<FileEntry> = walker.walk().filter_map(Result::ok).collect();
 
-                    let engine = ratchets::engine::executor::ExecutionEngine::new(registry);
+                    let engine = ratchets::engine::executor::ExecutionEngine::new(registry, None);
                     let result = engine.execute(files);
                     black_box(result)
                 });
@@ -404,7 +406,7 @@ pattern = "TODO"
             let mut registry = RuleRegistry::new();
             registry.load_custom_regex_rules(&rule_dir, None).unwrap();
 
-            let engine = ratchets::engine::executor::ExecutionEngine::new(registry);
+            let engine = ratchets::engine::executor::ExecutionEngine::new(registry, None);
             let result = engine.execute(files.clone());
             black_box(result)
         });

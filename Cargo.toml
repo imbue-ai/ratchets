@@ -1,6 +1,6 @@
 [package]
 name = "ratchets"
-version = "0.2.5"
+version = "0.2.6"
 edition = "2024"
 description = "Progressive lint enforcement tool with budgeted violations that can only decrease over time"
 license-file = "LICENSE"

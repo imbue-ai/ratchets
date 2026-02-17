@@ -57,6 +57,7 @@ fn test_todo_rule_finds_todos() {
         file_path: &file_path,
         content: &content,
         ast: None,
+        region_resolver: None,
     };
 
     // Execute rule
@@ -95,6 +96,7 @@ fn test_fixme_rule_finds_fixmes() {
         file_path: &file_path,
         content: &content,
         ast: None,
+        region_resolver: None,
     };
 
     // Execute rule
@@ -121,6 +123,7 @@ fn test_position_accuracy() {
         file_path,
         content,
         ast: None,
+        region_resolver: None,
     };
 
     let violations = rule.execute(&ctx);
@@ -145,6 +148,7 @@ fn test_position_accuracy_first_line() {
         file_path,
         content,
         ast: None,
+        region_resolver: None,
     };
 
     let violations = rule.execute(&ctx);
@@ -167,6 +171,7 @@ fn test_multiline_content() {
         file_path: &file_path,
         content: &content,
         ast: None,
+        region_resolver: None,
     };
 
     let violations = rule.execute(&ctx);
@@ -188,6 +193,7 @@ fn test_case_insensitive_matching() {
         file_path,
         content,
         ast: None,
+        region_resolver: None,
     };
 
     let violations = rule.execute(&ctx);
@@ -216,6 +222,7 @@ fn test_snippet_extraction_accuracy() {
         file_path,
         content,
         ast: None,
+        region_resolver: None,
     };
 
     let violations = rule.execute(&ctx);
@@ -236,6 +243,7 @@ fn test_no_violations_returns_empty() {
         file_path: &file_path,
         content: &content,
         ast: None,
+        region_resolver: None,
     };
 
     let violations = rule.execute(&ctx);
@@ -254,6 +262,7 @@ fn test_multiple_violations_same_file() {
         file_path: &file_path,
         content: &content,
         ast: None,
+        region_resolver: None,
     };
 
     let violations = rule.execute(&ctx);
@@ -318,6 +327,7 @@ fn test_registry_execute_all_rules() {
         file_path: &file_path,
         content: &content,
         ast: None,
+        region_resolver: None,
     };
 
     // Execute all rules
@@ -376,6 +386,7 @@ fn test_end_line_and_column() {
         file_path,
         content,
         ast: None,
+        region_resolver: None,
     };
 
     let violations = rule.execute(&ctx);
@@ -399,6 +410,7 @@ fn test_violation_file_path() {
         file_path: &file_path,
         content,
         ast: None,
+        region_resolver: None,
     };
 
     let violations = rule.execute(&ctx);
@@ -420,6 +432,7 @@ fn test_multiple_rules_same_content() {
         file_path,
         content,
         ast: None,
+        region_resolver: None,
     };
 
     // Execute both rules
@@ -447,6 +460,7 @@ fn test_word_boundary_matching() {
         file_path,
         content,
         ast: None,
+        region_resolver: None,
     };
 
     let violations = rule.execute(&ctx);
@@ -466,6 +480,7 @@ fn test_empty_file() {
         file_path,
         content,
         ast: None,
+        region_resolver: None,
     };
 
     let violations = rule.execute(&ctx);
@@ -484,6 +499,7 @@ fn test_only_whitespace() {
         file_path,
         content,
         ast: None,
+        region_resolver: None,
     };
 
     let violations = rule.execute(&ctx);

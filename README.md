@@ -112,7 +112,7 @@ format = "human"
 "src" = 23
 ```
 
-Regions are directory subtrees. Child regions inherit parent budgets unless overridden.
+Regions are explicitly configured directory paths. Files in unconfigured subdirectories count toward their nearest configured parent region. Regions are scoped per-rule.
 
 ## Git Integration
 

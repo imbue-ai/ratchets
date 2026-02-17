@@ -475,6 +475,9 @@ rust-no-fixme-comments = false
 #[test]
 fn test_e2e_gitignore_respected() {
     with_temp_dir(|temp_dir| {
+        // Initialize git repo so .gitignore is respected by the ignore crate
+        std::fs::create_dir(temp_dir.path().join(".git")).unwrap();
+
         // Initialize
         cli::init::run_init(false).expect("init should succeed");
 

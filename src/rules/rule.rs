@@ -4,7 +4,16 @@
 
 use crate::types::{GlobPattern, Language, RegionPath, RuleId, Severity};
 use std::collections::HashMap;
+use std::fmt;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+/// Type alias for the region resolver function
+///
+/// Given a file path and rule ID, returns the configured region for that file.
+/// This allows rules to assign violations to the correct configured region
+/// when executing.
+pub type RegionResolver = Arc<dyn Fn(&Path, &RuleId) -> RegionPath + Send + Sync>;
 
 /// A placeholder for AST types until tree-sitter is added
 ///
@@ -38,7 +47,6 @@ impl RuleContext {
 /// Execution context provided to rules when they execute
 ///
 /// This contains all the information a rule needs to analyze a file.
-#[derive(Debug)]
 pub struct ExecutionContext<'a> {
     /// Path to the file being analyzed
     pub file_path: &'a Path,
@@ -50,6 +58,44 @@ pub struct ExecutionContext<'a> {
     ///
     /// Currently uses a placeholder type. Will use `tree_sitter::Tree` when available.
     pub ast: Option<&'a AstPlaceholder>,
+
+    /// Optional region resolver for mapping files to configured regions
+    ///
+    /// When Some, rules should use this to determine the region for violations.
+    /// When None, rules should fall back to using the file's parent directory.
+    pub region_resolver: Option<RegionResolver>,
+}
+
+impl fmt::Debug for ExecutionContext<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ExecutionContext")
+            .field("file_path", &self.file_path)
+            .field("content", &format!("<{} bytes>", self.content.len()))
+            .field("ast", &self.ast.map(|_| "<AstPlaceholder>"))
+            .field(
+                "region_resolver",
+                &self.region_resolver.as_ref().map(|_| "<RegionResolver>"),
+            )
+            .finish()
+    }
+}
+
+impl<'a> ExecutionContext<'a> {
+    /// Resolves the region for a violation
+    ///
+    /// If a region resolver is configured, uses it to find the configured region.
+    /// Otherwise, falls back to using the file's parent directory.
+    pub fn resolve_region(&self, rule_id: &RuleId) -> RegionPath {
+        if let Some(ref resolver) = self.region_resolver {
+            resolver(self.file_path, rule_id)
+        } else {
+            // Fallback: use parent directory
+            self.file_path
+                .parent()
+                .map(|p| RegionPath::new(p.to_string_lossy()))
+                .unwrap_or_else(|| RegionPath::new("."))
+        }
+    }
 }
 
 /// A single code violation detected by a rule
@@ -167,11 +213,13 @@ mod tests {
             file_path: path,
             content,
             ast: Some(&ast_placeholder),
+            region_resolver: None,
         };
 
         assert_eq!(ctx.file_path, path);
         assert_eq!(ctx.content, content);
         assert!(ctx.ast.is_some());
+        assert!(ctx.region_resolver.is_none());
     }
 
     #[test]
@@ -183,11 +231,143 @@ mod tests {
             file_path: path,
             content,
             ast: None,
+            region_resolver: None,
         };
 
         assert_eq!(ctx.file_path, path);
         assert_eq!(ctx.content, content);
         assert!(ctx.ast.is_none());
+    }
+
+    #[test]
+    fn test_resolve_region_without_resolver() {
+        let path = Path::new("src/foo/bar.rs");
+        let content = "fn main() {}";
+
+        let ctx = ExecutionContext {
+            file_path: path,
+            content,
+            ast: None,
+            region_resolver: None,
+        };
+
+        let rule_id = RuleId::new("test-rule").unwrap();
+        let region = ctx.resolve_region(&rule_id);
+
+        // Without resolver, should fall back to parent directory
+        assert_eq!(region.as_str(), "src/foo");
+    }
+
+    #[test]
+    fn test_resolve_region_with_resolver() {
+        let path = Path::new("src/foo/bar.rs");
+        let content = "fn main() {}";
+
+        // Create a resolver that always returns a specific region
+        let resolver: RegionResolver = Arc::new(|_path, _rule_id| RegionPath::new("custom/region"));
+
+        let ctx = ExecutionContext {
+            file_path: path,
+            content,
+            ast: None,
+            region_resolver: Some(resolver),
+        };
+
+        let rule_id = RuleId::new("test-rule").unwrap();
+        let region = ctx.resolve_region(&rule_id);
+
+        // With resolver, should use the resolved region
+        assert_eq!(region.as_str(), "custom/region");
+    }
+
+    #[test]
+    fn test_resolve_region_resolver_receives_correct_args() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let path = Path::new("src/test.rs");
+        let content = "fn main() {}";
+
+        let called = Arc::new(AtomicBool::new(false));
+        let called_clone = called.clone();
+
+        // Create a resolver that checks its arguments
+        let resolver: RegionResolver = Arc::new(move |file_path, rule_id| {
+            called_clone.store(true, Ordering::SeqCst);
+            // Verify the arguments are passed correctly
+            assert_eq!(file_path, Path::new("src/test.rs"));
+            assert_eq!(rule_id.as_str(), "my-rule");
+            RegionPath::new("resolved")
+        });
+
+        let ctx = ExecutionContext {
+            file_path: path,
+            content,
+            ast: None,
+            region_resolver: Some(resolver),
+        };
+
+        let rule_id = RuleId::new("my-rule").unwrap();
+        let region = ctx.resolve_region(&rule_id);
+
+        assert!(called.load(Ordering::SeqCst));
+        assert_eq!(region.as_str(), "resolved");
+    }
+
+    #[test]
+    fn test_resolve_region_root_file() {
+        let path = Path::new("main.rs");
+        let content = "fn main() {}";
+
+        let ctx = ExecutionContext {
+            file_path: path,
+            content,
+            ast: None,
+            region_resolver: None,
+        };
+
+        let rule_id = RuleId::new("test-rule").unwrap();
+        let region = ctx.resolve_region(&rule_id);
+
+        // Root file's parent is empty, should fall back to "."
+        assert_eq!(region.as_str(), ".");
+    }
+
+    #[test]
+    fn test_execution_context_debug() {
+        let path = Path::new("test.rs");
+        let content = "fn main() {}";
+
+        let ctx = ExecutionContext {
+            file_path: path,
+            content,
+            ast: None,
+            region_resolver: None,
+        };
+
+        // Should not panic and should produce reasonable output
+        let debug_str = format!("{:?}", ctx);
+        assert!(debug_str.contains("ExecutionContext"));
+        assert!(debug_str.contains("test.rs"));
+    }
+
+    #[test]
+    fn test_execution_context_debug_with_resolver() {
+        let path = Path::new("test.rs");
+        let content = "fn main() {}";
+
+        let resolver: RegionResolver = Arc::new(|_path, _rule_id| RegionPath::new("."));
+
+        let ctx = ExecutionContext {
+            file_path: path,
+            content,
+            ast: None,
+            region_resolver: Some(resolver),
+        };
+
+        // Should not panic and should produce reasonable output
+        let debug_str = format!("{:?}", ctx);
+        assert!(debug_str.contains("ExecutionContext"));
+        assert!(debug_str.contains("RegionResolver"));
     }
 
     // Mock rule for testing trait implementation
@@ -238,6 +418,7 @@ mod tests {
             file_path: Path::new("test.rs"),
             content: "fn main() {}",
             ast: None,
+            region_resolver: None,
         };
 
         let violations = rule.execute(&ctx);
