@@ -355,6 +355,27 @@ impl CountsManager {
             .unwrap_or(0)
     }
 
+    /// Finds the configured region for a file path under a specific rule
+    ///
+    /// Returns the most specific configured region that contains the file.
+    /// If the rule has no configuration, falls back to ".".
+    pub fn find_configured_region(&self, rule_id: &RuleId, file_path: &Path) -> RegionPath {
+        self.counts
+            .get(rule_id)
+            .map(|tree| tree.find_configured_region(file_path))
+            .unwrap_or_else(|| RegionPath::new("."))
+    }
+
+    /// Returns true if the given region is explicitly configured for a rule
+    ///
+    /// If the rule has no configuration, returns true only for "." (root).
+    pub fn is_configured_region(&self, rule_id: &RuleId, region: &RegionPath) -> bool {
+        self.counts
+            .get(rule_id)
+            .map(|tree| tree.is_configured(region))
+            .unwrap_or_else(|| region.as_str() == ".")
+    }
+
     /// Sets the count for a specific rule and region
     pub fn set_count(&mut self, rule_id: &RuleId, region: &RegionPath, count: u64) {
         self.counts
@@ -1293,5 +1314,87 @@ no-unwrap = 5
             tree.find_configured_region(Path::new("Cargo.toml")),
             RegionPath::new(".")
         );
+    }
+
+    #[test]
+    fn test_counts_manager_find_configured_region() {
+        // Test finding configured region for a rule through CountsManager
+        let mut manager = CountsManager::new();
+        let rule_id = RuleId::new("no-unwrap").unwrap();
+
+        manager.set_count(&rule_id, &RegionPath::new("."), 0);
+        manager.set_count(&rule_id, &RegionPath::new("src/legacy"), 15);
+        manager.set_count(&rule_id, &RegionPath::new("tests"), 50);
+
+        // File in configured region
+        assert_eq!(
+            manager.find_configured_region(&rule_id, Path::new("src/legacy/foo.rs")),
+            RegionPath::new("src/legacy")
+        );
+
+        // File in unconfigured subdirectory returns nearest configured ancestor
+        assert_eq!(
+            manager.find_configured_region(&rule_id, Path::new("src/legacy/parser/bar.rs")),
+            RegionPath::new("src/legacy")
+        );
+
+        // File with no configured ancestor returns root
+        assert_eq!(
+            manager.find_configured_region(&rule_id, Path::new("src/main.rs")),
+            RegionPath::new(".")
+        );
+    }
+
+    #[test]
+    fn test_counts_manager_find_configured_region_missing_rule() {
+        // Test behavior when rule not in config
+        let manager = CountsManager::new();
+        let rule_id = RuleId::new("missing-rule").unwrap();
+
+        // Missing rule should fall back to "."
+        assert_eq!(
+            manager.find_configured_region(&rule_id, Path::new("src/foo.rs")),
+            RegionPath::new(".")
+        );
+        assert_eq!(
+            manager.find_configured_region(&rule_id, Path::new("any/path/file.rs")),
+            RegionPath::new(".")
+        );
+    }
+
+    #[test]
+    fn test_counts_manager_is_configured_region() {
+        // Test checking if region is configured for a rule
+        let mut manager = CountsManager::new();
+        let rule_id = RuleId::new("no-unwrap").unwrap();
+
+        manager.set_count(&rule_id, &RegionPath::new("."), 0);
+        manager.set_count(&rule_id, &RegionPath::new("src/legacy"), 15);
+        manager.set_count(&rule_id, &RegionPath::new("tests"), 50);
+
+        // Configured regions should return true
+        assert!(manager.is_configured_region(&rule_id, &RegionPath::new(".")));
+        assert!(manager.is_configured_region(&rule_id, &RegionPath::new("src/legacy")));
+        assert!(manager.is_configured_region(&rule_id, &RegionPath::new("tests")));
+
+        // Unconfigured regions should return false
+        assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("src")));
+        assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("src/legacy/parser")));
+        assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("other")));
+    }
+
+    #[test]
+    fn test_counts_manager_is_configured_region_missing_rule() {
+        // Test behavior when rule not in config
+        let manager = CountsManager::new();
+        let rule_id = RuleId::new("missing-rule").unwrap();
+
+        // For missing rule, only root "." should be considered configured
+        assert!(manager.is_configured_region(&rule_id, &RegionPath::new(".")));
+
+        // Any other region should not be considered configured
+        assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("src")));
+        assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("tests")));
+        assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("any/path")));
     }
 }
