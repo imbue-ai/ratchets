@@ -206,9 +206,9 @@ mod tests {
     }
 
     #[test]
-    fn test_init_creates_all_files() {
+    fn test_init_creates_all_files() -> Result<(), Box<dyn std::error::Error>> {
         with_temp_dir(|temp_dir| {
-            let result = run_init(false).expect("init should succeed");
+            let result = run_init(false)?;
 
             // Check that all expected items were created
             assert!(result.created.contains(&"ratchets.toml".to_string()));
@@ -221,29 +221,30 @@ mod tests {
             // Check that files exist with correct content
             let ratchet_toml = temp_dir.path().join("ratchets.toml");
             assert!(ratchet_toml.exists());
-            let content = fs::read_to_string(&ratchet_toml).unwrap();
+            let content = fs::read_to_string(&ratchet_toml)?;
             assert!(content.contains("[ratchets]"));
             assert!(content.contains("version = \"1\""));
 
             let counts_toml = temp_dir.path().join("ratchet-counts.toml");
             assert!(counts_toml.exists());
-            let content = fs::read_to_string(&counts_toml).unwrap();
+            let content = fs::read_to_string(&counts_toml)?;
             assert!(content.contains("Ratchet violation budgets"));
 
             // Check that directories exist
             assert!(temp_dir.path().join("ratchets/regex").is_dir());
             assert!(temp_dir.path().join("ratchets/ast").is_dir());
-        });
+            Ok(())
+        })
     }
 
     #[test]
-    fn test_init_skips_existing_files_without_force() {
+    fn test_init_skips_existing_files_without_force() -> Result<(), Box<dyn std::error::Error>> {
         with_temp_dir(|temp_dir| {
             // Create an existing file with different content
-            fs::write("ratchets.toml", "existing content").unwrap();
+            fs::write("ratchets.toml", "existing content")?;
 
             // Run init without force
-            let result = run_init(false).expect("init should succeed");
+            let result = run_init(false)?;
 
             // Check that existing file was skipped
             assert!(result.skipped.contains(&"ratchets.toml".to_string()));
@@ -251,23 +252,24 @@ mod tests {
             assert!(!result.overwritten.contains(&"ratchets.toml".to_string()));
 
             // Verify file content wasn't changed
-            let content = fs::read_to_string(temp_dir.path().join("ratchets.toml")).unwrap();
+            let content = fs::read_to_string(temp_dir.path().join("ratchets.toml"))?;
             assert_eq!(content, "existing content");
 
             // Other files should still be created
             assert!(result.created.contains(&"ratchet-counts.toml".to_string()));
-        });
+            Ok(())
+        })
     }
 
     #[test]
-    fn test_init_overwrites_existing_files_with_force() {
+    fn test_init_overwrites_existing_files_with_force() -> Result<(), Box<dyn std::error::Error>> {
         with_temp_dir(|temp_dir| {
             // Create existing files with different content
-            fs::write("ratchets.toml", "old content").unwrap();
-            fs::write("ratchet-counts.toml", "old counts").unwrap();
+            fs::write("ratchets.toml", "old content")?;
+            fs::write("ratchet-counts.toml", "old counts")?;
 
             // Run init with force
-            let result = run_init(true).expect("init should succeed");
+            let result = run_init(true)?;
 
             // Check that existing files were overwritten
             assert!(result.overwritten.contains(&"ratchets.toml".to_string()));
@@ -280,34 +282,36 @@ mod tests {
             assert!(!result.skipped.contains(&"ratchet-counts.toml".to_string()));
 
             // Verify file content was changed
-            let content = fs::read_to_string(temp_dir.path().join("ratchets.toml")).unwrap();
+            let content = fs::read_to_string(temp_dir.path().join("ratchets.toml"))?;
             assert!(content.contains("[ratchets]"));
             assert_ne!(content, "old content");
-        });
+            Ok(())
+        })
     }
 
     #[test]
-    fn test_init_is_idempotent() {
+    fn test_init_is_idempotent() -> Result<(), Box<dyn std::error::Error>> {
         with_temp_dir(|_temp_dir| {
             // First run should create everything
-            let result1 = run_init(false).expect("first init should succeed");
+            let result1 = run_init(false)?;
             assert_eq!(result1.created.len(), 4); // 2 files + 2 directories
             assert!(result1.skipped.is_empty());
             assert!(result1.overwritten.is_empty());
 
             // Second run should skip files but not list directories (they already exist)
-            let result2 = run_init(false).expect("second init should succeed");
+            let result2 = run_init(false)?;
             assert!(result2.skipped.contains(&"ratchets.toml".to_string()));
             assert!(result2.skipped.contains(&"ratchet-counts.toml".to_string()));
             assert!(result2.created.is_empty());
             assert!(result2.overwritten.is_empty());
-        });
+            Ok(())
+        })
     }
 
     #[test]
-    fn test_init_creates_nested_directories() {
+    fn test_init_creates_nested_directories() -> Result<(), Box<dyn std::error::Error>> {
         with_temp_dir(|temp_dir| {
-            let _result = run_init(false).expect("init should succeed");
+            let _result = run_init(false)?;
 
             // Check that nested directories were created
             let regex_dir = temp_dir.path().join("ratchets/regex");
@@ -317,18 +321,19 @@ mod tests {
             assert!(regex_dir.is_dir());
             assert!(ast_dir.exists());
             assert!(ast_dir.is_dir());
-        });
+            Ok(())
+        })
     }
 
     #[test]
-    fn test_init_with_existing_directories() {
+    fn test_init_with_existing_directories() -> Result<(), Box<dyn std::error::Error>> {
         with_temp_dir(|_temp_dir| {
             // Pre-create directories
-            fs::create_dir_all("ratchets/regex").unwrap();
-            fs::create_dir_all("ratchets/ast").unwrap();
+            fs::create_dir_all("ratchets/regex")?;
+            fs::create_dir_all("ratchets/ast")?;
 
             // Run init
-            let result = run_init(false).expect("init should succeed");
+            let result = run_init(false)?;
 
             // Directories should not be reported as created (they already existed)
             assert!(!result.created.contains(&"ratchets/regex/".to_string()));
@@ -337,15 +342,16 @@ mod tests {
             // But files should be created
             assert!(result.created.contains(&"ratchets.toml".to_string()));
             assert!(result.created.contains(&"ratchet-counts.toml".to_string()));
-        });
+            Ok(())
+        })
     }
 
     #[test]
-    fn test_init_error_when_path_is_file_not_directory() {
+    fn test_init_error_when_path_is_file_not_directory() -> Result<(), Box<dyn std::error::Error>> {
         with_temp_dir(|_temp_dir| {
             // Create a file where a directory should be
-            fs::create_dir("ratchets").unwrap();
-            fs::write("ratchets/regex", "this is a file").unwrap();
+            fs::create_dir("ratchets")?;
+            fs::write("ratchets/regex", "this is a file")?;
 
             // Run init - should fail
             let result = run_init(false);
@@ -354,7 +360,8 @@ mod tests {
             assert!(result.is_err());
             let err = result.unwrap_err();
             assert!(err.to_string().contains("not a directory"));
-        });
+            Ok(())
+        })
     }
 
     #[test]

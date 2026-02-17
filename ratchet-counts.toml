@@ -3,7 +3,6 @@
 # Counts can only be reduced (tightened) or explicitly bumped with justification.
 
 [no-expect]
-"src/cli" = 7
 "src/engine" = 9
 
 [no-fixme-comments]
@@ -31,8 +30,8 @@
 [no-unwrap]
 "." = 0
 "src" = 12
-"src/cli" = 60
-"src/config" = 86
+"src/cli" = 49
+"src/config" = 79
 "src/engine" = 43
 "src/output" = 61
 "src/rules" = 136
@@ -47,4 +46,3 @@
 "src/engine" = 2
 "src/output" = 1
 "src/rules" = 2
-
