@@ -336,15 +336,25 @@ fn test_bump_with_custom_region() {
         )
         .unwrap();
 
-        // Bump the src region
+        // First, explicitly configure the "src" region in ratchet-counts.toml
+        // (Regions must be configured before they can be bumped)
+        let counts = r#"
+[no-todo-comments]
+"." = 5
+"src" = 0
+"#;
+        fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
+
+        // Now bump the src region
         let exit_code = cli::bump::run_bump(Some("no-todo-comments"), "src", Some(5), false);
 
         assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
 
-        // Verify counts file has the src region
+        // Verify counts file has the src region with updated budget
         let counts_content =
             fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
         assert!(counts_content.contains("src"));
+        assert!(counts_content.contains("5"));
     });
 }
 
@@ -370,6 +380,105 @@ fn test_bump_missing_config() {
 
         // Should fail
         assert_eq!(exit_code, cli::common::EXIT_ERROR);
+    });
+}
+
+#[test]
+fn test_bump_fails_for_unconfigured_region() {
+    with_temp_dir(|temp_dir| {
+        setup_basic_project(temp_dir.path());
+
+        // Create src directory with files
+        fs::create_dir_all(temp_dir.path().join("src")).unwrap();
+        fs::write(
+            temp_dir.path().join("src/lib.rs"),
+            "// TODO: impl\nfn lib() {}",
+        )
+        .unwrap();
+
+        // Note: setup_basic_project creates ratchet-counts.toml with only "." configured
+        // for no-todo-comments. The "src" region is NOT configured.
+
+        // Try to bump an unconfigured region - should fail
+        let exit_code = cli::bump::run_bump(Some("no-todo-comments"), "src", Some(5), false);
+
+        // Should fail because "src" is not configured for this rule
+        assert_eq!(exit_code, cli::common::EXIT_ERROR);
+
+        // Verify the counts file was NOT modified to add "src" region
+        let counts_content =
+            fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
+        assert!(
+            !counts_content.contains("\"src\""),
+            "Counts file should not contain 'src' region"
+        );
+    });
+}
+
+#[test]
+fn test_bump_succeeds_for_root_region_even_when_not_explicitly_configured() {
+    with_temp_dir(|temp_dir| {
+        setup_basic_project(temp_dir.path());
+
+        // Remove the counts file to start fresh
+        fs::remove_file(temp_dir.path().join("ratchet-counts.toml")).unwrap();
+
+        // Create an empty counts file (no explicit regions configured)
+        fs::write(temp_dir.path().join("ratchet-counts.toml"), "").unwrap();
+
+        // Bumping the root region "." should always succeed
+        let exit_code = cli::bump::run_bump(Some("no-todo-comments"), ".", Some(10), false);
+
+        // Should succeed because "." is always implicitly configured
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
+
+        // Verify the counts file was updated
+        let counts_content =
+            fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
+        assert!(
+            counts_content.contains("\".\""),
+            "Counts file should contain root region"
+        );
+    });
+}
+
+#[test]
+fn test_bump_succeeds_for_explicitly_configured_region() {
+    with_temp_dir(|temp_dir| {
+        setup_basic_project(temp_dir.path());
+
+        // Create src directory with files
+        fs::create_dir_all(temp_dir.path().join("src")).unwrap();
+        fs::write(
+            temp_dir.path().join("src/lib.rs"),
+            "// TODO: impl\nfn lib() {}",
+        )
+        .unwrap();
+
+        // Explicitly configure the "src" region in ratchet-counts.toml
+        let counts = r#"
+[no-todo-comments]
+"." = 5
+"src" = 3
+"#;
+        fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
+
+        // Now bumping "src" should succeed
+        let exit_code = cli::bump::run_bump(Some("no-todo-comments"), "src", Some(10), false);
+
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
+
+        // Verify the counts file was updated
+        let counts_content =
+            fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
+        assert!(
+            counts_content.contains("\"src\""),
+            "Counts file should contain 'src' region"
+        );
+        assert!(
+            counts_content.contains("10"),
+            "Counts file should have updated budget"
+        );
     });
 }
 
