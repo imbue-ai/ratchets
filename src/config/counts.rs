@@ -174,6 +174,55 @@ impl RegionTree {
     pub fn is_configured(&self, region: &RegionPath) -> bool {
         self.configured_regions.contains(region)
     }
+
+    /// Finds the configured region that contains the given file path
+    ///
+    /// Walks up the path hierarchy and returns the first (most specific)
+    /// configured region found. Falls back to "." which is always configured.
+    ///
+    /// # Arguments
+    ///
+    /// * `file_path` - The file path to find the containing region for
+    ///
+    /// # Returns
+    ///
+    /// The most specific configured region that contains the file path.
+    /// Always returns a valid region (falls back to "." if no other match).
+    ///
+    /// # Examples
+    ///
+    /// Given configured regions: `"."`, `"src/legacy"`, `"tests"`
+    /// - `find_configured_region("src/legacy/foo.rs")` returns `"src/legacy"`
+    /// - `find_configured_region("src/legacy/parser/bar.rs")` returns `"src/legacy"` (parser not configured)
+    /// - `find_configured_region("src/main.rs")` returns `"."` (src not configured)
+    pub fn find_configured_region(&self, file_path: &Path) -> RegionPath {
+        // Get the parent directory of the file
+        let mut current_path = file_path.parent().unwrap_or(Path::new("."));
+
+        loop {
+            let region = RegionPath::new(current_path.to_string_lossy().to_string());
+
+            // Check if this directory is a configured region
+            if self.configured_regions.contains(&region) {
+                return region;
+            }
+
+            // Try to go up to the parent
+            if let Some(parent) = current_path.parent() {
+                if parent == Path::new("") || parent == current_path {
+                    // We've reached the root
+                    break;
+                }
+                current_path = parent;
+            } else {
+                // No parent, we're at the root
+                break;
+            }
+        }
+
+        // Fall back to root "." which is always configured
+        RegionPath::new(".")
+    }
 }
 
 impl Default for RegionTree {
@@ -1167,5 +1216,82 @@ no-unwrap = 5
         assert!(!tree.is_configured(&RegionPath::new("src")));
         assert!(!tree.is_configured(&RegionPath::new("src/legacy/parser")));
         assert!(!tree.is_configured(&RegionPath::new("other")));
+    }
+
+    #[test]
+    fn test_find_configured_region_exact_match() {
+        // File in a configured region returns that region
+        let mut tree = RegionTree::new();
+        tree.set_count(&RegionPath::new("."), 0);
+        tree.set_count(&RegionPath::new("src/legacy"), 15);
+        tree.set_count(&RegionPath::new("tests"), 50);
+
+        // File directly in configured region
+        assert_eq!(
+            tree.find_configured_region(Path::new("src/legacy/foo.rs")),
+            RegionPath::new("src/legacy")
+        );
+        assert_eq!(
+            tree.find_configured_region(Path::new("tests/test.rs")),
+            RegionPath::new("tests")
+        );
+    }
+
+    #[test]
+    fn test_find_configured_region_ancestor() {
+        // File in unconfigured subdirectory returns nearest configured ancestor
+        let mut tree = RegionTree::new();
+        tree.set_count(&RegionPath::new("."), 0);
+        tree.set_count(&RegionPath::new("src/legacy"), 15);
+        tree.set_count(&RegionPath::new("tests"), 50);
+
+        // parser is not configured, should find src/legacy as ancestor
+        assert_eq!(
+            tree.find_configured_region(Path::new("src/legacy/parser/bar.rs")),
+            RegionPath::new("src/legacy")
+        );
+
+        // deeply nested should still find configured ancestor
+        assert_eq!(
+            tree.find_configured_region(Path::new("src/legacy/parser/nested/deep.rs")),
+            RegionPath::new("src/legacy")
+        );
+
+        // tests/unit is not configured, should find tests
+        assert_eq!(
+            tree.find_configured_region(Path::new("tests/unit/helper.rs")),
+            RegionPath::new("tests")
+        );
+    }
+
+    #[test]
+    fn test_find_configured_region_root_fallback() {
+        // File with no configured ancestors returns "."
+        let mut tree = RegionTree::new();
+        tree.set_count(&RegionPath::new("."), 0);
+        tree.set_count(&RegionPath::new("src/legacy"), 15);
+        tree.set_count(&RegionPath::new("tests"), 50);
+
+        // src is not configured, and neither is src/new - should fall back to root
+        assert_eq!(
+            tree.find_configured_region(Path::new("src/main.rs")),
+            RegionPath::new(".")
+        );
+        assert_eq!(
+            tree.find_configured_region(Path::new("src/new/feature.rs")),
+            RegionPath::new(".")
+        );
+
+        // docs is not configured - should fall back to root
+        assert_eq!(
+            tree.find_configured_region(Path::new("docs/readme.md")),
+            RegionPath::new(".")
+        );
+
+        // root level file should return root
+        assert_eq!(
+            tree.find_configured_region(Path::new("Cargo.toml")),
+            RegionPath::new(".")
+        );
     }
 }
