@@ -420,7 +420,9 @@ impl CountsManager {
             result.push('\n');
         }
 
-        result
+        // Ensure exactly one trailing newline
+        let trimmed = result.trim_end_matches('\n');
+        format!("{trimmed}\n")
     }
 }
 
