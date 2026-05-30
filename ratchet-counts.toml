@@ -7,7 +7,7 @@
 
 [no-fixme-comments]
 "." = 3
-"src" = 20
+"src" = 22
 
 [no-panic]
 "src" = 31

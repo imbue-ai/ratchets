@@ -1,0 +1,16 @@
+[rule]
+id = "no-unlabeled-type-ignore"
+description = "# type: ignore must include an error label like [return-value]; bare suppression is too broad"
+severity = "warning"
+
+[match]
+language = "python"
+query = """
+((comment) @violation
+  (#match? @violation "# type: ignore")
+  (#not-match? @violation "# type: ignore\\\\[.*\\\\]"))
+"""
+
+# Matches comments containing `# type: ignore` that lack a `[<label>]` annotation.
+# Tree-sitter's #not-match? uses Rust regex, which has no lookaround; we instead
+# express the allowed form positively and require it to be absent.

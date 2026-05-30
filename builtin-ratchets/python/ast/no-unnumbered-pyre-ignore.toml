@@ -1,0 +1,22 @@
+[rule]
+id = "no-unnumbered-pyre-ignore"
+description = "# pyre-ignore must be numbered with an error code (e.g. # pyre-ignore[1]) or use # pyre-ignore-all-errors"
+severity = "warning"
+
+[match]
+language = "python"
+query = """
+((comment) @violation
+  (#match? @violation "# pyre-ignore")
+  (#not-match? @violation "# pyre-ignore(-all-errors|\\\\[[\\\\d,\\\\s]+\\\\])"))
+"""
+
+# Matches comments containing `# pyre-ignore` that lack a `[<digits>]` code or
+# `-all-errors` suffix. The first predicate ensures the bare prefix appears;
+# the second filters out the allowed forms.
+#
+# Note: tree-sitter's #not-match? uses Rust regex (no lookaround).
+# Backslash budget: TOML `\\\\` -> string `\\` -> regex `\\` -> matches literal `\`?
+# Wait — the predicate regex is *re-parsed* by tree-sitter's query language, which
+# unescapes another layer. So TOML `\\\\` -> string `\\` -> tree-sitter query `\\`
+# -> regex `\` (one backslash, escaping the next literal char).

@@ -1,0 +1,19 @@
+[rule]
+id = "classmethod-builder-naming"
+description = "@classmethod methods must be named with a from_/build/_build/load/get_config/__get_pydantic_core_schema__ prefix (constructor convention)"
+severity = "warning"
+
+[match]
+language = "python"
+query = """
+(decorated_definition
+  (decorator (identifier) @dec)
+  definition: (function_definition
+    name: (identifier) @name)
+  (#eq? @dec "classmethod")
+  (#not-match? @name "^(from_|build|_build|load|get_config|__get_pydantic_core_schema__)")) @violation
+"""
+
+# Matches @classmethod-decorated functions whose name doesn't begin with the
+# allowed constructor prefixes. Sculptor's regex used lookbehind to anchor on
+# the decorator; tree-sitter expresses this directly via decorated_definition.

@@ -1,0 +1,42 @@
+[rule]
+id = "no-untyped-args-kwargs"
+description = "*args / **kwargs must be typed as P.args / P.kwargs (paramspec); other types or no annotation are banned"
+severity = "warning"
+
+[match]
+language = "python"
+query = """
+(parameters
+  (list_splat_pattern
+    (identifier) @name)
+  (#eq? @name "args")) @violation
+
+(parameters
+  (typed_parameter
+    (list_splat_pattern
+      (identifier) @name)
+    type: (type) @type
+    (#eq? @name "args")
+    (#not-eq? @type "P.args"))) @violation
+
+(parameters
+  (dictionary_splat_pattern
+    (identifier) @name)
+  (#eq? @name "kwargs")) @violation
+
+(parameters
+  (typed_parameter
+    (dictionary_splat_pattern
+      (identifier) @name)
+    type: (type) @type
+    (#eq? @name "kwargs")
+    (#not-eq? @type "P.kwargs"))) @violation
+"""
+
+# Matches:
+#   def foo(*args, ...)             -- untyped *args
+#   def foo(*args: NotP.args, ...)  -- mistyped *args
+#   def foo(**kwargs, ...)          -- untyped **kwargs
+#   def foo(**kwargs: NotP.kwargs)  -- mistyped **kwargs
+# The structural approach (matching parameters with the splat name "args"/"kwargs")
+# replaces sculptor's negative-lookahead regex.

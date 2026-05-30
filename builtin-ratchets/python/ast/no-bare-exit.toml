@@ -1,0 +1,17 @@
+[rule]
+id = "no-bare-exit"
+description = "Use sys.exit(N) instead of bare exit(N); the bare builtin is too easy to confuse with sys.exit"
+severity = "error"
+
+[match]
+language = "python"
+query = """
+(call
+  function: (identifier) @func
+  arguments: (argument_list
+    (integer))
+  (#eq? @func "exit")) @violation
+"""
+
+# Matches `exit(N)` where N is an integer literal. Does NOT match `sys.exit(N)`
+# because that's a call with `function: (attribute ...)`, not `function: (identifier)`.

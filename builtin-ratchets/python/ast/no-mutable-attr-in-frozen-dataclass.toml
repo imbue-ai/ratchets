@@ -1,0 +1,33 @@
+[rule]
+id = "no-mutable-attr-in-frozen-dataclass"
+description = "Frozen attr.s classes must not declare Dict/List/Set fields; use immutable equivalents (Mapping, Sequence, FrozenSet)"
+severity = "error"
+
+[match]
+language = "python"
+query = """
+(decorated_definition
+  (decorator
+    (call
+      function: (attribute
+        object: (identifier) @attr_obj
+        attribute: (identifier) @attr_name)
+      arguments: (argument_list) @args)
+    (#eq? @attr_obj "attr")
+    (#eq? @attr_name "s")
+    (#match? @args "auto_attribs=True")
+    (#match? @args "frozen=True"))
+  definition: (class_definition
+    body: (block
+      (expression_statement
+        (assignment
+          left: (identifier)
+          type: (type) @field_type
+          (#match? @field_type "^(Dict|List|Set)\\\\b")) @violation))))
+"""
+
+# Matches class fields in frozen attr.s dataclasses where the declared type is
+# Dict/List/Set (built-in mutable containers).  The structural form ensures we
+# only flag class-body assignments, never function parameters or assignments
+# elsewhere — sculptor's full-file regex needed nested negative groups to
+# achieve the same scoping.

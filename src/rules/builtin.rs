@@ -326,6 +326,47 @@ const BUILTIN_AST_PYTHON_RULES: &[(&str, &str)] = &[
         "python-no-fixme-comments",
         include_str!("../../builtin-ratchets/python/ast/no-fixme-comments.toml"),
     ),
+    // Group C — ports of sculptor's lookaround-based ratchet rules as tree-sitter queries
+    (
+        "no-bare-exit",
+        include_str!("../../builtin-ratchets/python/ast/no-bare-exit.toml"),
+    ),
+    (
+        "no-typing-cast",
+        include_str!("../../builtin-ratchets/python/ast/no-typing-cast.toml"),
+    ),
+    (
+        "no-unnumbered-pyre-ignore",
+        include_str!("../../builtin-ratchets/python/ast/no-unnumbered-pyre-ignore.toml"),
+    ),
+    (
+        "no-unnumbered-pyre-fixme",
+        include_str!("../../builtin-ratchets/python/ast/no-unnumbered-pyre-fixme.toml"),
+    ),
+    (
+        "no-unlabeled-type-ignore",
+        include_str!("../../builtin-ratchets/python/ast/no-unlabeled-type-ignore.toml"),
+    ),
+    (
+        "no-untyped-args-kwargs",
+        include_str!("../../builtin-ratchets/python/ast/no-untyped-args-kwargs.toml"),
+    ),
+    (
+        "classmethod-builder-naming",
+        include_str!("../../builtin-ratchets/python/ast/classmethod-builder-naming.toml"),
+    ),
+    (
+        "staticmethod-private-only",
+        include_str!("../../builtin-ratchets/python/ast/staticmethod-private-only.toml"),
+    ),
+    (
+        "attrs-decorator",
+        include_str!("../../builtin-ratchets/python/ast/attrs-decorator.toml"),
+    ),
+    (
+        "no-mutable-attr-in-frozen-dataclass",
+        include_str!("../../builtin-ratchets/python/ast/no-mutable-attr-in-frozen-dataclass.toml"),
+    ),
 ];
 
 /// Embedded built-in AST rule files for TypeScript

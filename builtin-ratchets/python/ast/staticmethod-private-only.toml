@@ -1,0 +1,17 @@
+[rule]
+id = "staticmethod-private-only"
+description = "@staticmethod methods must be private (name starts with _); public statics are not allowed"
+severity = "warning"
+
+[match]
+language = "python"
+query = """
+(decorated_definition
+  (decorator (identifier) @dec)
+  definition: (function_definition
+    name: (identifier) @name)
+  (#eq? @dec "staticmethod")
+  (#not-match? @name "^_")) @violation
+"""
+
+# Matches @staticmethod-decorated functions whose name doesn't begin with `_`.
