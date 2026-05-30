@@ -381,6 +381,26 @@ const BUILTIN_AST_TYPESCRIPT_RULES: &[(&str, &str)] = &[(
     include_str!("../../builtin-ratchets/typescript/ast/no-any.toml"),
 )];
 
+/// Parse `source` as embedded regex rules and append them to `rules`. `label`
+/// is interpolated into the parse-error message verbatim.
+fn extend_regex_rules(
+    rules: &mut RuleList,
+    source: &[(&str, &str)],
+    label: &str,
+) -> Result<(), RuleError> {
+    for (rule_name, toml_content) in source {
+        let rule = RegexRule::from_toml(toml_content).map_err(|e| {
+            RuleError::InvalidDefinition(format!(
+                "Failed to parse built-in {} rule '{}': {}",
+                label, rule_name, e
+            ))
+        })?;
+        let rule_id = rule.id().clone();
+        rules.push((rule_id, Box::new(rule) as Box<dyn Rule>));
+    }
+    Ok(())
+}
+
 /// Load all built-in regex rules from embedded resources
 ///
 /// Returns a vector of tuples containing (rule_id, boxed rule).
@@ -393,52 +413,41 @@ const BUILTIN_AST_TYPESCRIPT_RULES: &[(&str, &str)] = &[(
 pub fn load_builtin_regex_rules() -> Result<RuleList, RuleError> {
     let mut rules = Vec::new();
 
-    // Load common regex rules
-    for (rule_name, toml_content) in BUILTIN_REGEX_RULES {
-        let rule = RegexRule::from_toml(toml_content).map_err(|e| {
-            RuleError::InvalidDefinition(format!(
-                "Failed to parse built-in regex rule '{}': {}",
-                rule_name, e
-            ))
-        })?;
+    extend_regex_rules(&mut rules, BUILTIN_REGEX_RULES, "regex")?;
 
+    #[cfg(feature = "lang-python")]
+    extend_regex_rules(&mut rules, BUILTIN_PYTHON_REGEX_RULES, "Python regex")?;
+
+    #[cfg(feature = "lang-typescript")]
+    extend_regex_rules(
+        &mut rules,
+        BUILTIN_TYPESCRIPT_REGEX_RULES,
+        "TypeScript regex",
+    )?;
+
+    Ok(rules)
+}
+
+/// Parse `source` as embedded AST rules under `rule_context` and append them
+/// to `rules`. `label` is interpolated into the parse-error message verbatim.
+fn extend_ast_rules(
+    rules: &mut RuleList,
+    source: &[(&str, &str)],
+    rule_context: &crate::rules::RuleContext,
+    label: &str,
+) -> Result<(), RuleError> {
+    for (rule_name, toml_content) in source {
+        let rule =
+            AstRule::from_toml_with_context(toml_content, Some(rule_context)).map_err(|e| {
+                RuleError::InvalidDefinition(format!(
+                    "Failed to parse built-in {} rule '{}': {}",
+                    label, rule_name, e
+                ))
+            })?;
         let rule_id = rule.id().clone();
         rules.push((rule_id, Box::new(rule) as Box<dyn Rule>));
     }
-
-    // Load Python regex rules
-    #[cfg(feature = "lang-python")]
-    {
-        for (rule_name, toml_content) in BUILTIN_PYTHON_REGEX_RULES {
-            let rule = RegexRule::from_toml(toml_content).map_err(|e| {
-                RuleError::InvalidDefinition(format!(
-                    "Failed to parse built-in Python regex rule '{}': {}",
-                    rule_name, e
-                ))
-            })?;
-
-            let rule_id = rule.id().clone();
-            rules.push((rule_id, Box::new(rule) as Box<dyn Rule>));
-        }
-    }
-
-    // Load TypeScript regex rules
-    #[cfg(feature = "lang-typescript")]
-    {
-        for (rule_name, toml_content) in BUILTIN_TYPESCRIPT_REGEX_RULES {
-            let rule = RegexRule::from_toml(toml_content).map_err(|e| {
-                RuleError::InvalidDefinition(format!(
-                    "Failed to parse built-in TypeScript regex rule '{}': {}",
-                    rule_name, e
-                ))
-            })?;
-
-            let rule_id = rule.id().clone();
-            rules.push((rule_id, Box::new(rule) as Box<dyn Rule>));
-        }
-    }
-
-    Ok(rules)
+    Ok(())
 }
 
 /// Load all built-in AST rules from embedded resources
@@ -476,59 +485,29 @@ pub fn load_builtin_ast_rules() -> Result<RuleList, RuleError> {
 
     let rule_context = RuleContext { patterns };
 
-    // Load Rust AST rules
     #[cfg(feature = "lang-rust")]
-    {
-        for (rule_name, toml_content) in BUILTIN_AST_RUST_RULES {
-            let rule = AstRule::from_toml_with_context(toml_content, Some(&rule_context)).map_err(
-                |e| {
-                    RuleError::InvalidDefinition(format!(
-                        "Failed to parse built-in Rust AST rule '{}': {}",
-                        rule_name, e
-                    ))
-                },
-            )?;
+    extend_ast_rules(
+        &mut rules,
+        BUILTIN_AST_RUST_RULES,
+        &rule_context,
+        "Rust AST",
+    )?;
 
-            let rule_id = rule.id().clone();
-            rules.push((rule_id, Box::new(rule) as Box<dyn Rule>));
-        }
-    }
-
-    // Load Python AST rules
     #[cfg(feature = "lang-python")]
-    {
-        for (rule_name, toml_content) in BUILTIN_AST_PYTHON_RULES {
-            let rule = AstRule::from_toml_with_context(toml_content, Some(&rule_context)).map_err(
-                |e| {
-                    RuleError::InvalidDefinition(format!(
-                        "Failed to parse built-in Python AST rule '{}': {}",
-                        rule_name, e
-                    ))
-                },
-            )?;
+    extend_ast_rules(
+        &mut rules,
+        BUILTIN_AST_PYTHON_RULES,
+        &rule_context,
+        "Python AST",
+    )?;
 
-            let rule_id = rule.id().clone();
-            rules.push((rule_id, Box::new(rule) as Box<dyn Rule>));
-        }
-    }
-
-    // Load TypeScript AST rules
     #[cfg(feature = "lang-typescript")]
-    {
-        for (rule_name, toml_content) in BUILTIN_AST_TYPESCRIPT_RULES {
-            let rule = AstRule::from_toml_with_context(toml_content, Some(&rule_context)).map_err(
-                |e| {
-                    RuleError::InvalidDefinition(format!(
-                        "Failed to parse built-in TypeScript AST rule '{}': {}",
-                        rule_name, e
-                    ))
-                },
-            )?;
-
-            let rule_id = rule.id().clone();
-            rules.push((rule_id, Box::new(rule) as Box<dyn Rule>));
-        }
-    }
+    extend_ast_rules(
+        &mut rules,
+        BUILTIN_AST_TYPESCRIPT_RULES,
+        &rule_context,
+        "TypeScript AST",
+    )?;
 
     Ok(rules)
 }
