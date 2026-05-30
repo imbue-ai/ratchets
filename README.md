@@ -35,6 +35,8 @@ This creates:
 - `ratchet-counts.toml` — Violation budgets
 - `ratchets/` — Directory for custom rules
 
+Optionally, drop a `.ratchetignore` file at any depth in the tree to exclude paths from ratchet enforcement. Syntax matches `.gitignore` (per-directory, nested files compose, negation supported with `!`); these files are checked in alongside source.
+
 Run checks:
 
 ```bash

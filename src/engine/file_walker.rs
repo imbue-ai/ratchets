@@ -189,6 +189,7 @@ impl FileWalker {
         let walker = WalkBuilder::new(root)
             .hidden(false) // Don't skip hidden files by default
             .git_ignore(true) // Respect .gitignore
+            .add_custom_ignore_filename(".ratchetignore") // Distributed per-directory excludes
             .build();
 
         let include_set = if include.is_empty() {

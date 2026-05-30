@@ -67,11 +67,14 @@ A ratchets-enabled repository contains:
 project/
 ├── ratchets.toml           # Configuration: enabled rules, languages, options
 ├── ratchet-counts.toml    # Violation budgets per rule per region
+├── .ratchetignore         # Optional: distributed gitignore-style excludes (any depth)
 ├── ratchets/              # Custom rule definitions
 │   ├── regex/             # Custom regex rules (*.toml)
 │   └── ast/               # Custom AST rules (*.toml with tree-sitter queries)
 └── src/                   # Source code to be checked
 ```
+
+`.ratchetignore` files may appear at any depth. They use gitignore syntax (per-directory scope, nested files compose, `!` negation supported) and are honored in addition to the top-level `exclude` list in `ratchets.toml`. Keep them checked in alongside source.
 
 ### ratchets.toml
 

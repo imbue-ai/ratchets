@@ -403,6 +403,72 @@ fn test_multiple_exclude_patterns() {
 }
 
 #[test]
+fn test_walk_respects_distributed_ratchetignore() {
+    use std::fs;
+
+    // Build a tree with two levels of `.ratchetignore` and a negation pattern.
+    //
+    //   root/
+    //     .ratchetignore          -> "ignored_root.rs"
+    //     keep_root.rs
+    //     ignored_root.rs         (excluded by root-level ignore)
+    //     sub/
+    //       .ratchetignore        -> "*.py\n!keep_me.py"
+    //       a.py                  (excluded by sub-level ignore)
+    //       keep_me.py            (negation rescues this file)
+    //       nested.rs             (no rule applies; kept)
+    let temp_dir = std::env::temp_dir().join("ratchet_test_walk_distributed_ignore");
+    let _ = fs::remove_dir_all(&temp_dir);
+    fs::create_dir_all(temp_dir.join("sub")).expect("Failed to create temp tree");
+
+    fs::write(temp_dir.join(".ratchetignore"), "ignored_root.rs\n")
+        .expect("Failed to write root .ratchetignore");
+    fs::write(temp_dir.join("keep_root.rs"), "fn main() {}").expect("Failed to write keep_root.rs");
+    fs::write(temp_dir.join("ignored_root.rs"), "fn main() {}")
+        .expect("Failed to write ignored_root.rs");
+
+    fs::write(temp_dir.join("sub/.ratchetignore"), "*.py\n!keep_me.py\n")
+        .expect("Failed to write sub/.ratchetignore");
+    fs::write(temp_dir.join("sub/a.py"), "print('a')").expect("Failed to write sub/a.py");
+    fs::write(temp_dir.join("sub/keep_me.py"), "print('keep')")
+        .expect("Failed to write sub/keep_me.py");
+    fs::write(temp_dir.join("sub/nested.rs"), "fn main() {}")
+        .expect("Failed to write sub/nested.rs");
+
+    let walker = FileWalker::new(&temp_dir, &[], &[]).expect("Failed to create walker");
+    let files = collect_files(walker);
+    let filenames = extract_filenames(&files);
+
+    assert!(
+        filenames.contains("keep_root.rs"),
+        "Root-level file outside ignore should be kept: {:?}",
+        filenames
+    );
+    assert!(
+        !filenames.contains("ignored_root.rs"),
+        "Root .ratchetignore should exclude ignored_root.rs: {:?}",
+        filenames
+    );
+    assert!(
+        filenames.contains("nested.rs"),
+        "Sub-directory file unaffected by ignore rules should be kept: {:?}",
+        filenames
+    );
+    assert!(
+        !filenames.contains("a.py"),
+        "Sub-level .ratchetignore should exclude *.py: {:?}",
+        filenames
+    );
+    assert!(
+        filenames.contains("keep_me.py"),
+        "Negation pattern !keep_me.py should rescue the file: {:?}",
+        filenames
+    );
+
+    let _ = fs::remove_dir_all(&temp_dir);
+}
+
+#[test]
 fn test_language_detection_edge_cases() {
     use ratchets::engine::file_walker::{SkipReason, WalkResult};
     use std::fs;
