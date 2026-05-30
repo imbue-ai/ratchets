@@ -30,6 +30,16 @@ Before starting any work, you MUST read:
 - Use atomic commits that typecheck and pass all checks
 - Do not perform drive-by refactors unless explicitly required
 
+## Bead state is owned by the Coordinator
+- **Do NOT run `br update <id> --status done`, `br close`, or otherwise mutate bead status.** Closing the bead is the Coordinator's job, executed only after the Judge passes.
+- **Do NOT stage or commit any files under `.beads/`** (including `.beads/issues.jsonl`, `.beads/last-touched`, or the SQLite database). The Coordinator commits bead state changes itself.
+- Your responsibility ends with: code changes committed, checks green, a SUCCESS or FAIL report to the Coordinator. Reporting completion is not the same as marking the bead done.
+
+## Trust `cargo`, not editor diagnostics
+- The harness may surface stale rust-analyzer / IDE diagnostics that disagree with a clean `cargo check`. **The source of truth is `cargo check --all-targets`, `cargo clippy --all-targets --all-features`, and `cargo nextest run`** — if those pass, ignore editor diagnostics.
+- Benign hints like inactive `#[cfg(not(...))]` blocks are expected and not failures.
+- If you see an editor diagnostic but `cargo check` is clean, do not start a fix; verify against cargo and proceed.
+
 ## Refactor gating rule
 If your task is blocked by a large refactor that you are not cleared to do:
 - Do **not** do the refactor.

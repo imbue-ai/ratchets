@@ -35,9 +35,14 @@ Run these automated checks to validate the code:
 - `cargo nextest run`
 - `ratchets check`
 
+## Source of truth: cargo, not editor diagnostics
+- The harness may surface stale rust-analyzer / IDE diagnostics (e.g. "cannot find function", "pattern does not mention field") that disagree with a clean `cargo check`. **Treat the cargo commands above as the only source of truth.** If they pass, ignore editor diagnostics.
+- Benign hints like inactive `#[cfg(not(...))]` blocks are expected after edits to multi-config modules and are not failures.
+- Do NOT render FAIL based on editor diagnostics that you have not reproduced via a cargo command.
+
 ## Verdict
 - Render a **PASS** if no errors detected and all checks succeed
-- Render a **FAIL** if you detected any errors
+- Render a **FAIL** if you detected any errors (reproduced via a cargo command, not just editor noise)
 
 ## Graphviz workflow
 
