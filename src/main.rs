@@ -22,7 +22,8 @@ fn main() {
             paths,
             format,
             verbose,
-        } => ratchets::cli::check::run_check(&paths, format, verbose),
+            since,
+        } => ratchets::cli::check::run_check(&paths, format, verbose, since.as_deref()),
         Command::Bump {
             rule_id,
             region,

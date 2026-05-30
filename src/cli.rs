@@ -4,6 +4,7 @@ pub mod args;
 pub mod bump;
 pub mod check;
 pub mod common;
+pub mod git_diff;
 pub mod init;
 pub mod list;
 pub mod merge_driver;

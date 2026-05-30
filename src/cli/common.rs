@@ -3,12 +3,13 @@
 //! This module provides shared functionality for loading configuration,
 //! discovering files, and building rule registries.
 
+use crate::cli::git_diff::{self, GitDiffError};
 use crate::config::counts::CountsManager;
 use crate::config::ratchet_toml::Config;
 use crate::engine::file_walker::{FileEntry, FileWalker, FileWalkerError};
 use crate::error::{ConfigError, RuleError};
 use crate::rules::RuleRegistry;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Exit codes from DESIGN.md
 pub const EXIT_SUCCESS: i32 = 0;
@@ -121,6 +122,56 @@ where
     }
 
     Ok(all_files)
+}
+
+/// Filter discovered files to those changed since the given git ref.
+///
+/// Intersects the walker output with `git diff <reference> --name-only`.
+/// Files matching the ref-diff but already excluded by the walker (via
+/// gitignore/include/exclude/language filters) are not re-added. Files
+/// listed by git but no longer present on disk (deleted relative to the
+/// ref) are skipped silently because the walker only yields extant files.
+///
+/// # Arguments
+///
+/// * `files` - Files already filtered by the walker.
+/// * `reference` - Git ref to diff against (e.g. `"main"`, `"HEAD~1"`).
+///
+/// # Errors
+///
+/// Returns `GitDiffError::NotARepo` if the current directory is not in a
+/// git repository, `GitDiffError::BadRef` if the ref is unknown, or
+/// `GitDiffError::Spawn` if `git` cannot be invoked at all.
+pub(crate) fn filter_files_since(
+    files: Vec<FileEntry>,
+    reference: &str,
+) -> Result<Vec<FileEntry>, GitDiffError> {
+    let changed = git_diff::changed_files_since(reference)?;
+
+    Ok(files
+        .into_iter()
+        .filter(|entry| changed_set_contains(&changed, &entry.path))
+        .collect())
+}
+
+/// Returns true if `path` matches any entry in `changed`. The walker may
+/// hand back paths that are relative to the current directory (e.g.
+/// `./src/foo.rs`) while `git_diff::changed_files_since` returns paths
+/// anchored at the repo root. `canonicalize` resolves both sides to the
+/// same absolute form when the file exists on disk; on failure we fall
+/// back to a direct path comparison so we never silently match the wrong
+/// file.
+fn changed_set_contains(changed: &std::collections::HashSet<PathBuf>, path: &Path) -> bool {
+    if let Ok(abs_path) = std::fs::canonicalize(path) {
+        for changed_path in changed {
+            if let Ok(abs_changed) = std::fs::canonicalize(changed_path)
+                && abs_path == abs_changed
+            {
+                return true;
+            }
+        }
+    }
+    changed.contains(path)
 }
 
 /// Build rule registry from configuration
