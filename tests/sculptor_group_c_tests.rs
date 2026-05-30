@@ -5,44 +5,9 @@
 
 #![cfg(feature = "lang-python")]
 
-use ratchets::rules::{AstRule, ExecutionContext, Rule};
-use std::path::Path;
+mod sculptor_common;
 
-fn load_rule(name: &str) -> AstRule {
-    let path = format!("builtin-ratchets/python/ast/{}.toml", name);
-    AstRule::from_path(Path::new(&path))
-        .unwrap_or_else(|e| panic!("Failed to load rule {}: {}", path, e))
-}
-
-fn matches(rule: &AstRule, src: &str) -> usize {
-    let ctx = ExecutionContext {
-        file_path: Path::new("t.py"),
-        content: src,
-        ast: None,
-        region_resolver: None,
-    };
-    rule.execute(&ctx).len()
-}
-
-fn expect_match(rule: &AstRule, src: &str, label: &str) {
-    let n = matches(rule, src);
-    assert!(
-        n > 0,
-        "[{}] expected match for: {:?}, got {} violations",
-        label,
-        src,
-        n
-    );
-}
-
-fn expect_no_match(rule: &AstRule, src: &str, label: &str) {
-    let n = matches(rule, src);
-    assert_eq!(
-        n, 0,
-        "[{}] expected NO match for: {:?}, got {} violations",
-        label, src, n
-    );
-}
+use sculptor_common::{expect_match, expect_no_match, load_rule};
 
 // --------------------------------------------------------------------------
 // no-bare-exit (sculptor: non_sys_exit)
