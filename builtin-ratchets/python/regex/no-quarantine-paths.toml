@@ -1,0 +1,8 @@
+[rule]
+id = "no-quarantine-paths"
+description = "Disallow references to quarantine/ paths (e.g. script invocations of quarantined files)"
+severity = "error"
+
+[match]
+pattern = "quarantine/"
+languages = ["python"]

@@ -1,0 +1,8 @@
+[rule]
+id = "no-os-path-join"
+description = "Prefer pathlib.Path over os.path.join"
+severity = "warning"
+
+[match]
+pattern = "os\\.path\\.join"
+languages = ["python"]

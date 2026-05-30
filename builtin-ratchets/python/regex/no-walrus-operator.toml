@@ -1,0 +1,8 @@
+[rule]
+id = "no-walrus-operator"
+description = "Disallow walrus operator (:=); too easy to misread as ="
+severity = "warning"
+
+[match]
+pattern = " := "
+languages = ["python"]

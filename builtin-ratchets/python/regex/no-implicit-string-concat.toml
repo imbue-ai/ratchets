@@ -1,0 +1,8 @@
+[rule]
+id = "no-implicit-string-concat"
+description = "Disallow implicit multiline string concatenation"
+severity = "warning"
+
+[match]
+pattern = "(?m)^[^\"\\n]*\"[^\"]+\"\\s*f?\"[^\"]+"
+languages = ["python"]

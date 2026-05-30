@@ -108,6 +108,91 @@ const BUILTIN_PYTHON_REGEX_RULES: &[(&str, &str)] = &[
         "no-fstring-logging",
         include_str!("../../builtin-ratchets/python/regex/no-fstring-logging.toml"),
     ),
+    // Group A — ports of sculptor's plain-regex ratchet rules
+    (
+        "no-pytorch-lightning",
+        include_str!("../../builtin-ratchets/python/regex/no-pytorch-lightning.toml"),
+    ),
+    (
+        "no-logger-warning",
+        include_str!("../../builtin-ratchets/python/regex/no-logger-warning.toml"),
+    ),
+    (
+        "no-quarantine-import",
+        include_str!("../../builtin-ratchets/python/regex/no-quarantine-import.toml"),
+    ),
+    (
+        "no-quarantine-paths",
+        include_str!("../../builtin-ratchets/python/regex/no-quarantine-paths.toml"),
+    ),
+    (
+        "no-walrus-operator",
+        include_str!("../../builtin-ratchets/python/regex/no-walrus-operator.toml"),
+    ),
+    (
+        "no-ssh-subprocess",
+        include_str!("../../builtin-ratchets/python/regex/no-ssh-subprocess.toml"),
+    ),
+    (
+        "no-os-path-join",
+        include_str!("../../builtin-ratchets/python/regex/no-os-path-join.toml"),
+    ),
+    (
+        "no-todo-remove-comment",
+        include_str!("../../builtin-ratchets/python/regex/no-todo-remove-comment.toml"),
+    ),
+    (
+        "no-implicit-string-concat",
+        include_str!("../../builtin-ratchets/python/regex/no-implicit-string-concat.toml"),
+    ),
+    (
+        "no-builtin-hash",
+        include_str!("../../builtin-ratchets/python/regex/no-builtin-hash.toml"),
+    ),
+    (
+        "no-make-composite-seed",
+        include_str!("../../builtin-ratchets/python/regex/no-make-composite-seed.toml"),
+    ),
+    (
+        "no-numpy-default-rng",
+        include_str!("../../builtin-ratchets/python/regex/no-numpy-default-rng.toml"),
+    ),
+    (
+        "no-asyncio-run",
+        include_str!("../../builtin-ratchets/python/regex/no-asyncio-run.toml"),
+    ),
+    (
+        "no-logger-exception",
+        include_str!("../../builtin-ratchets/python/regex/no-logger-exception.toml"),
+    ),
+    (
+        "no-pydantic-model-copy-update",
+        include_str!("../../builtin-ratchets/python/regex/no-pydantic-model-copy-update.toml"),
+    ),
+    (
+        "no-tree-sitter-text-decode",
+        include_str!("../../builtin-ratchets/python/regex/no-tree-sitter-text-decode.toml"),
+    ),
+    (
+        "no-byte-index-source",
+        include_str!("../../builtin-ratchets/python/regex/no-byte-index-source.toml"),
+    ),
+    (
+        "no-mypy-ignore-errors",
+        include_str!("../../builtin-ratchets/python/regex/no-mypy-ignore-errors.toml"),
+    ),
+    (
+        "no-pyre-ignore",
+        include_str!("../../builtin-ratchets/python/regex/no-pyre-ignore.toml"),
+    ),
+    (
+        "no-pyre-fixme",
+        include_str!("../../builtin-ratchets/python/regex/no-pyre-fixme.toml"),
+    ),
+    (
+        "no-type-ignore",
+        include_str!("../../builtin-ratchets/python/regex/no-type-ignore.toml"),
+    ),
 ];
 
 /// Embedded built-in AST rule files for Rust
@@ -355,7 +440,7 @@ mod tests {
         assert_eq!(rules.len(), 2); // no-todo-comments and no-fixme-comments
 
         #[cfg(feature = "lang-python")]
-        assert_eq!(rules.len(), 22); // 2 common + 20 Python regex rules
+        assert_eq!(rules.len(), 43); // 2 common + 41 Python regex rules
 
         // Check that rule IDs are correct
         let rule_ids: Vec<&str> = rules.iter().map(|(id, _)| id.as_str()).collect();

@@ -1,0 +1,8 @@
+[rule]
+id = "no-builtin-hash"
+description = "Disallow direct calls to the builtin hash(); use a stable hash helper instead"
+severity = "error"
+
+[match]
+pattern = "[^a-zA-Z_]hash\\("
+languages = ["python"]

@@ -1,0 +1,8 @@
+[rule]
+id = "no-pyre-ignore"
+description = "Disallow '# pyre-ignore' comments; use '# pyre-fixme' instead when uncertainty exists"
+severity = "warning"
+
+[match]
+pattern = "# pyre-ignore"
+languages = ["python"]

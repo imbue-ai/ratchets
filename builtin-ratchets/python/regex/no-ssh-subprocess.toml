@@ -1,0 +1,8 @@
+[rule]
+id = "no-ssh-subprocess"
+description = "Disallow subprocess.* calls that invoke ssh; use shared helpers instead"
+severity = "error"
+
+[match]
+pattern = "subprocess\\.(Popen|run|call|check_call|check_output)\\([^)]*?ssh[^)]*?\\)"
+languages = ["python"]

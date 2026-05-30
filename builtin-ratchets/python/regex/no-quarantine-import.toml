@@ -1,0 +1,8 @@
+[rule]
+id = "no-quarantine-import"
+description = "Disallow imports from quarantine packages"
+severity = "error"
+
+[match]
+pattern = "\\s*(from|import)\\s+.*quarantine"
+languages = ["python"]

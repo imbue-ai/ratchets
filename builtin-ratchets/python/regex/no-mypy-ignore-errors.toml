@@ -1,0 +1,8 @@
+[rule]
+id = "no-mypy-ignore-errors"
+description = "Disallow file-level '# mypy: ignore-errors' directives"
+severity = "warning"
+
+[match]
+pattern = "# mypy: ignore-errors"
+languages = ["python"]
