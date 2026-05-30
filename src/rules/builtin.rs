@@ -232,6 +232,16 @@ const BUILTIN_PYTHON_REGEX_RULES: &[(&str, &str)] = &[
     ),
 ];
 
+/// Embedded built-in regex rule files for TypeScript
+#[cfg(feature = "lang-typescript")]
+const BUILTIN_TYPESCRIPT_REGEX_RULES: &[(&str, &str)] = &[
+    // Group B — ports of sculptor's path-scoped regex ratchet rules
+    (
+        "no-raw-html-button",
+        include_str!("../../builtin-ratchets/typescript/regex/no-raw-html-button.toml"),
+    ),
+];
+
 /// Embedded built-in AST rule files for Rust
 #[cfg(feature = "lang-rust")]
 const BUILTIN_AST_RUST_RULES: &[(&str, &str)] = &[
@@ -366,6 +376,22 @@ pub fn load_builtin_regex_rules() -> Result<RuleList, RuleError> {
         }
     }
 
+    // Load TypeScript regex rules
+    #[cfg(feature = "lang-typescript")]
+    {
+        for (rule_name, toml_content) in BUILTIN_TYPESCRIPT_REGEX_RULES {
+            let rule = RegexRule::from_toml(toml_content).map_err(|e| {
+                RuleError::InvalidDefinition(format!(
+                    "Failed to parse built-in TypeScript regex rule '{}': {}",
+                    rule_name, e
+                ))
+            })?;
+
+            let rule_id = rule.id().clone();
+            rules.push((rule_id, Box::new(rule) as Box<dyn Rule>));
+        }
+    }
+
     Ok(rules)
 }
 
@@ -472,12 +498,20 @@ mod tests {
 
         let rules = result.unwrap();
 
-        // The number of rules depends on which language features are enabled
-        #[cfg(not(feature = "lang-python"))]
-        assert_eq!(rules.len(), 2); // no-todo-comments and no-fixme-comments
-
+        // The number of rules depends on which language features are enabled.
+        // Base: 2 common rules (no-todo-comments, no-fixme-comments).
+        // +50 Python regex rules when lang-python is enabled.
+        // +1 TypeScript regex rule when lang-typescript is enabled.
+        let mut expected = 2;
         #[cfg(feature = "lang-python")]
-        assert_eq!(rules.len(), 52); // 2 common + 50 Python regex rules
+        {
+            expected += 50;
+        }
+        #[cfg(feature = "lang-typescript")]
+        {
+            expected += 1;
+        }
+        assert_eq!(rules.len(), expected);
 
         // Check that rule IDs are correct
         let rule_ids: Vec<&str> = rules.iter().map(|(id, _)| id.as_str()).collect();
@@ -493,6 +527,12 @@ mod tests {
             assert!(!rule_ids.contains(&"no-base-exception"));
             assert!(!rule_ids.contains(&"no-eval-usage"));
             assert!(!rule_ids.contains(&"no-exec-usage"));
+        }
+
+        // Verify TypeScript regex rules are present when lang-typescript feature is enabled
+        #[cfg(feature = "lang-typescript")]
+        {
+            assert!(rule_ids.contains(&"no-raw-html-button"));
         }
     }
 
