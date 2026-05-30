@@ -367,6 +367,11 @@ const BUILTIN_AST_PYTHON_RULES: &[(&str, &str)] = &[
         "no-mutable-attr-in-frozen-dataclass",
         include_str!("../../builtin-ratchets/python/ast/no-mutable-attr-in-frozen-dataclass.toml"),
     ),
+    // Group D — port of sculptor's bespoke match-exhaustiveness ratchet rule
+    (
+        "match-must-assert-never",
+        include_str!("../../builtin-ratchets/python/ast/match-must-assert-never.toml"),
+    ),
 ];
 
 /// Embedded built-in AST rule files for TypeScript
