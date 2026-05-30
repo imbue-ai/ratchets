@@ -193,6 +193,43 @@ const BUILTIN_PYTHON_REGEX_RULES: &[(&str, &str)] = &[
         "no-type-ignore",
         include_str!("../../builtin-ratchets/python/regex/no-type-ignore.toml"),
     ),
+    // Group B — ports of sculptor's path-scoped regex ratchet rules
+    (
+        "no-sculptor-copytree",
+        include_str!("../../builtin-ratchets/python/regex/no-sculptor-copytree.toml"),
+    ),
+    (
+        "no-sculptor-subprocess",
+        include_str!("../../builtin-ratchets/python/regex/no-sculptor-subprocess.toml"),
+    ),
+    (
+        "no-integration-page-reload",
+        include_str!("../../builtin-ratchets/python/regex/no-integration-page-reload.toml"),
+    ),
+    (
+        "no-integration-non-testid-queries",
+        include_str!("../../builtin-ratchets/python/regex/no-integration-non-testid-queries.toml"),
+    ),
+    (
+        "no-integration-css-locators",
+        include_str!("../../builtin-ratchets/python/regex/no-integration-css-locators.toml"),
+    ),
+    (
+        "no-integration-type-method",
+        include_str!("../../builtin-ratchets/python/regex/no-integration-type-method.toml"),
+    ),
+    (
+        "no-integration-page-goto",
+        include_str!("../../builtin-ratchets/python/regex/no-integration-page-goto.toml"),
+    ),
+    (
+        "no-integration-page-evaluate",
+        include_str!("../../builtin-ratchets/python/regex/no-integration-page-evaluate.toml"),
+    ),
+    (
+        "no-integration-time-sleep",
+        include_str!("../../builtin-ratchets/python/regex/no-integration-time-sleep.toml"),
+    ),
 ];
 
 /// Embedded built-in AST rule files for Rust
@@ -440,7 +477,7 @@ mod tests {
         assert_eq!(rules.len(), 2); // no-todo-comments and no-fixme-comments
 
         #[cfg(feature = "lang-python")]
-        assert_eq!(rules.len(), 43); // 2 common + 41 Python regex rules
+        assert_eq!(rules.len(), 52); // 2 common + 50 Python regex rules
 
         // Check that rule IDs are correct
         let rule_ids: Vec<&str> = rules.iter().map(|(id, _)| id.as_str()).collect();
