@@ -523,18 +523,17 @@ mod tests {
 
         let rules = result.unwrap();
 
-        // The number of rules depends on which language features are enabled.
-        // Base: 2 common rules (no-todo-comments, no-fixme-comments).
-        // +50 Python regex rules when lang-python is enabled.
-        // +1 TypeScript regex rule when lang-typescript is enabled.
-        let mut expected = 2;
+        // Derive the expected count from the same constants the loader iterates.
+        // This keeps the assertion in sync as new TOMLs are registered, while
+        // still catching cases where a rule is registered but fails to load.
+        let mut expected = BUILTIN_REGEX_RULES.len();
         #[cfg(feature = "lang-python")]
         {
-            expected += 50;
+            expected += BUILTIN_PYTHON_REGEX_RULES.len();
         }
         #[cfg(feature = "lang-typescript")]
         {
-            expected += 1;
+            expected += BUILTIN_TYPESCRIPT_REGEX_RULES.len();
         }
         assert_eq!(rules.len(), expected);
 
@@ -568,16 +567,23 @@ mod tests {
 
         let rules = result.unwrap();
 
-        // The number of rules depends on which language features are enabled
+        // Derive the expected count from the same constants the loader iterates.
+        // This keeps the assertion in sync as new TOMLs are registered, while
+        // still catching cases where a rule is registered but fails to load.
+        let mut expected = 0;
         #[cfg(feature = "lang-rust")]
-        assert!(rules.len() >= 5); // At least the 5 Rust rules
-
-        #[cfg(all(
-            feature = "lang-rust",
-            not(feature = "lang-python"),
-            not(feature = "lang-typescript")
-        ))]
-        assert_eq!(rules.len(), 5); // Exactly 5 if only Rust is enabled
+        {
+            expected += BUILTIN_AST_RUST_RULES.len();
+        }
+        #[cfg(feature = "lang-python")]
+        {
+            expected += BUILTIN_AST_PYTHON_RULES.len();
+        }
+        #[cfg(feature = "lang-typescript")]
+        {
+            expected += BUILTIN_AST_TYPESCRIPT_RULES.len();
+        }
+        assert_eq!(rules.len(), expected);
 
         // Verify Rust rules are present when lang-rust feature is enabled
         #[cfg(feature = "lang-rust")]
