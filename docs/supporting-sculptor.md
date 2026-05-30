@@ -1,12 +1,14 @@
 # Supporting Sculptor: Rules Missing from This Library
 
-**Tracking beads (one per porting strategy):**
-- Group A — plain regex: [`code-61d`](../.beads/issues.jsonl)
-- Group B — path-scoped regex: [`code-aoe`](../.beads/issues.jsonl)
-- Group C — lookaround → tree-sitter AST: [`code-gkp`](../.beads/issues.jsonl)
-- Group D — bespoke match-exhaustiveness: [`code-m2l`](../.beads/issues.jsonl)
+**Status:** All four groups have landed. This document is preserved as a historical migration plan.
 
-All 42 issues in this document fit the existing `RegexRule`/`AstRule` infrastructure and require only TOML additions under `builtin-ratchets/` (with one possible exception called out in Group D).
+**Tracking beads (one per porting strategy):**
+- Group A — plain regex: [`code-61d`](../.beads/issues.jsonl) (closed)
+- Group B — path-scoped regex: [`code-aoe`](../.beads/issues.jsonl) (closed)
+- Group C — lookaround → tree-sitter AST: [`code-gkp`](../.beads/issues.jsonl) (closed)
+- Group D — bespoke match-exhaustiveness: [`code-m2l`](../.beads/issues.jsonl) (closed)
+
+All 42 issues in this document fit the existing `RegexRule`/`AstRule` infrastructure and required only TOML additions under `builtin-ratchets/` (with one possible exception called out in Group D).
 
 ## Background
 
