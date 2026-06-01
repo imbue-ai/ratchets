@@ -7,7 +7,9 @@
 
 mod sculptor_common;
 
-use sculptor_common::{expect_match, expect_no_match, load_rule, load_rule_with_python_tests};
+use sculptor_common::{
+    expect_match, expect_no_match, load_rule, load_rule_with_python_tests, matches,
+};
 
 // --------------------------------------------------------------------------
 // no-bare-exit (sculptor: non_sys_exit)
@@ -190,6 +192,52 @@ fn args_kwargs_non_matches() {
         &rule,
         "def meta(*args: P.args, **kwargs: P.kwargs) -> None:\n    pass\n",
         "both typed",
+    );
+}
+
+#[test]
+fn args_kwargs_counts_per_splat() {
+    // Bead code-xep: `def f(*args, **kwargs)` is two independent fixes (annotate
+    // each splat). Per-splat semantics emits one violation per offending node,
+    // not a single violation on the shared `(parameters)` node. Regression
+    // guard against the prior shape where both alternatives captured the same
+    // `(parameters)` node and emitted byte-identical duplicate violations.
+    let rule = load_rule("no-untyped-args-kwargs");
+    assert_eq!(
+        matches(&rule, "def f(*args, **kwargs):\n    pass\n"),
+        2,
+        "untyped *args and **kwargs should produce two distinct violations",
+    );
+    assert_eq!(
+        matches(&rule, "def f(*args: Any, **kwargs: Any):\n    pass\n"),
+        2,
+        "mistyped *args and **kwargs should produce two distinct violations",
+    );
+    assert_eq!(
+        matches(
+            &rule,
+            "def f(*args: P.args, **kwargs: P.kwargs):\n    pass\n"
+        ),
+        0,
+        "both properly typed should produce no violations",
+    );
+}
+
+#[test]
+fn args_kwargs_catches_multiline_signature() {
+    // Bead code-xep: sculptor's regex uses `.*` which does not span newlines,
+    // so it misses untyped splats in multi-line signatures. Our AST query
+    // catches them. Examples mirror real sculptor codebase occurrences.
+    let rule = load_rule("no-untyped-args-kwargs");
+    expect_match(
+        &rule,
+        "def inject_exception_and_log(\n    exc: BaseException, message: str, *args: Any, **kwargs: Any\n) -> None:\n    pass\n",
+        "multi-line signature with mistyped splats",
+    );
+    expect_match(
+        &rule,
+        "def log_exception(\n    exc: BaseException,\n    message: str,\n    *args: Any,\n    **kwargs: Any,\n) -> None:\n    pass\n",
+        "multi-line signature one-arg-per-line",
     );
 }
 

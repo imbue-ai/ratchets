@@ -8,35 +8,40 @@ language = "python"
 query = """
 (parameters
   (list_splat_pattern
-    (identifier) @name)
-  (#eq? @name "args")) @violation
+    (identifier) @name) @violation
+  (#eq? @name "args"))
 
 (parameters
   (typed_parameter
     (list_splat_pattern
       (identifier) @name)
-    type: (type) @type
-    (#eq? @name "args")
-    (#not-eq? @type "P.args"))) @violation
+    type: (type) @type) @violation
+  (#eq? @name "args")
+  (#not-eq? @type "P.args"))
 
 (parameters
   (dictionary_splat_pattern
-    (identifier) @name)
-  (#eq? @name "kwargs")) @violation
+    (identifier) @name) @violation
+  (#eq? @name "kwargs"))
 
 (parameters
   (typed_parameter
     (dictionary_splat_pattern
       (identifier) @name)
-    type: (type) @type
-    (#eq? @name "kwargs")
-    (#not-eq? @type "P.kwargs"))) @violation
+    type: (type) @type) @violation
+  (#eq? @name "kwargs")
+  (#not-eq? @type "P.kwargs"))
 """
 
-# Matches:
+# Matches per-splat (each *args / **kwargs is its own violation node, so
+# `def f(*args, **kwargs)` reports two distinct violations — one per fix).
+# Sculptor's `args_kwargs` regex is line-based and reports at most once per
+# `def` line, missing both (a) multi-line signatures and (b) the second splat
+# on a line containing both. Per-splat AST capture corrects both. See bead
+# code-xep for evidence.
+#
+# Cases caught:
 #   def foo(*args, ...)             -- untyped *args
 #   def foo(*args: NotP.args, ...)  -- mistyped *args
 #   def foo(**kwargs, ...)          -- untyped **kwargs
 #   def foo(**kwargs: NotP.kwargs)  -- mistyped **kwargs
-# The structural approach (matching parameters with the splat name "args"/"kwargs")
-# replaces sculptor's negative-lookahead regex.
