@@ -1,8 +1,8 @@
-//! Shared helpers for sculptor group AST rule validation tests.
+//! Shared helpers for Python AST builtin rule validation tests.
 //!
-//! Each `tests/sculptor_group_*_tests.rs` integration-test binary includes
-//! this module via `mod sculptor_common;` to avoid duplicating the
-//! `AstRule` loading and matching scaffolding.
+//! Each Python AST rule validation integration-test binary includes this
+//! module via `mod ast_test_helpers;` to avoid duplicating the `AstRule`
+//! loading and matching scaffolding.
 
 #![cfg(feature = "lang-python")]
 

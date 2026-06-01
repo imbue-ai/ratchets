@@ -1,18 +1,20 @@
-//! Validation tests for Group C sculptor rules ported as tree-sitter AST queries.
+//! Validation tests for Python AST builtin rule queries.
 //!
-//! Each rule covers match_examples and non_match_examples from sculptor's
-//! ratchet_rules.py to ensure the tree-sitter form matches the original regex intent.
+//! These tests cover each Python AST rule shipped under
+//! `builtin-ratchets/python/ast/` with positive (`expect_match`) and negative
+//! (`expect_no_match`) snippets to ensure the tree-sitter queries fire on
+//! intended violations and stay silent on legitimate code.
 
 #![cfg(feature = "lang-python")]
 
-mod sculptor_common;
+mod ast_test_helpers;
 
-use sculptor_common::{
+use ast_test_helpers::{
     expect_match, expect_no_match, load_rule, load_rule_with_python_tests, matches,
 };
 
 // --------------------------------------------------------------------------
-// no-bare-exit (sculptor: non_sys_exit)
+// no-bare-exit
 // --------------------------------------------------------------------------
 #[test]
 fn no_bare_exit_matches() {
@@ -31,7 +33,7 @@ fn no_bare_exit_non_matches() {
 }
 
 // --------------------------------------------------------------------------
-// no-typing-cast (sculptor: cast)
+// no-typing-cast
 // --------------------------------------------------------------------------
 #[test]
 fn no_typing_cast_matches() {
@@ -143,10 +145,10 @@ fn type_ignore_unlabeled_non_matches() {
 }
 
 // --------------------------------------------------------------------------
-// no-untyped-args-kwargs (sculptor: args_kwargs)
+// no-untyped-args-kwargs
 // --------------------------------------------------------------------------
 #[test]
-fn args_kwargs_matches() {
+fn no_untyped_args_kwargs_matches() {
     let rule = load_rule("no-untyped-args-kwargs");
     expect_match(
         &rule,
@@ -176,7 +178,7 @@ fn args_kwargs_matches() {
 }
 
 #[test]
-fn args_kwargs_non_matches() {
+fn no_untyped_args_kwargs_non_matches() {
     let rule = load_rule("no-untyped-args-kwargs");
     expect_no_match(
         &rule,
@@ -196,7 +198,7 @@ fn args_kwargs_non_matches() {
 }
 
 #[test]
-fn args_kwargs_counts_per_splat() {
+fn no_untyped_args_kwargs_counts_per_splat() {
     // Bead code-xep: `def f(*args, **kwargs)` is two independent fixes (annotate
     // each splat). Per-splat semantics emits one violation per offending node,
     // not a single violation on the shared `(parameters)` node. Regression
@@ -224,10 +226,10 @@ fn args_kwargs_counts_per_splat() {
 }
 
 #[test]
-fn args_kwargs_catches_multiline_signature() {
-    // Bead code-xep: sculptor's regex uses `.*` which does not span newlines,
-    // so it misses untyped splats in multi-line signatures. Our AST query
-    // catches them. Examples mirror real sculptor codebase occurrences.
+fn no_untyped_args_kwargs_catches_multiline_signature() {
+    // Bead code-xep: a `.*`-based regex does not span newlines, so a regex
+    // implementation would miss untyped splats in multi-line signatures. Our
+    // AST query catches them. Examples mirror real codebase occurrences.
     let rule = load_rule("no-untyped-args-kwargs");
     expect_match(
         &rule,
@@ -242,7 +244,7 @@ fn args_kwargs_catches_multiline_signature() {
 }
 
 // --------------------------------------------------------------------------
-// classmethod-builder-naming (sculptor: non_build_classmethods)
+// classmethod-builder-naming
 // --------------------------------------------------------------------------
 #[test]
 fn classmethod_builder_matches() {
@@ -311,7 +313,7 @@ fn classmethod_builder_matches_with_extra_decorator() {
 }
 
 // --------------------------------------------------------------------------
-// staticmethod-private-only (sculptor: non_private_staticmethods)
+// staticmethod-private-only
 // --------------------------------------------------------------------------
 #[test]
 fn staticmethod_private_matches() {
@@ -344,7 +346,7 @@ fn staticmethod_private_non_matches() {
 }
 
 // --------------------------------------------------------------------------
-// attrs-decorator (sculptor: attrs)
+// attrs-decorator
 // --------------------------------------------------------------------------
 #[test]
 fn attrs_matches() {
@@ -398,7 +400,7 @@ fn attrs_non_matches() {
 }
 
 // --------------------------------------------------------------------------
-// no-mutable-attr-in-frozen-dataclass (sculptor: mutable_attr_in_frozen_dataclass)
+// no-mutable-attr-in-frozen-dataclass
 // --------------------------------------------------------------------------
 #[test]
 fn mutable_attr_frozen_matches() {
@@ -446,15 +448,15 @@ fn mutable_attr_frozen_non_matches() {
 }
 
 // --------------------------------------------------------------------------
-// no-inline-functions (sculptor: inline_functions)
+// no-inline-functions
 // --------------------------------------------------------------------------
-// Sculptor's regex relies on indentation + "first arg is not cls/self" to
-// approximate "inline function." That heuristic misses several real shapes:
-//   - `async def` (the regex starts with `def`, not `(?:async\s+)?def`)
+// A heuristic that relies on indentation + "first arg is not cls/self" to
+// approximate "inline function" misses several real shapes:
+//   - `async def` (a regex starting with `def`, not `(?:async\s+)?def`)
 //   - decorator-`wraps` wrappers whose first arg is `self` (because the
-//     wrapped function is a method) — sculptor wrongly skips them
+//     wrapped function is a method) — incorrectly skipped
 //   - inline functions taking `self` as a parameter name (e.g. monkey-patch
-//     targets) — sculptor wrongly skips them
+//     targets) — incorrectly skipped
 // And gives false positives on `def NAME(` appearing inside docstrings.
 //
 // Our query captures every `function_definition` and uses the
@@ -643,29 +645,30 @@ fn no_bare_exit_self_dot_exit_does_not_match() {
 
 #[test]
 fn no_bare_exit_no_args_does_not_match() {
-    // sculptor regex requires \d+ — exit() with no args doesn't match
+    // The query requires a numeric integer argument — `exit()` with no args
+    // doesn't match.
     let rule = load_rule("no-bare-exit");
     expect_no_match(&rule, "exit()\n", "no args");
 }
 
 // --------------------------------------------------------------------------
-// no-underscore-imports (sculptor: import_underscore)
+// no-underscore-imports
 // --------------------------------------------------------------------------
-// Sculptor's regex is `^(from [\w.]+ )?import __?\w+`, which matches when the
-// IMPORTED name (the token right after `import `) starts with one or two
-// underscores. The module path in `from MODULE import NAME` is unconstrained,
-// so `from _module import foo` is intentionally NOT flagged.
+// A regex like `^(from [\w.]+ )?import __?\w+` matches when the IMPORTED
+// name (the token right after `import `) starts with one or two underscores.
+// The module path in `from MODULE import NAME` is unconstrained, so
+// `from _module import foo` is intentionally NOT flagged.
 //
-// Our previous query matched any `(dotted_name (identifier))` child of an
-// `import_from_statement`, which incorrectly fired on the module path too
+// A naive query that matches any `(dotted_name (identifier))` child of an
+// `import_from_statement` would incorrectly fire on the module path too
 // (e.g. `from _typeshed import OpenBinaryMode` and
-// `from cattrs._compat import is_generic` both falsely matched). Pinning the
-// query to the `name:` field of `import_from_statement`/`import_statement`
-// fixes the overcount.
+// `from cattrs._compat import is_generic` would both falsely match). Pinning
+// the query to the `name:` field of `import_from_statement`/`import_statement`
+// avoids the overcount.
 
 #[test]
 fn no_underscore_imports_from_import_underscore_name_matches() {
-    // Sculptor match_examples: `from thing import _thing`, `from thing.thing import _thing`.
+    // Positive cases: `from thing import _thing`, `from thing.thing import _thing`.
     let rule = load_rule_with_python_tests("no-underscore-imports");
     expect_match(
         &rule,
@@ -684,21 +687,21 @@ fn no_underscore_imports_from_import_underscore_name_matches() {
     );
     expect_match(
         &rule,
-        "from sculptor.testing.server_utils import _start_server_process_and_validate_readiness\n",
-        "real sculptor violation 1",
+        "from pkg.testing.server_utils import _start_server_process_and_validate_readiness\n",
+        "real-world violation 1",
     );
     expect_match(
         &rule,
         "from imbue_core.nested_evolver import _Evolver\n",
-        "real sculptor violation 2",
+        "real-world violation 2",
     );
 }
 
 #[test]
 fn no_underscore_imports_aliased_underscore_name_matches() {
-    // Sculptor's regex matches `from x import _y as z` because the substring
-    // `import _y` is present. Tree-sitter wraps this in an `aliased_import`
-    // node, so we need a dedicated pattern.
+    // A line-based regex matches `from x import _y as z` because the
+    // substring `import _y` is present. Tree-sitter wraps this in an
+    // `aliased_import` node, so we need a dedicated pattern.
     let rule = load_rule_with_python_tests("no-underscore-imports");
     expect_match(
         &rule,
@@ -714,9 +717,9 @@ fn no_underscore_imports_aliased_underscore_name_matches() {
 
 #[test]
 fn no_underscore_imports_bare_import_underscore_matches() {
-    // Sculptor match_examples: `import _thing`, `import __thing`.
-    // Our previous query missed these because it only handled
-    // `import_from_statement`, not the distinct `import_statement` node.
+    // Positive cases: `import _thing`, `import __thing`.
+    // A query that only handles `import_from_statement` would miss these
+    // because they parse as the distinct `import_statement` node.
     let rule = load_rule_with_python_tests("no-underscore-imports");
     expect_match(&rule, "import _thing\n", "import _NAME");
     expect_match(&rule, "import __thing\n", "import __NAME (dunder)");
@@ -725,9 +728,9 @@ fn no_underscore_imports_bare_import_underscore_matches() {
 
 #[test]
 fn no_underscore_imports_from_private_module_does_not_match() {
-    // Sculptor's `^(from [\w.]+ )?import __?\w+` does NOT match
+    // The reference regex `^(from [\w.]+ )?import __?\w+` does NOT match
     // `from _module import foo` because the imported name is `foo`, not `_*`.
-    // The +62 overcount in code-eu8 was driven by our prior query catching
+    // The +62 overcount in code-eu8 was driven by a prior query catching
     // these cases (e.g. `from _typeshed import OpenBinaryMode`,
     // `from cattrs._compat import is_generic`).
     let rule = load_rule_with_python_tests("no-underscore-imports");
@@ -760,7 +763,7 @@ fn no_underscore_imports_from_private_module_does_not_match() {
 
 #[test]
 fn no_underscore_imports_regular_imports_do_not_match() {
-    // Sculptor non_match_examples: `import stuff`, `from stuff import thing`.
+    // Negative cases: `import stuff`, `from stuff import thing`.
     let rule = load_rule_with_python_tests("no-underscore-imports");
     expect_no_match(&rule, "import stuff\n", "import NAME");
     expect_no_match(
@@ -778,10 +781,10 @@ fn no_underscore_imports_regular_imports_do_not_match() {
 
 #[test]
 fn no_underscore_imports_dotted_import_first_component_only() {
-    // Sculptor's regex requires the token right after `import ` to start with
-    // `_`, so `import foo._bar` does not match but `import _foo.bar` does.
-    // The `.` anchor on `(dotted_name . (identifier))` pins our predicate to
-    // the first identifier in the dotted path.
+    // The reference regex requires the token right after `import ` to start
+    // with `_`, so `import foo._bar` does not match but `import _foo.bar`
+    // does. The `.` anchor on `(dotted_name . (identifier))` pins our
+    // predicate to the first identifier in the dotted path.
     let rule = load_rule_with_python_tests("no-underscore-imports");
     expect_no_match(
         &rule,
@@ -795,9 +798,9 @@ fn no_underscore_imports_dotted_import_first_component_only() {
 fn no_underscore_imports_multi_name_counts_per_offender() {
     // `from foo import _bar, _baz` has two underscore-prefixed imports. Our
     // tree-sitter query iterates over each `name:` child and emits one
-    // violation per offender. Sculptor's line-based regex only fires once per
-    // line and additionally misses this case entirely if the first name is
-    // not underscore-prefixed (e.g. `from foo import bar, _baz`), so we are
+    // violation per offender. A line-based regex only fires once per line
+    // and additionally misses this case entirely if the first name is not
+    // underscore-prefixed (e.g. `from foo import bar, _baz`), so we are
     // strictly stricter here. This is intentional: each offending name is an
     // independent fix.
     let rule = load_rule_with_python_tests("no-underscore-imports");
@@ -821,8 +824,8 @@ fn no_underscore_imports_multi_name_counts_per_offender() {
 #[test]
 fn no_underscore_imports_relative_imports_handled() {
     // `from . import _bar` and `from .foo import _bar` are valid Python.
-    // Sculptor's regex `from [\w.]+` requires `\w` after `from `, so it does
-    // NOT match `from . import ...` (the dot is not a word char). It does
+    // A regex `from [\w.]+` requires `\w` after `from `, so it does NOT
+    // match `from . import ...` (the dot is not a word char). It does
     // match `from .foo import _bar` only with the `from MODULE` prefix
     // omitted (the alternate branch `(from [\w.]+ )?` is optional, and
     // `^...import __?\w+` is the actual match — but `from .foo ` makes the
@@ -842,5 +845,42 @@ fn no_underscore_imports_relative_imports_handled() {
         &rule,
         "from . import bar\n",
         "from . import NAME (not underscore)",
+    );
+}
+
+// --------------------------------------------------------------------------
+// match-must-assert-never
+// --------------------------------------------------------------------------
+// This rule enforces that every Python `match` block ends with
+// `case _ as <var>: assert_never(<var>)`. With tree-sitter the rule collapses
+// to a query on `match_statement` plus a `#not-match?` predicate.
+
+#[test]
+fn match_must_assert_never_match_examples() {
+    let rule = load_rule("match-must-assert-never");
+    expect_match(
+        &rule,
+        "match value:\n    case Type1():\n        pass\n    case Type2():\n        pass\n",
+        "two cases no wildcard",
+    );
+    expect_match(
+        &rule,
+        "match x:\n    case 1:\n        do_one()\n    case 2:\n        do_two()\n",
+        "literal cases no wildcard",
+    );
+    expect_match(
+        &rule,
+        "match value:\n    case Type1():\n        pass\n    case _:\n        pass\n",
+        "wildcard without assert_never",
+    );
+}
+
+#[test]
+fn match_must_assert_never_non_match_examples() {
+    let rule = load_rule("match-must-assert-never");
+    expect_no_match(
+        &rule,
+        "match value:\n    case Type1():\n        pass\n    case _ as unreachable:\n        assert_never(unreachable)\n",
+        "wildcard with assert_never",
     );
 }
