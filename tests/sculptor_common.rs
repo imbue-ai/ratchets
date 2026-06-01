@@ -6,12 +6,37 @@
 
 #![cfg(feature = "lang-python")]
 
-use ratchets::rules::{AstRule, ExecutionContext, Rule};
+use ratchets::GlobPattern;
+use ratchets::rules::{AstRule, ExecutionContext, Rule, RuleContext};
+use std::collections::HashMap;
 use std::path::Path;
 
 pub fn load_rule(name: &str) -> AstRule {
     let path = format!("builtin-ratchets/python/ast/{}.toml", name);
     AstRule::from_path(Path::new(&path))
+        .unwrap_or_else(|e| panic!("Failed to load rule {}: {}", path, e))
+}
+
+/// Load an AST rule with the same `@python_tests` pattern context that the
+/// production registry provides. Use this for rules whose TOML references
+/// `@python_tests` in `include` or `exclude`.
+#[allow(dead_code)]
+pub fn load_rule_with_python_tests(name: &str) -> AstRule {
+    let path = format!("builtin-ratchets/python/ast/{}.toml", name);
+    let content = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("Failed to read rule {}: {}", path, e));
+
+    let mut patterns = HashMap::new();
+    patterns.insert(
+        "python_tests".to_string(),
+        vec![
+            GlobPattern::new("**/test_*.py".to_string()),
+            GlobPattern::new("**/*_test.py".to_string()),
+            GlobPattern::new("**/tests/**".to_string()),
+        ],
+    );
+    let ctx = RuleContext::new(patterns);
+    AstRule::from_toml_with_context(&content, Some(&ctx))
         .unwrap_or_else(|e| panic!("Failed to load rule {}: {}", path, e))
 }
 

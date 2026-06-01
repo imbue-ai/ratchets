@@ -6,11 +6,21 @@ severity = "warning"
 [match]
 language = "python"
 query = """
-(function_definition
-  body: (block
-    (function_definition) @violation))
+(function_definition) @violation
 """
 exclude = "@python_tests"
+post_filter = "nested_in_function_definition"
 
-# This matches function definitions that are nested inside other function definitions.
-# The exclude pattern will prevent this from firing in test files.
+# The query captures every `function_definition` node; the
+# `nested_in_function_definition` post-filter then walks up the parent chain and
+# keeps the violation only when a `function_definition` ancestor is found before
+# any `class_definition` ancestor. This correctly handles:
+#   - direct nested functions (`def outer(): def inner(): ...`)
+#   - decorated nested functions (`def outer(): @wraps(f) def inner(): ...`),
+#     which the previous narrow query missed because they sit inside a
+#     `decorated_definition` AST node rather than directly in the parent block
+#   - functions defined inside `if`/`with`/`for`/`try` blocks of an enclosing
+#     function, which the previous narrow query missed because the inner
+#     function is not a direct child of the enclosing function's body block
+# Methods of nested classes (i.e. a class defined inside a function) are
+# correctly NOT flagged: the walk stops at the first `class_definition`.

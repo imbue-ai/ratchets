@@ -75,6 +75,19 @@ pub struct AstRule {
 enum PostFilter {
     /// Filter out classes whose names end with "Exception" or "Error"
     ClassNameNotException,
+    /// Keep only matches whose `@violation` capture is nested inside an enclosing
+    /// `function_definition` (without crossing a `class_definition` first).
+    ///
+    /// Walks up the captured node's parent chain. Returns `true` (keep the
+    /// violation) when a `function_definition` ancestor is reached before any
+    /// `class_definition`. Returns `false` (drop) if a `class_definition` is
+    /// encountered first or no enclosing function is found.
+    ///
+    /// This catches inline functions whose AST structure is more than one level
+    /// removed from the enclosing function's body block — for example, functions
+    /// wrapped in a `decorated_definition` node, or nested inside `if`, `with`,
+    /// `for`, `try`, etc. statements within the enclosing function.
+    NestedInFunctionDefinition,
 }
 
 impl std::fmt::Debug for AstRule {
@@ -436,6 +449,7 @@ fn resolve_pattern_reference<'a>(
 fn parse_post_filter(filter_name: &str) -> Result<PostFilter, RuleError> {
     match filter_name {
         "class_name_not_exception" => Ok(PostFilter::ClassNameNotException),
+        "nested_in_function_definition" => Ok(PostFilter::NestedInFunctionDefinition),
         _ => Err(RuleError::InvalidDefinition(format!(
             "Unknown post_filter: {}",
             filter_name
@@ -473,6 +487,41 @@ fn apply_post_filter(
                 }
             }
             true
+        }
+        PostFilter::NestedInFunctionDefinition => {
+            // Find the @violation capture; fall back to the first capture if absent.
+            let violation_idx = query
+                .capture_names()
+                .iter()
+                .position(|name| *name == "violation");
+
+            let violation_node = if let Some(idx) = violation_idx
+                && let Some(capture) = match_result
+                    .captures
+                    .iter()
+                    .find(|c| c.index as usize == idx)
+            {
+                capture.node
+            } else if let Some(first) = match_result.captures.first() {
+                first.node
+            } else {
+                return false;
+            };
+
+            // Walk up the parent chain. Catch when a `function_definition`
+            // ancestor is reached before any `class_definition`. Stop on
+            // `class_definition` so that methods of nested classes are not
+            // flagged by this rule.
+            let mut cur = violation_node.parent();
+            while let Some(node) = cur {
+                match node.kind() {
+                    "class_definition" => return false,
+                    "function_definition" => return true,
+                    _ => {}
+                }
+                cur = node.parent();
+            }
+            false
         }
     }
 }

@@ -7,7 +7,7 @@
 
 mod sculptor_common;
 
-use sculptor_common::{expect_match, expect_no_match, load_rule};
+use sculptor_common::{expect_match, expect_no_match, load_rule, load_rule_with_python_tests};
 
 // --------------------------------------------------------------------------
 // no-bare-exit (sculptor: non_sys_exit)
@@ -394,6 +394,194 @@ fn mutable_attr_frozen_non_matches() {
         &rule,
         "@attr.s(auto_attribs=True)\nclass A:\n    a: Dict[str, int]\n",
         "not frozen ok",
+    );
+}
+
+// --------------------------------------------------------------------------
+// no-inline-functions (sculptor: inline_functions)
+// --------------------------------------------------------------------------
+// Sculptor's regex relies on indentation + "first arg is not cls/self" to
+// approximate "inline function." That heuristic misses several real shapes:
+//   - `async def` (the regex starts with `def`, not `(?:async\s+)?def`)
+//   - decorator-`wraps` wrappers whose first arg is `self` (because the
+//     wrapped function is a method) — sculptor wrongly skips them
+//   - inline functions taking `self` as a parameter name (e.g. monkey-patch
+//     targets) — sculptor wrongly skips them
+// And gives false positives on `def NAME(` appearing inside docstrings.
+//
+// Our query captures every `function_definition` and uses the
+// `nested_in_function_definition` post-filter to keep only those whose AST
+// ancestor chain hits a `function_definition` before any `class_definition`.
+// This handles direct nested functions, decorated-wrapper nested functions,
+// and functions nested inside `if`/`with`/`for`/`try` blocks of an enclosing
+// function, while correctly NOT flagging methods of nested classes.
+#[test]
+fn no_inline_functions_direct_nested_matches() {
+    let rule = load_rule_with_python_tests("no-inline-functions");
+    expect_match(
+        &rule,
+        "def outer():\n    def inner():\n        pass\n",
+        "direct nested function",
+    );
+    expect_match(
+        &rule,
+        "def outer(x):\n    def helper(y):\n        return y + 1\n    return helper(x)\n",
+        "nested with args",
+    );
+}
+
+#[test]
+fn no_inline_functions_decorated_nested_matches() {
+    // Previously-missed shape: a nested function wrapped by a decorator is
+    // wrapped in a `decorated_definition` node, so the old query
+    // `(function_definition body: (block (function_definition) @v))` did not
+    // match it. The new post-filter approach walks up the parent chain and
+    // catches the inner function regardless of intermediate wrappers.
+    let rule = load_rule_with_python_tests("no-inline-functions");
+    expect_match(
+        &rule,
+        "import functools\n\
+         def sync(func):\n    \
+             @functools.wraps(func)\n    \
+             def wrapper(*args, **kwargs):\n        \
+                 return func(*args, **kwargs)\n    \
+             return wrapper\n",
+        "@functools.wraps decorated wrapper",
+    );
+    expect_match(
+        &rule,
+        "def outer(func):\n    \
+             @wraps(func)\n    \
+             def wrapper(self, x):\n        \
+                 return func(self, x)\n    \
+             return wrapper\n",
+        "decorated wrapper whose first arg is self",
+    );
+}
+
+#[test]
+fn no_inline_functions_nested_in_block_matches() {
+    // Previously-missed shape: a function defined inside an `if`/`with`/`for`
+    // /`try` block within an enclosing function is not a direct child of the
+    // enclosing function's body block, so the old narrow query missed it.
+    let rule = load_rule_with_python_tests("no-inline-functions");
+    expect_match(
+        &rule,
+        "def outer():\n    \
+             if cond:\n        \
+                 def inner():\n            \
+                     pass\n",
+        "nested inside if",
+    );
+    expect_match(
+        &rule,
+        "def outer():\n    \
+             with ctx:\n        \
+                 def inner():\n            \
+                     pass\n",
+        "nested inside with",
+    );
+    expect_match(
+        &rule,
+        "def outer():\n    \
+             for x in items:\n        \
+                 def inner():\n            \
+                     pass\n",
+        "nested inside for",
+    );
+    expect_match(
+        &rule,
+        "def outer():\n    \
+             try:\n        \
+                 def inner():\n            \
+                     pass\n    \
+             except Exception:\n        \
+                 pass\n",
+        "nested inside try",
+    );
+}
+
+#[test]
+fn no_inline_functions_async_def_matches() {
+    let rule = load_rule_with_python_tests("no-inline-functions");
+    expect_match(
+        &rule,
+        "async def outer():\n    \
+             try:\n        \
+                 async def read():\n            \
+                     pass\n        \
+                 async def write():\n            \
+                     pass\n    \
+             except Exception:\n        \
+                 pass\n",
+        "async def inline",
+    );
+}
+
+#[test]
+fn no_inline_functions_deeply_nested_matches() {
+    let rule = load_rule_with_python_tests("no-inline-functions");
+    expect_match(
+        &rule,
+        "def outer():\n    \
+             def middle():\n        \
+                 def inner():\n            \
+                     pass\n",
+        "three-deep nesting (each inner counted)",
+    );
+}
+
+#[test]
+fn no_inline_functions_top_level_does_not_match() {
+    let rule = load_rule_with_python_tests("no-inline-functions");
+    expect_no_match(
+        &rule,
+        "def foo():\n    pass\ndef bar():\n    pass\n",
+        "two top-level functions",
+    );
+}
+
+#[test]
+fn no_inline_functions_class_method_does_not_match() {
+    let rule = load_rule_with_python_tests("no-inline-functions");
+    expect_no_match(
+        &rule,
+        "class Foo:\n    \
+             def bar(self):\n        \
+                 pass\n",
+        "regular method",
+    );
+    expect_no_match(
+        &rule,
+        "class Foo:\n    \
+             @staticmethod\n    \
+             def bar():\n        \
+                 pass\n",
+        "staticmethod",
+    );
+    expect_no_match(
+        &rule,
+        "class Foo:\n    \
+             @classmethod\n    \
+             def bar(cls):\n        \
+                 pass\n",
+        "classmethod",
+    );
+}
+
+#[test]
+fn no_inline_functions_method_of_nested_class_does_not_match() {
+    // Methods of a class defined inside a function should NOT be flagged
+    // as inline functions — the walk stops at the first `class_definition`
+    // ancestor. (The nested class itself is a separate concern.)
+    let rule = load_rule_with_python_tests("no-inline-functions");
+    expect_no_match(
+        &rule,
+        "def outer():\n    \
+             class Inner:\n        \
+                 def method(self):\n            \
+                     pass\n",
+        "method of nested class",
     );
 }
 
