@@ -647,3 +647,200 @@ fn no_bare_exit_no_args_does_not_match() {
     let rule = load_rule("no-bare-exit");
     expect_no_match(&rule, "exit()\n", "no args");
 }
+
+// --------------------------------------------------------------------------
+// no-underscore-imports (sculptor: import_underscore)
+// --------------------------------------------------------------------------
+// Sculptor's regex is `^(from [\w.]+ )?import __?\w+`, which matches when the
+// IMPORTED name (the token right after `import `) starts with one or two
+// underscores. The module path in `from MODULE import NAME` is unconstrained,
+// so `from _module import foo` is intentionally NOT flagged.
+//
+// Our previous query matched any `(dotted_name (identifier))` child of an
+// `import_from_statement`, which incorrectly fired on the module path too
+// (e.g. `from _typeshed import OpenBinaryMode` and
+// `from cattrs._compat import is_generic` both falsely matched). Pinning the
+// query to the `name:` field of `import_from_statement`/`import_statement`
+// fixes the overcount.
+
+#[test]
+fn no_underscore_imports_from_import_underscore_name_matches() {
+    // Sculptor match_examples: `from thing import _thing`, `from thing.thing import _thing`.
+    let rule = load_rule_with_python_tests("no-underscore-imports");
+    expect_match(
+        &rule,
+        "from thing import _thing\n",
+        "from MODULE import _NAME",
+    );
+    expect_match(
+        &rule,
+        "from thing import __thing\n",
+        "from MODULE import __NAME (dunder)",
+    );
+    expect_match(
+        &rule,
+        "from thing.thing import _thing\n",
+        "from MODULE.SUB import _NAME",
+    );
+    expect_match(
+        &rule,
+        "from sculptor.testing.server_utils import _start_server_process_and_validate_readiness\n",
+        "real sculptor violation 1",
+    );
+    expect_match(
+        &rule,
+        "from imbue_core.nested_evolver import _Evolver\n",
+        "real sculptor violation 2",
+    );
+}
+
+#[test]
+fn no_underscore_imports_aliased_underscore_name_matches() {
+    // Sculptor's regex matches `from x import _y as z` because the substring
+    // `import _y` is present. Tree-sitter wraps this in an `aliased_import`
+    // node, so we need a dedicated pattern.
+    let rule = load_rule_with_python_tests("no-underscore-imports");
+    expect_match(
+        &rule,
+        "from foo import _bar as baz\n",
+        "from MODULE import _NAME as ALIAS",
+    );
+    expect_match(
+        &rule,
+        "from foo import _bar as _baz\n",
+        "from MODULE import _NAME as _ALIAS",
+    );
+}
+
+#[test]
+fn no_underscore_imports_bare_import_underscore_matches() {
+    // Sculptor match_examples: `import _thing`, `import __thing`.
+    // Our previous query missed these because it only handled
+    // `import_from_statement`, not the distinct `import_statement` node.
+    let rule = load_rule_with_python_tests("no-underscore-imports");
+    expect_match(&rule, "import _thing\n", "import _NAME");
+    expect_match(&rule, "import __thing\n", "import __NAME (dunder)");
+    expect_match(&rule, "import _thing as t\n", "import _NAME as ALIAS");
+}
+
+#[test]
+fn no_underscore_imports_from_private_module_does_not_match() {
+    // Sculptor's `^(from [\w.]+ )?import __?\w+` does NOT match
+    // `from _module import foo` because the imported name is `foo`, not `_*`.
+    // The +62 overcount in code-eu8 was driven by our prior query catching
+    // these cases (e.g. `from _typeshed import OpenBinaryMode`,
+    // `from cattrs._compat import is_generic`).
+    let rule = load_rule_with_python_tests("no-underscore-imports");
+    expect_no_match(
+        &rule,
+        "from _typeshed import OpenBinaryMode\n",
+        "from _MODULE import NAME (top-level)",
+    );
+    expect_no_match(
+        &rule,
+        "from cattrs._compat import is_generic\n",
+        "from MODULE._SUB import NAME (submodule path)",
+    );
+    expect_no_match(
+        &rule,
+        "from sculpt.commands._follow_helpers import follow_and_stream_messages\n",
+        "from PKG.SUB._PRIVATE import name",
+    );
+    expect_no_match(
+        &rule,
+        "from _pytest.junitxml import xml_key\n",
+        "from _PKG.SUB import name",
+    );
+    expect_no_match(
+        &rule,
+        "from loguru._file_sink import FileSink\n",
+        "from PKG._SUB import Name",
+    );
+}
+
+#[test]
+fn no_underscore_imports_regular_imports_do_not_match() {
+    // Sculptor non_match_examples: `import stuff`, `from stuff import thing`.
+    let rule = load_rule_with_python_tests("no-underscore-imports");
+    expect_no_match(&rule, "import stuff\n", "import NAME");
+    expect_no_match(
+        &rule,
+        "from stuff import thing\n",
+        "from MODULE import NAME",
+    );
+    expect_no_match(
+        &rule,
+        "from stuff import thing as other\n",
+        "from MODULE import NAME as ALIAS",
+    );
+    expect_no_match(&rule, "import stuff as s\n", "import NAME as ALIAS");
+}
+
+#[test]
+fn no_underscore_imports_dotted_import_first_component_only() {
+    // Sculptor's regex requires the token right after `import ` to start with
+    // `_`, so `import foo._bar` does not match but `import _foo.bar` does.
+    // The `.` anchor on `(dotted_name . (identifier))` pins our predicate to
+    // the first identifier in the dotted path.
+    let rule = load_rule_with_python_tests("no-underscore-imports");
+    expect_no_match(
+        &rule,
+        "import foo._bar\n",
+        "import PUBLIC.PRIVATE not flagged",
+    );
+    expect_match(&rule, "import _foo.bar\n", "import _PRIVATE.PUBLIC flagged");
+}
+
+#[test]
+fn no_underscore_imports_multi_name_counts_per_offender() {
+    // `from foo import _bar, _baz` has two underscore-prefixed imports. Our
+    // tree-sitter query iterates over each `name:` child and emits one
+    // violation per offender. Sculptor's line-based regex only fires once per
+    // line and additionally misses this case entirely if the first name is
+    // not underscore-prefixed (e.g. `from foo import bar, _baz`), so we are
+    // strictly stricter here. This is intentional: each offending name is an
+    // independent fix.
+    let rule = load_rule_with_python_tests("no-underscore-imports");
+    assert_eq!(
+        matches(&rule, "from foo import _bar, _baz\n"),
+        2,
+        "two underscore-prefixed imports should produce two violations",
+    );
+    assert_eq!(
+        matches(&rule, "from foo import bar, _baz\n"),
+        1,
+        "one underscore-prefixed import among several should produce one violation",
+    );
+    assert_eq!(
+        matches(&rule, "from foo import bar, baz\n"),
+        0,
+        "no underscore-prefixed imports should produce no violations",
+    );
+}
+
+#[test]
+fn no_underscore_imports_relative_imports_handled() {
+    // `from . import _bar` and `from .foo import _bar` are valid Python.
+    // Sculptor's regex `from [\w.]+` requires `\w` after `from `, so it does
+    // NOT match `from . import ...` (the dot is not a word char). It does
+    // match `from .foo import _bar` only with the `from MODULE` prefix
+    // omitted (the alternate branch `(from [\w.]+ )?` is optional, and
+    // `^...import __?\w+` is the actual match — but `from .foo ` makes the
+    // optional group fail; the regex would still match because `^import` is
+    // not at line start. Let's not over-interpret. The structurally correct
+    // behavior is: the imported name (not the module path) is what matters.
+    // `from .foo import _bar` should be flagged because `_bar` is the
+    // imported name.
+    let rule = load_rule_with_python_tests("no-underscore-imports");
+    expect_match(&rule, "from . import _bar\n", "from . import _NAME");
+    expect_match(
+        &rule,
+        "from .foo import _bar\n",
+        "from .MODULE import _NAME",
+    );
+    expect_no_match(
+        &rule,
+        "from . import bar\n",
+        "from . import NAME (not underscore)",
+    );
+}
