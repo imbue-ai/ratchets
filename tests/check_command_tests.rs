@@ -642,6 +642,101 @@ fn test_check_since_bad_ref_returns_error() {
     std::env::set_current_dir(original_dir).unwrap();
 }
 
+// ============================================================================
+// Regression: bead code-owl
+//
+// When `ratchets check` is invoked with no path arg (or `.`), the file walker
+// emits paths prefixed with `./` (e.g. `./sub/file.tsx`). Anchored include
+// globs in rule TOMLs (e.g. `sub/**/*.tsx`) used to silently miss those paths
+// because globsets compared the literal `./` prefix. The rule helper
+// `normalize_for_glob_match` strips the prefix at the comparison site so
+// anchored includes match regardless of how the walker spelled the path.
+// ============================================================================
+
+#[test]
+#[serial]
+fn test_check_anchored_include_glob_matches_from_dot_root() {
+    // Regression test for bead code-owl: an anchored `include` glob in a
+    // rule TOML that targets a top-level subdirectory must fire even when
+    // ratchets is invoked from the parent directory of that subdirectory.
+    //
+    // Mechanism: when `ratchets check` runs with no PATH (or `.`), the file
+    // walker emits paths prefixed with `./`. Before the fix, anchored globs
+    // like `sculptor/frontend/src/**/*.tsx` failed to match those paths
+    // because globsets compared the `./` prefix literally.
+    //
+    // We reuse the embedded `no-raw-html-button` rule (which targets
+    // `sculptor/frontend/src/**/*.tsx`) and the matching subdir layout.
+    // Every other rule that could fire on the violating file is disabled
+    // so any EXIT_EXCEEDED below comes from `no-raw-html-button` alone.
+    let temp_dir = TempDir::new().unwrap();
+
+    let config = r#"
+[ratchets]
+version = "1"
+languages = ["typescript"]
+
+[rules]
+no-raw-html-button = true
+no-any = false
+no-todo-comments = false
+no-fixme-comments = false
+"#;
+    fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
+
+    // Budget of 0 in the root region: any single match -> EXCEEDED.
+    let counts = r#"
+[no-raw-html-button]
+"." = 0
+"#;
+    fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
+
+    // Place a violating file under the embedded rule's anchored include path.
+    let src_dir = temp_dir
+        .path()
+        .join("sculptor")
+        .join("frontend")
+        .join("src");
+    fs::create_dir_all(&src_dir).unwrap();
+    fs::write(src_dir.join("App.tsx"), "<button>X</button>\n").unwrap();
+
+    let original_dir = std::env::current_dir().unwrap();
+    std::env::set_current_dir(temp_dir.path()).unwrap();
+
+    // Run check from the parent directory (`.`). Before the fix, the walker
+    // emitted `./sculptor/frontend/src/App.tsx` and the include glob
+    // `sculptor/frontend/src/**/*.tsx` silently failed to match, so the rule
+    // reported 0 violations and check exited SUCCESS. After the fix, the
+    // glob matches and the budget-0 rule reports 1 violation -> EXCEEDED.
+    let exit_code_dot = ratchets::cli::check::run_check(
+        &[".".to_string()],
+        ratchets::cli::OutputFormat::Human,
+        false,
+        None,
+    );
+    assert_eq!(
+        exit_code_dot,
+        ratchets::cli::common::EXIT_EXCEEDED,
+        "anchored include glob must match ./ prefixed walker paths",
+    );
+
+    // Sanity check: same project, but invoke check with the subdirectory
+    // explicitly. This already worked before the fix, and must continue to.
+    let exit_code_sub = ratchets::cli::check::run_check(
+        &["sculptor".to_string()],
+        ratchets::cli::OutputFormat::Human,
+        false,
+        None,
+    );
+    assert_eq!(
+        exit_code_sub,
+        ratchets::cli::common::EXIT_EXCEEDED,
+        "anchored include glob must continue to match canonical paths",
+    );
+
+    std::env::set_current_dir(original_dir).unwrap();
+}
+
 #[test]
 #[serial]
 fn test_check_since_outside_git_repo_returns_error() {
