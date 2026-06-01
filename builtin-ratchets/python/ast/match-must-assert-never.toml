@@ -11,9 +11,9 @@ query = """
 """
 
 # Matches any Python `match` statement whose captured text does NOT contain
-# `case _ as <var>: assert_never(<var>)`. Sculptor's original
-# `match_without_wildcard_or_assert_never` rule enforces this for
-# exhaustiveness checking.
+# `case _ as <var>: assert_never(<var>)`. This enforces exhaustiveness
+# checking by requiring an explicit wildcard arm that hands control to
+# `assert_never`.
 #
 # Caveat: Rust regex (used by tree-sitter's #not-match?) doesn't support
 # backreferences, so we relax the bound-variable equality check to `\w+`

@@ -15,5 +15,5 @@ query = """
 """
 
 # Matches @classmethod-decorated functions whose name doesn't begin with the
-# allowed constructor prefixes. Sculptor's regex used lookbehind to anchor on
-# the decorator; tree-sitter expresses this directly via decorated_definition.
+# allowed constructor prefixes. The tree-sitter `decorated_definition` node
+# anchors the match to the decorator directly, so no lookbehind is needed.

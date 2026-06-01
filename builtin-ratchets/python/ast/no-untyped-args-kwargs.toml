@@ -35,10 +35,8 @@ query = """
 
 # Matches per-splat (each *args / **kwargs is its own violation node, so
 # `def f(*args, **kwargs)` reports two distinct violations — one per fix).
-# Sculptor's `args_kwargs` regex is line-based and reports at most once per
-# `def` line, missing both (a) multi-line signatures and (b) the second splat
-# on a line containing both. Per-splat AST capture corrects both. See bead
-# code-xep for evidence.
+# Per-splat AST capture handles both multi-line signatures and the case where
+# both splats appear on a single `def` line. See bead code-xep for evidence.
 #
 # Cases caught:
 #   def foo(*args, ...)             -- untyped *args
