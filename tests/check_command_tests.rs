@@ -662,13 +662,13 @@ fn test_check_anchored_include_glob_matches_from_dot_root() {
     //
     // Mechanism: when `ratchets check` runs with no PATH (or `.`), the file
     // walker emits paths prefixed with `./`. Before the fix, anchored globs
-    // like `sculptor/frontend/src/**/*.tsx` failed to match those paths
+    // like `example_app/frontend/src/**/*.tsx` failed to match those paths
     // because globsets compared the `./` prefix literally.
     //
-    // We reuse the embedded `no-raw-html-button` rule (which targets
-    // `sculptor/frontend/src/**/*.tsx`) and the matching subdir layout.
-    // Every other rule that could fire on the violating file is disabled
-    // so any EXIT_EXCEEDED below comes from `no-raw-html-button` alone.
+    // The rule under test is a custom inline rule written to the temp dir's
+    // `ratchets/regex/` directory, so the regression coverage does not depend
+    // on any particular embedded rule. The rule has the same shape as the
+    // original repro (anchored TypeScript `include` glob looking for `<button`).
     let temp_dir = TempDir::new().unwrap();
 
     let config = r#"
@@ -677,24 +677,40 @@ version = "1"
 languages = ["typescript"]
 
 [rules]
-no-raw-html-button = true
 no-any = false
 no-todo-comments = false
 no-fixme-comments = false
 "#;
     fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
+    // Custom rule TOML: TypeScript regex with an anchored include glob on a
+    // top-level subdirectory, mirroring the original failure mode.
+    let custom_rule_dir = temp_dir.path().join("ratchets").join("regex");
+    fs::create_dir_all(&custom_rule_dir).unwrap();
+    let rule_toml = r#"
+[rule]
+id = "no-raw-button-jsx"
+description = "Disallow raw <button> JSX in the example app frontend"
+severity = "warning"
+
+[match]
+pattern = "<button(\\s|>|$)"
+languages = ["typescript"]
+include = ["example_app/frontend/src/**/*.tsx"]
+"#;
+    fs::write(custom_rule_dir.join("no-raw-button-jsx.toml"), rule_toml).unwrap();
+
     // Budget of 0 in the root region: any single match -> EXCEEDED.
     let counts = r#"
-[no-raw-html-button]
+[no-raw-button-jsx]
 "." = 0
 "#;
     fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
 
-    // Place a violating file under the embedded rule's anchored include path.
+    // Place a violating file under the custom rule's anchored include path.
     let src_dir = temp_dir
         .path()
-        .join("sculptor")
+        .join("example_app")
         .join("frontend")
         .join("src");
     fs::create_dir_all(&src_dir).unwrap();
@@ -704,9 +720,9 @@ no-fixme-comments = false
     std::env::set_current_dir(temp_dir.path()).unwrap();
 
     // Run check from the parent directory (`.`). Before the fix, the walker
-    // emitted `./sculptor/frontend/src/App.tsx` and the include glob
-    // `sculptor/frontend/src/**/*.tsx` silently failed to match, so the rule
-    // reported 0 violations and check exited SUCCESS. After the fix, the
+    // emitted `./example_app/frontend/src/App.tsx` and the include glob
+    // `example_app/frontend/src/**/*.tsx` silently failed to match, so the
+    // rule reported 0 violations and check exited SUCCESS. After the fix, the
     // glob matches and the budget-0 rule reports 1 violation -> EXCEEDED.
     let exit_code_dot = ratchets::cli::check::run_check(
         &[".".to_string()],
@@ -723,7 +739,7 @@ no-fixme-comments = false
     // Sanity check: same project, but invoke check with the subdirectory
     // explicitly. This already worked before the fix, and must continue to.
     let exit_code_sub = ratchets::cli::check::run_check(
-        &["sculptor".to_string()],
+        &["example_app".to_string()],
         ratchets::cli::OutputFormat::Human,
         false,
         None,

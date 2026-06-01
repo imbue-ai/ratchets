@@ -4,7 +4,7 @@
 
 **Tracking beads (one per porting strategy):**
 - Group A — plain regex: [`code-61d`](../.beads/issues.jsonl) (closed)
-- Group B — path-scoped regex: [`code-aoe`](../.beads/issues.jsonl) (closed)
+- Group B — path-scoped regex: [`code-aoe`](../.beads/issues.jsonl) (closed; subsequently relocated out of this library — see Group B section below)
 - Group C — lookaround → tree-sitter AST: [`code-gkp`](../.beads/issues.jsonl) (closed)
 - Group D — bespoke match-exhaustiveness: [`code-m2l`](../.beads/issues.jsonl) (closed)
 
@@ -195,9 +195,17 @@ escaping, severity defaults, etc. Cross-reference sculptor's
 
 ---
 
-## Group B — Regex with path scoping (10 rules)
+## Group B — Regex with path scoping (10 rules) — RELOCATED
 
-**Bead:** `code-aoe`
+**Bead:** `code-aoe` (original port), `code-stl` (relocation)
+
+**Status:** These 10 rules were originally landed as library builtins under
+`builtin-ratchets/python/regex/` and `builtin-ratchets/typescript/regex/`, but
+they are sculptor-specific by design: their `include` globs hard-code
+`sculptor/...` paths or their rule IDs literally contain `sculptor`. They have
+since been removed from this library's builtins and now live in sculptor's own
+`ratchets/regex/` directory as custom rules (tracked separately under bead
+`code-ts4`). The historical entries below are preserved for reference only.
 
 The `[match]` section of each rule needs an `include` glob list. Sculptor uses
 file-path regexes; the Rust equivalent uses globs. For most rules a direct

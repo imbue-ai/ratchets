@@ -193,54 +193,11 @@ const BUILTIN_PYTHON_REGEX_RULES: &[(&str, &str)] = &[
         "no-type-ignore",
         include_str!("../../builtin-ratchets/python/regex/no-type-ignore.toml"),
     ),
-    // Group B — ports of sculptor's path-scoped regex ratchet rules
-    (
-        "no-sculptor-copytree",
-        include_str!("../../builtin-ratchets/python/regex/no-sculptor-copytree.toml"),
-    ),
-    (
-        "no-sculptor-subprocess",
-        include_str!("../../builtin-ratchets/python/regex/no-sculptor-subprocess.toml"),
-    ),
-    (
-        "no-integration-page-reload",
-        include_str!("../../builtin-ratchets/python/regex/no-integration-page-reload.toml"),
-    ),
-    (
-        "no-integration-non-testid-queries",
-        include_str!("../../builtin-ratchets/python/regex/no-integration-non-testid-queries.toml"),
-    ),
-    (
-        "no-integration-css-locators",
-        include_str!("../../builtin-ratchets/python/regex/no-integration-css-locators.toml"),
-    ),
-    (
-        "no-integration-type-method",
-        include_str!("../../builtin-ratchets/python/regex/no-integration-type-method.toml"),
-    ),
-    (
-        "no-integration-page-goto",
-        include_str!("../../builtin-ratchets/python/regex/no-integration-page-goto.toml"),
-    ),
-    (
-        "no-integration-page-evaluate",
-        include_str!("../../builtin-ratchets/python/regex/no-integration-page-evaluate.toml"),
-    ),
-    (
-        "no-integration-time-sleep",
-        include_str!("../../builtin-ratchets/python/regex/no-integration-time-sleep.toml"),
-    ),
 ];
 
 /// Embedded built-in regex rule files for TypeScript
 #[cfg(feature = "lang-typescript")]
-const BUILTIN_TYPESCRIPT_REGEX_RULES: &[(&str, &str)] = &[
-    // Group B — ports of sculptor's path-scoped regex ratchet rules
-    (
-        "no-raw-html-button",
-        include_str!("../../builtin-ratchets/typescript/regex/no-raw-html-button.toml"),
-    ),
-];
+const BUILTIN_TYPESCRIPT_REGEX_RULES: &[(&str, &str)] = &[];
 
 /// Embedded built-in AST rule files for Rust
 #[cfg(feature = "lang-rust")]
@@ -551,12 +508,6 @@ mod tests {
             assert!(!rule_ids.contains(&"no-base-exception"));
             assert!(!rule_ids.contains(&"no-eval-usage"));
             assert!(!rule_ids.contains(&"no-exec-usage"));
-        }
-
-        // Verify TypeScript regex rules are present when lang-typescript feature is enabled
-        #[cfg(feature = "lang-typescript")]
-        {
-            assert!(rule_ids.contains(&"no-raw-html-button"));
         }
     }
 
