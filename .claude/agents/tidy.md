@@ -32,6 +32,13 @@ Before starting any work, you MUST read: README.md, STYLE_GUIDE.md, ARCHITECTURE
 - Commit bead state changes to ensure they are tracked in version control
 - If the issue you identified is of P2 or lower, do not file a bead, but describe it in your reply to the Coordinator.
 
+## Writing beads that age well
+Beads you file may sit in the queue for several other beads' worth of work before being picked up. Other beads may move counts, rename constants, or land adjacent edits. To stay accurate:
+- **Anchor by name, not by count.** Say "the per-rule `load_*` helpers in `src/rules/builtin.rs`", not "all 21 helpers added in commit X".
+- **Anchor by file + symbol, not by line number.** Line numbers drift after every commit.
+- **State the invariant, not the current value.** "Replace literal expected-count assertions with a parametric count derived from the rule list" ages better than "Replace the `assert_eq!(rules.len(), 31)` with...".
+- **Include a "verification" line** so the implementing agent knows when to stop (e.g. "Done when the assertion no longer hardcodes a rule count and `cargo nextest run` passes").
+
 ## Constraints
 - Do NOT fix problems yourself - only file beads for the Coordinator to assign
 - Keep your analysis focused and actionable

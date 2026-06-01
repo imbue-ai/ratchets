@@ -11,6 +11,7 @@
 
 use crate::cli::args::OutputFormat;
 use crate::cli::common::{EXIT_ERROR, EXIT_EXCEEDED, EXIT_PARSE_ERROR, EXIT_SUCCESS};
+use crate::cli::git_diff::GitDiffError;
 use crate::engine::aggregator::ViolationAggregator;
 use crate::engine::executor::ExecutionEngine;
 use crate::error::ConfigError;
@@ -29,6 +30,9 @@ pub(crate) enum CheckError {
 
     #[error("File walker error: {0}")]
     FileWalker(#[from] crate::engine::file_walker::FileWalkerError),
+
+    #[error("{0}")]
+    GitDiff(#[from] GitDiffError),
 
     #[error("Parse error in {file}: {message}")]
     #[allow(dead_code)] // Reserved for future use when we detect parse errors
@@ -52,16 +56,22 @@ pub(crate) enum CheckError {
 /// * `paths` - Paths to check (defaults to current directory)
 /// * `format` - Output format (human or JSONL)
 /// * `verbose` - If true, show individual violation details. If false, show only summary.
+/// * `since` - If `Some(ref)`, only check files changed since the given git ref.
 ///
 /// # Returns
 ///
 /// Exit code:
 /// - 0: Success (all rules passed)
 /// - 1: Exceeded (one or more rules exceeded budget)
-/// - 2: Error (configuration/I/O error)
+/// - 2: Error (configuration/I/O error, including bad `--since` ref)
 /// - 3: Parse error (invalid TOML configuration)
-pub fn run_check(paths: &[String], format: OutputFormat, verbose: bool) -> i32 {
-    match run_check_inner(paths, format, verbose) {
+pub fn run_check(
+    paths: &[String],
+    format: OutputFormat,
+    verbose: bool,
+    since: Option<&str>,
+) -> i32 {
+    match run_check_inner(paths, format, verbose, since) {
         Ok(passed) => {
             if passed {
                 EXIT_SUCCESS
@@ -87,6 +97,7 @@ fn run_check_inner(
     paths: &[String],
     format: OutputFormat,
     verbose: bool,
+    since: Option<&str>,
 ) -> Result<bool, CheckError> {
     // 1. Load ratchets.toml config
     let config = super::common::load_config()?;
@@ -110,6 +121,13 @@ fn run_check_inner(
         })?
     } else {
         super::common::discover_files(paths, &config)?
+    };
+
+    // 5a. If --since was provided, intersect with files changed since that ref.
+    let files = if let Some(reference) = since {
+        super::common::filter_files_since(files, reference)?
+    } else {
+        files
     };
 
     if files.is_empty() {

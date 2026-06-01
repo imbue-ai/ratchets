@@ -1,0 +1,8 @@
+[rule]
+id = "no-byte-index-source"
+description = "Disallow byte-index slicing of source code with tree-sitter node .start_byte/.end_byte; broken for unicode"
+severity = "warning"
+
+[match]
+pattern = "\\[.*\\.start_byte\\s*:.*\\.end_byte\\]"
+languages = ["python"]

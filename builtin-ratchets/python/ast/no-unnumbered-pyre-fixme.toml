@@ -1,0 +1,15 @@
+[rule]
+id = "no-unnumbered-pyre-fixme"
+description = "# pyre-fixme must be numbered with an error code (e.g. # pyre-fixme[1])"
+severity = "warning"
+
+[match]
+language = "python"
+query = """
+((comment) @violation
+  (#match? @violation "# pyre-fixme")
+  (#not-match? @violation "# pyre-fixme\\\\[[\\\\d,\\\\s]+\\\\]"))
+"""
+
+# Matches comments containing `# pyre-fixme` that lack a `[<digits>]` code.
+# Mirrors no-unnumbered-pyre-ignore but without the `-all-errors` alternative.

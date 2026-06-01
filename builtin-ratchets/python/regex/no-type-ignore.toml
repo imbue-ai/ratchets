@@ -1,0 +1,8 @@
+[rule]
+id = "no-type-ignore"
+description = "Disallow '# type: ignore' comments; use pyre-ignore/pyre-fixme with codes instead"
+severity = "warning"
+
+[match]
+pattern = "# type: ignore"
+languages = ["python"]

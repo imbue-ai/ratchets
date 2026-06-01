@@ -6,6 +6,7 @@
 use serial_test::serial;
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 use tempfile::TempDir;
 
 /// Helper to create a test project structure
@@ -73,6 +74,7 @@ fn test_check_command_within_budget() {
         &[".".to_string()],
         ratchets::cli::OutputFormat::Human,
         false,
+        None,
     );
 
     // Should pass because we have 1 TODO and budget is 2
@@ -145,6 +147,7 @@ pattern = "TODO"
         &[".".to_string()],
         ratchets::cli::OutputFormat::Human,
         false,
+        None,
     );
 
     // Should fail because we have 2 TODOs and budget is 1
@@ -171,6 +174,7 @@ fn test_check_command_missing_config() {
         &[".".to_string()],
         ratchets::cli::OutputFormat::Human,
         false,
+        None,
     );
 
     // Should return error code
@@ -204,6 +208,7 @@ no-todo-comments = true
         &[".".to_string()],
         ratchets::cli::OutputFormat::Human,
         false,
+        None,
     );
 
     // Should succeed with warning (no files to check)
@@ -226,6 +231,7 @@ fn test_check_command_jsonl_format() {
         &[".".to_string()],
         ratchets::cli::OutputFormat::Jsonl,
         false,
+        None,
     );
 
     // Should pass because we have 1 TODO and budget is 2
@@ -305,6 +311,7 @@ pattern = "TODO"
         &[".".to_string()],
         ratchets::cli::OutputFormat::Human,
         true, // verbose = true
+        None,
     );
 
     // Should succeed - we have 1 TODO and budget is 10
@@ -328,6 +335,7 @@ fn test_check_verbose_short_flag_behavior() {
         &[".".to_string()],
         ratchets::cli::OutputFormat::Human,
         true, // verbose = true (equivalent to -v)
+        None,
     );
 
     // Should pass because we have 1 TODO and budget is 2
@@ -396,6 +404,7 @@ pattern = "TODO"
         &[".".to_string()],
         ratchets::cli::OutputFormat::Jsonl,
         true, // verbose = true
+        None,
     );
 
     // Should succeed
@@ -471,6 +480,7 @@ pattern = "TODO"
         &[".".to_string()],
         ratchets::cli::OutputFormat::Human,
         false, // verbose = false
+        None,
     );
 
     // Should pass because we have 2 TODOs and budget is 10
@@ -480,6 +490,287 @@ pattern = "TODO"
     // from this integration test because stdout goes directly to the terminal.
     // The actual behavior verification will be done through manual testing
     // or by checking the formatter unit tests which test both verbose=true and verbose=false.
+
+    std::env::set_current_dir(original_dir).unwrap();
+}
+
+// ============================================================================
+// --since <ref> tests
+// ============================================================================
+
+/// Runs `git` with the given args in `dir` and asserts it succeeds.
+fn git(dir: &Path, args: &[&str]) {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .expect("git command should be runnable in tests");
+    assert!(
+        output.status.success(),
+        "git {:?} failed: stderr={}",
+        args,
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// Builds a git repo with two commits:
+///   1) Adds `clean.rs` (no TODO) and `has_todo.rs` (with TODO) and commits.
+///   2) Modifies only `has_todo.rs` to add a *second* TODO and commits.
+///
+/// Returns the SHA of the first commit so callers can pass it as `--since`.
+fn setup_git_project_with_history(temp_dir: &Path) -> String {
+    // Standalone, hermetic config: tests must not depend on the developer's
+    // global git identity, init.defaultBranch, etc.
+    git(temp_dir, &["init", "--initial-branch=main", "--quiet"]);
+    git(temp_dir, &["config", "user.email", "test@example.com"]);
+    git(temp_dir, &["config", "user.name", "Test User"]);
+    git(temp_dir, &["config", "commit.gpgsign", "false"]);
+
+    // ratchets.toml, ratchet-counts.toml, and the builtin rule.
+    setup_test_project(temp_dir);
+
+    // Commit baseline. setup_test_project creates clean.rs and has_todo.rs.
+    git(temp_dir, &["add", "."]);
+    git(temp_dir, &["commit", "-m", "baseline", "--quiet"]);
+
+    let baseline = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(temp_dir)
+        .output()
+        .expect("rev-parse should succeed");
+    let baseline_sha = String::from_utf8(baseline.stdout)
+        .expect("git sha should be valid utf-8")
+        .trim()
+        .to_string();
+
+    // Second commit: modify has_todo.rs only.
+    fs::write(
+        temp_dir.join("has_todo.rs"),
+        "// TODO: fix this\n// TODO: another one\nfn main() {}\n",
+    )
+    .unwrap();
+    git(temp_dir, &["add", "has_todo.rs"]);
+    git(temp_dir, &["commit", "-m", "second", "--quiet"]);
+
+    baseline_sha
+}
+
+#[test]
+#[serial]
+fn test_check_since_filters_to_changed_files_only() {
+    let temp_dir = TempDir::new().unwrap();
+    let baseline_sha = setup_git_project_with_history(temp_dir.path());
+
+    // Override the counts so that ALL TODOs would exceed the budget. With
+    // --since baseline_sha, only has_todo.rs (which has 2 TODOs) is scanned;
+    // the budget of 1 is exceeded -> EXIT_EXCEEDED. Without --since the
+    // baseline file is also scanned, but it still totals 2 TODOs, so the
+    // budget is exceeded either way. The discriminating test is below: we
+    // pre-stage a third TODO outside the diff and assert it is NOT counted.
+    let counts = r#"
+[no-todo-comments]
+"." = 5
+"#;
+    fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
+
+    // Add an unstaged, uncommitted file with several TODOs that is NOT
+    // in the diff between HEAD and baseline (it lives in the working tree
+    // only and was never committed). It WILL appear in `git diff HEAD~1`
+    // because it is tracked? No - it isn't tracked. Actually, untracked
+    // files do not appear in `git diff`. That's exactly what we want:
+    // the untracked file is part of the working tree, the walker sees it,
+    // but `--since` filters it out.
+    fs::write(
+        temp_dir.path().join("untracked.rs"),
+        "// TODO: a\n// TODO: b\n// TODO: c\n// TODO: d\n// TODO: e\n// TODO: f\nfn main() {}\n",
+    )
+    .unwrap();
+
+    let original_dir = std::env::current_dir().unwrap();
+    std::env::set_current_dir(temp_dir.path()).unwrap();
+
+    // Without --since: walker finds clean.rs + has_todo.rs (2 TODOs) +
+    // untracked.rs (6 TODOs) = 8 TODOs > budget 5 -> EXCEEDED.
+    let exit_code = ratchets::cli::check::run_check(
+        &[".".to_string()],
+        ratchets::cli::OutputFormat::Human,
+        false,
+        None,
+    );
+    assert_eq!(
+        exit_code,
+        ratchets::cli::common::EXIT_EXCEEDED,
+        "without --since, untracked.rs should be scanned and exceed the budget",
+    );
+
+    // With --since baseline: only has_todo.rs is in the diff (2 TODOs <
+    // budget 5) -> SUCCESS. untracked.rs is excluded because it isn't in
+    // `git diff baseline_sha --name-only`. clean.rs is excluded because it
+    // was not modified.
+    let exit_code = ratchets::cli::check::run_check(
+        &[".".to_string()],
+        ratchets::cli::OutputFormat::Human,
+        false,
+        Some(&baseline_sha),
+    );
+    assert_eq!(
+        exit_code,
+        ratchets::cli::common::EXIT_SUCCESS,
+        "with --since baseline, only has_todo.rs should be scanned and pass the budget",
+    );
+
+    std::env::set_current_dir(original_dir).unwrap();
+}
+
+#[test]
+#[serial]
+fn test_check_since_bad_ref_returns_error() {
+    let temp_dir = TempDir::new().unwrap();
+    let _baseline = setup_git_project_with_history(temp_dir.path());
+
+    let original_dir = std::env::current_dir().unwrap();
+    std::env::set_current_dir(temp_dir.path()).unwrap();
+
+    let exit_code = ratchets::cli::check::run_check(
+        &[".".to_string()],
+        ratchets::cli::OutputFormat::Human,
+        false,
+        Some("this-ref-does-not-exist"),
+    );
+    assert_eq!(exit_code, ratchets::cli::common::EXIT_ERROR);
+
+    std::env::set_current_dir(original_dir).unwrap();
+}
+
+// ============================================================================
+// Regression: bead code-owl
+//
+// When `ratchets check` is invoked with no path arg (or `.`), the file walker
+// emits paths prefixed with `./` (e.g. `./sub/file.tsx`). Anchored include
+// globs in rule TOMLs (e.g. `sub/**/*.tsx`) used to silently miss those paths
+// because globsets compared the literal `./` prefix. The rule helper
+// `normalize_for_glob_match` strips the prefix at the comparison site so
+// anchored includes match regardless of how the walker spelled the path.
+// ============================================================================
+
+#[test]
+#[serial]
+fn test_check_anchored_include_glob_matches_from_dot_root() {
+    // Regression test for bead code-owl: an anchored `include` glob in a
+    // rule TOML that targets a top-level subdirectory must fire even when
+    // ratchets is invoked from the parent directory of that subdirectory.
+    //
+    // Mechanism: when `ratchets check` runs with no PATH (or `.`), the file
+    // walker emits paths prefixed with `./`. Before the fix, anchored globs
+    // like `example_app/frontend/src/**/*.tsx` failed to match those paths
+    // because globsets compared the `./` prefix literally.
+    //
+    // The rule under test is a custom inline rule written to the temp dir's
+    // `ratchets/regex/` directory, so the regression coverage does not depend
+    // on any particular embedded rule. The rule has the same shape as the
+    // original repro (anchored TypeScript `include` glob looking for `<button`).
+    let temp_dir = TempDir::new().unwrap();
+
+    let config = r#"
+[ratchets]
+version = "1"
+languages = ["typescript"]
+
+[rules]
+no-any = false
+no-todo-comments = false
+no-fixme-comments = false
+"#;
+    fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
+
+    // Custom rule TOML: TypeScript regex with an anchored include glob on a
+    // top-level subdirectory, mirroring the original failure mode.
+    let custom_rule_dir = temp_dir.path().join("ratchets").join("regex");
+    fs::create_dir_all(&custom_rule_dir).unwrap();
+    let rule_toml = r#"
+[rule]
+id = "no-raw-button-jsx"
+description = "Disallow raw <button> JSX in the example app frontend"
+severity = "warning"
+
+[match]
+pattern = "<button(\\s|>|$)"
+languages = ["typescript"]
+include = ["example_app/frontend/src/**/*.tsx"]
+"#;
+    fs::write(custom_rule_dir.join("no-raw-button-jsx.toml"), rule_toml).unwrap();
+
+    // Budget of 0 in the root region: any single match -> EXCEEDED.
+    let counts = r#"
+[no-raw-button-jsx]
+"." = 0
+"#;
+    fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
+
+    // Place a violating file under the custom rule's anchored include path.
+    let src_dir = temp_dir
+        .path()
+        .join("example_app")
+        .join("frontend")
+        .join("src");
+    fs::create_dir_all(&src_dir).unwrap();
+    fs::write(src_dir.join("App.tsx"), "<button>X</button>\n").unwrap();
+
+    let original_dir = std::env::current_dir().unwrap();
+    std::env::set_current_dir(temp_dir.path()).unwrap();
+
+    // Run check from the parent directory (`.`). Before the fix, the walker
+    // emitted `./example_app/frontend/src/App.tsx` and the include glob
+    // `example_app/frontend/src/**/*.tsx` silently failed to match, so the
+    // rule reported 0 violations and check exited SUCCESS. After the fix, the
+    // glob matches and the budget-0 rule reports 1 violation -> EXCEEDED.
+    let exit_code_dot = ratchets::cli::check::run_check(
+        &[".".to_string()],
+        ratchets::cli::OutputFormat::Human,
+        false,
+        None,
+    );
+    assert_eq!(
+        exit_code_dot,
+        ratchets::cli::common::EXIT_EXCEEDED,
+        "anchored include glob must match ./ prefixed walker paths",
+    );
+
+    // Sanity check: same project, but invoke check with the subdirectory
+    // explicitly. This already worked before the fix, and must continue to.
+    let exit_code_sub = ratchets::cli::check::run_check(
+        &["example_app".to_string()],
+        ratchets::cli::OutputFormat::Human,
+        false,
+        None,
+    );
+    assert_eq!(
+        exit_code_sub,
+        ratchets::cli::common::EXIT_EXCEEDED,
+        "anchored include glob must continue to match canonical paths",
+    );
+
+    std::env::set_current_dir(original_dir).unwrap();
+}
+
+#[test]
+#[serial]
+fn test_check_since_outside_git_repo_returns_error() {
+    let temp_dir = TempDir::new().unwrap();
+    // Deliberately do NOT call `git init`. The fixture is otherwise a
+    // valid ratchets project.
+    setup_test_project(temp_dir.path());
+
+    let original_dir = std::env::current_dir().unwrap();
+    std::env::set_current_dir(temp_dir.path()).unwrap();
+
+    let exit_code = ratchets::cli::check::run_check(
+        &[".".to_string()],
+        ratchets::cli::OutputFormat::Human,
+        false,
+        Some("main"),
+    );
+    assert_eq!(exit_code, ratchets::cli::common::EXIT_ERROR);
 
     std::env::set_current_dir(original_dir).unwrap();
 }

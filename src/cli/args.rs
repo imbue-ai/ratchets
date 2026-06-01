@@ -53,6 +53,14 @@ pub enum Command {
         /// Show individual violation details (file, line, snippet)
         #[arg(short, long)]
         verbose: bool,
+
+        /// Only check files changed since the given git ref (e.g. `main`, `HEAD~1`).
+        ///
+        /// Shells out to `git diff <REF> --name-only` and intersects the
+        /// result with the file walker's output, so include/exclude/gitignore
+        /// rules still apply. Files deleted relative to the ref are skipped.
+        #[arg(long, value_name = "REF")]
+        since: Option<String>,
     },
 
     /// Initialize ratchet in this repository
@@ -130,14 +138,25 @@ mod tests {
                 paths,
                 format,
                 verbose,
+                since,
             } => {
                 assert_eq!(paths, vec!["."]);
                 assert_eq!(format, OutputFormat::Human);
                 assert!(!verbose);
+                assert_eq!(since, None);
             }
             _ => panic!("Expected Check command"),
         }
         assert_eq!(cli.color, ColorChoice::Auto);
+    }
+
+    #[test]
+    fn test_check_with_since_flag() {
+        let cli = Cli::parse_from(["ratchets", "check", "--since", "main"]);
+        assert!(matches!(
+            cli.command,
+            Command::Check { since, .. } if since.as_deref() == Some("main")
+        ));
     }
 
     #[test]

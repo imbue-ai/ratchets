@@ -1,0 +1,8 @@
+[rule]
+id = "no-numpy-default-rng"
+description = "Disallow numpy.random.default_rng(); use the project wrapper instead"
+severity = "error"
+
+[match]
+pattern = "(np|numpy)\\.random\\.default_rng\\("
+languages = ["python"]

@@ -1,0 +1,8 @@
+[rule]
+id = "no-todo-remove-comment"
+description = "Disallow end-of-line '# TODO remove' comments"
+severity = "warning"
+
+[match]
+pattern = "(?m)# TODO remove$"
+languages = ["python"]

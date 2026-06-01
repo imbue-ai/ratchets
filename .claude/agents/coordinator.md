@@ -62,6 +62,7 @@ When delegating to a subagent, use the Task tool with the appropriate agent:
 - Bead list is stored in `.beads/issues.jsonl`
 - Update bead status with: `br update <id> --status done`
 - When creating, updating, or closing beads, commit the changes to `.beads/issues.jsonl` and `.beads/last-touched` to ensure bead state is tracked in version control.
+- **Bead state is the Coordinator's exclusive responsibility.** Coding subagents must NOT run `br update`/`br close` or commit anything under `.beads/`. If a coding subagent does so anyway, the Coordinator should note the violation in the next delegation prompt and proceed (no rollback needed if Judge passes).
 - If a subagent fails:
   - hard reset to pre-attempt commit: `git reset --hard <good_commit>`
   - run a Judge subagent to analyze the failure mode
@@ -70,6 +71,29 @@ When delegating to a subagent, use the Task tool with the appropriate agent:
   - run a Judge subagent to verify that the bead success is accurate, and no style guides were violated. The judge will run tests.
   - You MUST respect the result of the JUDGE agent. Instead of overruling the JUDGE, you may generate and delegate a bead prior to this one, to prepare the success of your eventual goal.
   - If any tests present as flaky, you are to attempt to delegate a bead to fix them first, before continuing your work.
+
+## Delegation prompt convention
+Coding/Judge/Tidy subagents already read `AGENTS.md` and their own `.claude/agents/<role>.md` on startup. Do NOT re-state the standing rules (read-docs order, definition of done, refactor gating, do-not-close-bead, trust-cargo-not-editor) in every delegation prompt — that is repeated context per bead. Keep delegation prompts focused on:
+- the bead id and a one-line goal,
+- the specific files / patterns relevant to this task,
+- the pre-attempt commit hash (for rollback),
+- any task-specific constraints not covered by AGENTS.md,
+- a pointer to AGENTS.md for the standing rules ("Standing rules in AGENTS.md and `.claude/agents/coding.md` apply.").
+
+## Editor diagnostics vs cargo
+- After each commit, the harness may surface stale rust-analyzer diagnostics that look like real compile errors. **Verify any suspicious diagnostic against `cargo check --all-targets` before failing a bead.** If cargo is clean, treat the editor diagnostic as noise and pass to Judge.
+- Benign inactive-code hints (`#[cfg(not(...))]` blocks) are expected for multi-config modules; ignore them and tell Judge to ignore them too.
+
+## Commit-message escaping
+Apostrophes (e.g. `sculptor's`) in bash heredocs can break `git commit -m`. When a commit message contains single quotes, write the message to a temp file and use `-F`:
+```bash
+cat > /tmp/commit-msg.txt <<'EOF'
+Your subject line
+
+Body with sculptor's apostrophe is safe here.
+EOF
+git commit -F /tmp/commit-msg.txt
+```
 
 
 

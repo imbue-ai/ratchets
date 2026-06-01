@@ -3,10 +3,37 @@
 //! Core Rule trait and related types for defining and executing rules
 
 use crate::types::{GlobPattern, Language, RegionPath, RuleId, Severity};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
+/// Strip a single leading `./` component from a file path for glob matching.
+///
+/// The `ignore` crate's `WalkBuilder` emits paths prefixed with the walk root.
+/// When ratchets is invoked with no path argument (or `.`), every emitted path
+/// is prefixed with `./` (e.g. `./example_app/frontend/App.tsx`). Globsets
+/// match that prefix literally, so anchored patterns like
+/// `example_app/frontend/**/*.tsx` silently fail to match.
+///
+/// This helper normalizes paths before glob comparison so rule include/exclude
+/// patterns match regardless of how the walker happened to spell the prefix.
+/// Only the literal leading `./` byte sequence is stripped, and only when a
+/// nonempty remainder follows; absolute paths, bare `.`, and paths without a
+/// `./` prefix are returned unchanged via `Cow::Borrowed`.
+pub(crate) fn normalize_for_glob_match(path: &Path) -> Cow<'_, Path> {
+    let Some(s) = path.to_str() else {
+        return Cow::Borrowed(path);
+    };
+    // Strip a literal "./" prefix, but never strip down to an empty path.
+    if let Some(rest) = s.strip_prefix("./")
+        && !rest.is_empty()
+    {
+        return Cow::Owned(PathBuf::from(rest));
+    }
+    Cow::Borrowed(path)
+}
 
 /// Type alias for the region resolver function
 ///
@@ -433,5 +460,48 @@ mod tests {
         // This test ensures that types implementing Rule are Send + Sync
         assert_send::<Box<dyn Rule>>();
         assert_sync::<Box<dyn Rule>>();
+    }
+
+    #[test]
+    fn test_normalize_for_glob_match_strips_dot_slash() {
+        let input = Path::new("./example_app/frontend/App.tsx");
+        let normalized = normalize_for_glob_match(input);
+        assert_eq!(
+            normalized.as_ref(),
+            Path::new("example_app/frontend/App.tsx")
+        );
+    }
+
+    #[test]
+    fn test_normalize_for_glob_match_passthrough_when_no_prefix() {
+        let input = Path::new("example_app/frontend/App.tsx");
+        let normalized = normalize_for_glob_match(input);
+        // No leading ./, should return the same path borrowed.
+        assert_eq!(normalized.as_ref(), input);
+        assert!(matches!(normalized, std::borrow::Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn test_normalize_for_glob_match_absolute_path_unchanged() {
+        let input = Path::new("/tmp/example_app/App.tsx");
+        let normalized = normalize_for_glob_match(input);
+        assert_eq!(normalized.as_ref(), input);
+        assert!(matches!(normalized, std::borrow::Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn test_normalize_for_glob_match_only_strips_single_prefix() {
+        // A path like "./sub/./file" should only have the leading ./ stripped.
+        let input = Path::new("./sub/./file.rs");
+        let normalized = normalize_for_glob_match(input);
+        assert_eq!(normalized.as_ref(), Path::new("sub/./file.rs"));
+    }
+
+    #[test]
+    fn test_normalize_for_glob_match_just_dot() {
+        let input = Path::new(".");
+        let normalized = normalize_for_glob_match(input);
+        // "." has no "./" prefix to strip; passes through.
+        assert_eq!(normalized.as_ref(), input);
     }
 }

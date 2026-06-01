@@ -1,0 +1,22 @@
+[rule]
+id = "attrs-decorator"
+description = "@attr.s(...) must use only the allowed flag combination: optional auto_exc=True, required auto_attribs=True, optional frozen=True, kw_only=True, repr=False in that order"
+severity = "error"
+
+[match]
+language = "python"
+query = """
+(decorator
+  (call
+    function: (attribute
+      object: (identifier) @obj
+      attribute: (identifier) @attr)
+    arguments: (argument_list) @args)
+  (#eq? @obj "attr")
+  (#eq? @attr "s")
+  (#not-match? @args "^\\\\((auto_exc=True, )?auto_attribs=True(, frozen=True)?(, kw_only=True)?(, repr=False)?\\\\)$")) @violation
+"""
+
+# Matches @attr.s(...) decorators whose argument list isn't one of the allowed
+# flag combinations. The argument_list node text includes the surrounding parens.
+# Anchors (^...$) on the regex pin the entire arg list to the allowed shape.

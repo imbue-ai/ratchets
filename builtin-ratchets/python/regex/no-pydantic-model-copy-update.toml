@@ -1,0 +1,8 @@
+[rule]
+id = "no-pydantic-model-copy-update"
+description = "Disallow pydantic .model_copy(update=...); use evolver or model_update helpers for extra validation"
+severity = "warning"
+
+[match]
+pattern = "\\.model_copy\\(.*update\\)"
+languages = ["python"]

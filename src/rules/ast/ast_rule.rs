@@ -7,6 +7,7 @@
 
 use crate::error::RuleError;
 use crate::rules::ast::ParserCache;
+use crate::rules::rule::normalize_for_glob_match;
 use crate::rules::{ExecutionContext, RegionResolver, Rule, RuleContext, Violation};
 use crate::types::{GlobPattern, Language, RegionPath, RuleId, Severity};
 use globset::{Glob, GlobSet, GlobSetBuilder};
@@ -74,6 +75,19 @@ pub struct AstRule {
 enum PostFilter {
     /// Filter out classes whose names end with "Exception" or "Error"
     ClassNameNotException,
+    /// Keep only matches whose `@violation` capture is nested inside an enclosing
+    /// `function_definition` (without crossing a `class_definition` first).
+    ///
+    /// Walks up the captured node's parent chain. Returns `true` (keep the
+    /// violation) when a `function_definition` ancestor is reached before any
+    /// `class_definition`. Returns `false` (drop) if a `class_definition` is
+    /// encountered first or no enclosing function is found.
+    ///
+    /// This catches inline functions whose AST structure is more than one level
+    /// removed from the enclosing function's body block — for example, functions
+    /// wrapped in a `decorated_definition` node, or nested inside `if`, `with`,
+    /// `for`, `try`, etc. statements within the enclosing function.
+    NestedInFunctionDefinition,
 }
 
 impl std::fmt::Debug for AstRule {
@@ -188,16 +202,22 @@ impl AstRule {
 
     /// Check if this rule applies to the given file path
     fn applies_to_file(&self, file_path: &Path) -> bool {
+        // The file walker emits paths prefixed with the walk root (e.g. `./`
+        // when invoked from the current directory). Normalize before glob
+        // matching so anchored include/exclude patterns work regardless of how
+        // the walker spelled the path. See `normalize_for_glob_match`.
+        let normalized = normalize_for_glob_match(file_path);
+
         // Check exclude patterns first
         if let Some(ref exclude) = self.exclude
-            && exclude.is_match(file_path)
+            && exclude.is_match(normalized.as_ref())
         {
             return false;
         }
 
         // If include patterns are specified, check them
         if let Some(ref include) = self.include {
-            include.is_match(file_path)
+            include.is_match(normalized.as_ref())
         } else {
             // No include patterns means match all files
             true
@@ -429,6 +449,7 @@ fn resolve_pattern_reference<'a>(
 fn parse_post_filter(filter_name: &str) -> Result<PostFilter, RuleError> {
     match filter_name {
         "class_name_not_exception" => Ok(PostFilter::ClassNameNotException),
+        "nested_in_function_definition" => Ok(PostFilter::NestedInFunctionDefinition),
         _ => Err(RuleError::InvalidDefinition(format!(
             "Unknown post_filter: {}",
             filter_name
@@ -466,6 +487,41 @@ fn apply_post_filter(
                 }
             }
             true
+        }
+        PostFilter::NestedInFunctionDefinition => {
+            // Find the @violation capture; fall back to the first capture if absent.
+            let violation_idx = query
+                .capture_names()
+                .iter()
+                .position(|name| *name == "violation");
+
+            let violation_node = if let Some(idx) = violation_idx
+                && let Some(capture) = match_result
+                    .captures
+                    .iter()
+                    .find(|c| c.index as usize == idx)
+            {
+                capture.node
+            } else if let Some(first) = match_result.captures.first() {
+                first.node
+            } else {
+                return false;
+            };
+
+            // Walk up the parent chain. Catch when a `function_definition`
+            // ancestor is reached before any `class_definition`. Stop on
+            // `class_definition` so that methods of nested classes are not
+            // flagged by this rule.
+            let mut cur = violation_node.parent();
+            while let Some(node) = cur {
+                match node.kind() {
+                    "class_definition" => return false,
+                    "function_definition" => return true,
+                    _ => {}
+                }
+                cur = node.parent();
+            }
+            false
         }
     }
 }
@@ -928,5 +984,110 @@ language = "rust"
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
         assert_eq!(violations[0].region.as_str(), "configured/region");
+    }
+
+    #[cfg(feature = "lang-rust")]
+    #[test]
+    fn test_include_matches_dot_slash_prefixed_path() {
+        // Regression test for bead code-owl: when invoked with no PATH (or `.`),
+        // the file walker emits paths like `./src/foo.rs`, and anchored include
+        // globs must still match.
+        let toml = r#"
+[rule]
+id = "find-unwrap-in-src"
+description = "Find unwrap calls under src"
+severity = "error"
+
+[match]
+query = """
+(call_expression
+  function: (field_expression
+    field: (field_identifier) @method)
+  (#eq? @method "unwrap")) @violation
+"""
+language = "rust"
+include = ["src/**"]
+"#;
+        let rule = AstRule::from_toml(toml).unwrap();
+
+        // With ./ prefix:
+        let ctx = ExecutionContext {
+            file_path: Path::new("./src/main.rs"),
+            content: "fn main() { Some(5).unwrap(); }",
+            ast: None,
+            region_resolver: None,
+        };
+        let violations = rule.execute(&ctx);
+        assert_eq!(
+            violations.len(),
+            1,
+            "include glob must match ./-prefixed path"
+        );
+
+        // Without ./ prefix:
+        let ctx = ExecutionContext {
+            file_path: Path::new("src/main.rs"),
+            content: "fn main() { Some(5).unwrap(); }",
+            ast: None,
+            region_resolver: None,
+        };
+        let violations = rule.execute(&ctx);
+        assert_eq!(
+            violations.len(),
+            1,
+            "include glob must match canonical path"
+        );
+
+        // Path outside include glob still doesn't match (even ./-prefixed).
+        let ctx = ExecutionContext {
+            file_path: Path::new("./tests/test.rs"),
+            content: "fn test() { Some(5).unwrap(); }",
+            ast: None,
+            region_resolver: None,
+        };
+        let violations = rule.execute(&ctx);
+        assert_eq!(violations.len(), 0);
+    }
+
+    #[cfg(feature = "lang-rust")]
+    #[test]
+    fn test_exclude_matches_dot_slash_prefixed_path() {
+        let toml = r#"
+[rule]
+id = "find-unwrap-not-tests"
+description = "Find unwrap except in tests"
+severity = "error"
+
+[match]
+query = """
+(call_expression
+  function: (field_expression
+    field: (field_identifier) @method)
+  (#eq? @method "unwrap")) @violation
+"""
+language = "rust"
+exclude = ["**/tests/**"]
+"#;
+        let rule = AstRule::from_toml(toml).unwrap();
+
+        // With ./ prefix, the exclude pattern still matches.
+        let ctx = ExecutionContext {
+            file_path: Path::new("./src/tests/foo.rs"),
+            content: "fn test() { Some(5).unwrap(); }",
+            ast: None,
+            region_resolver: None,
+        };
+        let violations = rule.execute(&ctx);
+        assert_eq!(violations.len(), 0, "**/tests/** must still exclude");
+
+        // Non-test file under ./ still matches.
+        let ctx = ExecutionContext {
+            file_path: Path::new("./src/main.rs"),
+            content: "fn main() { Some(5).unwrap(); }",
+            ast: None,
+            region_resolver: None,
+        };
+        let violations = rule.execute(&ctx);
+        assert_eq!(violations.len(), 1);
     }
 }

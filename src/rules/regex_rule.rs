@@ -6,6 +6,7 @@
 //! using regular expressions.
 
 use crate::error::RuleError;
+use crate::rules::rule::normalize_for_glob_match;
 use crate::rules::{ExecutionContext, Rule, RuleContext, Violation};
 use crate::types::{GlobPattern, Language, RuleId, Severity};
 use globset::{Glob, GlobSet, GlobSetBuilder};
@@ -169,16 +170,22 @@ impl RegexRule {
 
     /// Check if this rule applies to the given file path
     fn applies_to_file(&self, file_path: &Path) -> bool {
+        // The file walker emits paths prefixed with the walk root (e.g. `./`
+        // when invoked from the current directory). Normalize before glob
+        // matching so anchored include/exclude patterns work regardless of how
+        // the walker spelled the path. See `normalize_for_glob_match`.
+        let normalized = normalize_for_glob_match(file_path);
+
         // Check exclude patterns first
         if let Some(ref exclude) = self.exclude
-            && exclude.is_match(file_path)
+            && exclude.is_match(normalized.as_ref())
         {
             return false;
         }
 
         // If include patterns are specified, check them
         if let Some(ref include) = self.include {
-            include.is_match(file_path)
+            include.is_match(normalized.as_ref())
         } else {
             // No include patterns means match all files
             true
@@ -936,5 +943,97 @@ languages = ["rust"]
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
         assert_eq!(violations[0].region.as_str(), "configured/region");
+    }
+
+    #[test]
+    fn test_include_matches_dot_slash_prefixed_path() {
+        // Regression test for bead code-owl: when invoked with no PATH (or `.`),
+        // the file walker emits paths like `./example_app/frontend/App.tsx`,
+        // and anchored include globs must still match.
+        let toml = r#"
+[rule]
+id = "no-raw-html-button"
+description = "Disallow raw <button>"
+severity = "warning"
+
+[match]
+pattern = "<button"
+include = ["example_app/frontend/**/*.tsx"]
+"#;
+        let rule = RegexRule::from_toml(toml).unwrap();
+
+        // With dot-slash prefix (what the walker emits when root is `.`):
+        let ctx = ExecutionContext {
+            file_path: Path::new("./example_app/frontend/App.tsx"),
+            content: "<button>X</button>",
+            ast: None,
+            region_resolver: None,
+        };
+        let violations = rule.execute(&ctx);
+        assert_eq!(
+            violations.len(),
+            1,
+            "include glob must match ./-prefixed path"
+        );
+
+        // Without dot-slash prefix (what the walker emits when root is an explicit dir):
+        let ctx = ExecutionContext {
+            file_path: Path::new("example_app/frontend/App.tsx"),
+            content: "<button>X</button>",
+            ast: None,
+            region_resolver: None,
+        };
+        let violations = rule.execute(&ctx);
+        assert_eq!(
+            violations.len(),
+            1,
+            "include glob must match canonical path"
+        );
+
+        // A path outside the include glob still doesn't match (even ./-prefixed).
+        let ctx = ExecutionContext {
+            file_path: Path::new("./other/dir/App.tsx"),
+            content: "<button>X</button>",
+            ast: None,
+            region_resolver: None,
+        };
+        let violations = rule.execute(&ctx);
+        assert_eq!(violations.len(), 0, "non-matching paths still excluded");
+    }
+
+    #[test]
+    fn test_exclude_matches_dot_slash_prefixed_path() {
+        // Companion regression: exclude globs must also be normalized.
+        let toml = r#"
+[rule]
+id = "test-rule"
+description = "Find TODO but skip test files"
+severity = "warning"
+
+[match]
+pattern = "TODO"
+exclude = ["**/tests/**"]
+"#;
+        let rule = RegexRule::from_toml(toml).unwrap();
+
+        // With ./ prefix, the **/tests/** pattern still matches and excludes.
+        let ctx = ExecutionContext {
+            file_path: Path::new("./src/tests/foo.rs"),
+            content: "// TODO: fix",
+            ast: None,
+            region_resolver: None,
+        };
+        let violations = rule.execute(&ctx);
+        assert_eq!(violations.len(), 0, "**/tests/** must still exclude");
+
+        // Non-test file under ./ still matches.
+        let ctx = ExecutionContext {
+            file_path: Path::new("./src/main.rs"),
+            content: "// TODO: fix",
+            ast: None,
+            region_resolver: None,
+        };
+        let violations = rule.execute(&ctx);
+        assert_eq!(violations.len(), 1);
     }
 }

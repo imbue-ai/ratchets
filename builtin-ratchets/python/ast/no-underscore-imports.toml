@@ -5,21 +5,46 @@ severity = "warning"
 
 [match]
 language = "python"
+# Match imports of underscore-prefixed names.
+#
+# This rule flags imports where the IMPORTED name starts with one or more
+# underscores. It does NOT flag imports from underscore-prefixed modules
+# (e.g. `from _module import foo`), since a private module path is a
+# separate concern from importing a private name.
+#
+# Tree-sitter Python represents `from foo import _bar` as
+# `(import_from_statement
+#    module_name: (dotted_name (identifier "foo"))
+#    name: (dotted_name (identifier "_bar")))`,
+# so we restrict our match to the `name:` field rather than any descendant
+# `dotted_name`. We also handle the aliased shape `from foo import _bar as baz`
+# (`name: (aliased_import name: (dotted_name ...))`) and the bare
+# `import _bar` shape (`import_statement`, not `import_from_statement`).
+#
+# The `.` anchor on the dotted_name pins the predicate to the first identifier
+# in the path: `import foo._bar` is not flagged (the token right after
+# `import ` must itself start with `_`), but `import _foo.bar` is.
 query = """
 (import_from_statement
-  (aliased_import
-    name: (dotted_name
-      (identifier) @name
-      (#match? @name "^_"))) @violation)
+  name: (dotted_name
+    . (identifier) @violation)
+  (#match? @violation "^_"))
 
 (import_from_statement
-  (dotted_name
-    (identifier) @name
-    (#match? @name "^_")) @violation)
+  name: (aliased_import
+    name: (dotted_name
+      . (identifier) @violation))
+  (#match? @violation "^_"))
+
+(import_statement
+  name: (dotted_name
+    . (identifier) @violation)
+  (#match? @violation "^_"))
+
+(import_statement
+  name: (aliased_import
+    name: (dotted_name
+      . (identifier) @violation))
+  (#match? @violation "^_"))
 """
 exclude = "@python_tests"
-
-# This matches import statements where the imported name starts with an underscore.
-# For example: from module import _private_function
-# We need two patterns: one for aliased imports and one for regular imports.
-# The #match? predicate uses a regex to check if the name starts with underscore.

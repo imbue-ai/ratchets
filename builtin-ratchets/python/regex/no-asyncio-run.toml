@@ -1,0 +1,8 @@
+[rule]
+id = "no-asyncio-run"
+description = "Disallow raw asyncio.run(); use the wrapped variant instead"
+severity = "warning"
+
+[match]
+pattern = "asyncio\\.run\\("
+languages = ["python"]

@@ -1,0 +1,24 @@
+[rule]
+id = "no-typing-cast"
+description = "Avoid typing.cast / bare cast; try to satisfy the type checker without casting, or use pyre-fixme if the cast is uncertain"
+severity = "warning"
+
+[match]
+language = "python"
+query = """
+(call
+  function: (identifier) @func
+  (#eq? @func "cast")) @violation
+
+(call
+  function: (attribute
+    object: (identifier) @obj
+    attribute: (identifier) @attr)
+  (#eq? @obj "typing")
+  (#eq? @attr "cast")) @violation
+"""
+
+# Matches `cast(...)` (bare identifier "cast") and `typing.cast(...)`.
+# Does NOT match `something.cast(...)`, `self._cast(...)`, `safe_cast(...)`, or `forecast(...)`
+# because tree-sitter structural matching is exact: the function name must be "cast"
+# and (for attribute form) the object must be the identifier "typing".

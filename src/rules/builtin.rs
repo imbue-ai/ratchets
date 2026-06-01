@@ -108,7 +108,96 @@ const BUILTIN_PYTHON_REGEX_RULES: &[(&str, &str)] = &[
         "no-fstring-logging",
         include_str!("../../builtin-ratchets/python/regex/no-fstring-logging.toml"),
     ),
+    // Python regex rules: pattern-based checks
+    (
+        "no-pytorch-lightning",
+        include_str!("../../builtin-ratchets/python/regex/no-pytorch-lightning.toml"),
+    ),
+    (
+        "no-logger-warning",
+        include_str!("../../builtin-ratchets/python/regex/no-logger-warning.toml"),
+    ),
+    (
+        "no-quarantine-import",
+        include_str!("../../builtin-ratchets/python/regex/no-quarantine-import.toml"),
+    ),
+    (
+        "no-quarantine-paths",
+        include_str!("../../builtin-ratchets/python/regex/no-quarantine-paths.toml"),
+    ),
+    (
+        "no-walrus-operator",
+        include_str!("../../builtin-ratchets/python/regex/no-walrus-operator.toml"),
+    ),
+    (
+        "no-ssh-subprocess",
+        include_str!("../../builtin-ratchets/python/regex/no-ssh-subprocess.toml"),
+    ),
+    (
+        "no-os-path-join",
+        include_str!("../../builtin-ratchets/python/regex/no-os-path-join.toml"),
+    ),
+    (
+        "no-todo-remove-comment",
+        include_str!("../../builtin-ratchets/python/regex/no-todo-remove-comment.toml"),
+    ),
+    (
+        "no-implicit-string-concat",
+        include_str!("../../builtin-ratchets/python/regex/no-implicit-string-concat.toml"),
+    ),
+    (
+        "no-builtin-hash",
+        include_str!("../../builtin-ratchets/python/regex/no-builtin-hash.toml"),
+    ),
+    (
+        "no-make-composite-seed",
+        include_str!("../../builtin-ratchets/python/regex/no-make-composite-seed.toml"),
+    ),
+    (
+        "no-numpy-default-rng",
+        include_str!("../../builtin-ratchets/python/regex/no-numpy-default-rng.toml"),
+    ),
+    (
+        "no-asyncio-run",
+        include_str!("../../builtin-ratchets/python/regex/no-asyncio-run.toml"),
+    ),
+    (
+        "no-logger-exception",
+        include_str!("../../builtin-ratchets/python/regex/no-logger-exception.toml"),
+    ),
+    (
+        "no-pydantic-model-copy-update",
+        include_str!("../../builtin-ratchets/python/regex/no-pydantic-model-copy-update.toml"),
+    ),
+    (
+        "no-tree-sitter-text-decode",
+        include_str!("../../builtin-ratchets/python/regex/no-tree-sitter-text-decode.toml"),
+    ),
+    (
+        "no-byte-index-source",
+        include_str!("../../builtin-ratchets/python/regex/no-byte-index-source.toml"),
+    ),
+    (
+        "no-mypy-ignore-errors",
+        include_str!("../../builtin-ratchets/python/regex/no-mypy-ignore-errors.toml"),
+    ),
+    (
+        "no-pyre-ignore",
+        include_str!("../../builtin-ratchets/python/regex/no-pyre-ignore.toml"),
+    ),
+    (
+        "no-pyre-fixme",
+        include_str!("../../builtin-ratchets/python/regex/no-pyre-fixme.toml"),
+    ),
+    (
+        "no-type-ignore",
+        include_str!("../../builtin-ratchets/python/regex/no-type-ignore.toml"),
+    ),
 ];
+
+/// Embedded built-in regex rule files for TypeScript
+#[cfg(feature = "lang-typescript")]
+const BUILTIN_TYPESCRIPT_REGEX_RULES: &[(&str, &str)] = &[];
 
 /// Embedded built-in AST rule files for Rust
 #[cfg(feature = "lang-rust")]
@@ -194,6 +283,51 @@ const BUILTIN_AST_PYTHON_RULES: &[(&str, &str)] = &[
         "python-no-fixme-comments",
         include_str!("../../builtin-ratchets/python/ast/no-fixme-comments.toml"),
     ),
+    // Python AST rules: tree-sitter query checks
+    (
+        "no-bare-exit",
+        include_str!("../../builtin-ratchets/python/ast/no-bare-exit.toml"),
+    ),
+    (
+        "no-typing-cast",
+        include_str!("../../builtin-ratchets/python/ast/no-typing-cast.toml"),
+    ),
+    (
+        "no-unnumbered-pyre-ignore",
+        include_str!("../../builtin-ratchets/python/ast/no-unnumbered-pyre-ignore.toml"),
+    ),
+    (
+        "no-unnumbered-pyre-fixme",
+        include_str!("../../builtin-ratchets/python/ast/no-unnumbered-pyre-fixme.toml"),
+    ),
+    (
+        "no-unlabeled-type-ignore",
+        include_str!("../../builtin-ratchets/python/ast/no-unlabeled-type-ignore.toml"),
+    ),
+    (
+        "no-untyped-args-kwargs",
+        include_str!("../../builtin-ratchets/python/ast/no-untyped-args-kwargs.toml"),
+    ),
+    (
+        "classmethod-builder-naming",
+        include_str!("../../builtin-ratchets/python/ast/classmethod-builder-naming.toml"),
+    ),
+    (
+        "staticmethod-private-only",
+        include_str!("../../builtin-ratchets/python/ast/staticmethod-private-only.toml"),
+    ),
+    (
+        "attrs-decorator",
+        include_str!("../../builtin-ratchets/python/ast/attrs-decorator.toml"),
+    ),
+    (
+        "no-mutable-attr-in-frozen-dataclass",
+        include_str!("../../builtin-ratchets/python/ast/no-mutable-attr-in-frozen-dataclass.toml"),
+    ),
+    (
+        "match-must-assert-never",
+        include_str!("../../builtin-ratchets/python/ast/match-must-assert-never.toml"),
+    ),
 ];
 
 /// Embedded built-in AST rule files for TypeScript
@@ -202,6 +336,26 @@ const BUILTIN_AST_TYPESCRIPT_RULES: &[(&str, &str)] = &[(
     "no-any",
     include_str!("../../builtin-ratchets/typescript/ast/no-any.toml"),
 )];
+
+/// Parse `source` as embedded regex rules and append them to `rules`. `label`
+/// is interpolated into the parse-error message verbatim.
+fn extend_regex_rules(
+    rules: &mut RuleList,
+    source: &[(&str, &str)],
+    label: &str,
+) -> Result<(), RuleError> {
+    for (rule_name, toml_content) in source {
+        let rule = RegexRule::from_toml(toml_content).map_err(|e| {
+            RuleError::InvalidDefinition(format!(
+                "Failed to parse built-in {} rule '{}': {}",
+                label, rule_name, e
+            ))
+        })?;
+        let rule_id = rule.id().clone();
+        rules.push((rule_id, Box::new(rule) as Box<dyn Rule>));
+    }
+    Ok(())
+}
 
 /// Load all built-in regex rules from embedded resources
 ///
@@ -215,36 +369,41 @@ const BUILTIN_AST_TYPESCRIPT_RULES: &[(&str, &str)] = &[(
 pub fn load_builtin_regex_rules() -> Result<RuleList, RuleError> {
     let mut rules = Vec::new();
 
-    // Load common regex rules
-    for (rule_name, toml_content) in BUILTIN_REGEX_RULES {
-        let rule = RegexRule::from_toml(toml_content).map_err(|e| {
-            RuleError::InvalidDefinition(format!(
-                "Failed to parse built-in regex rule '{}': {}",
-                rule_name, e
-            ))
-        })?;
+    extend_regex_rules(&mut rules, BUILTIN_REGEX_RULES, "regex")?;
 
+    #[cfg(feature = "lang-python")]
+    extend_regex_rules(&mut rules, BUILTIN_PYTHON_REGEX_RULES, "Python regex")?;
+
+    #[cfg(feature = "lang-typescript")]
+    extend_regex_rules(
+        &mut rules,
+        BUILTIN_TYPESCRIPT_REGEX_RULES,
+        "TypeScript regex",
+    )?;
+
+    Ok(rules)
+}
+
+/// Parse `source` as embedded AST rules under `rule_context` and append them
+/// to `rules`. `label` is interpolated into the parse-error message verbatim.
+fn extend_ast_rules(
+    rules: &mut RuleList,
+    source: &[(&str, &str)],
+    rule_context: &crate::rules::RuleContext,
+    label: &str,
+) -> Result<(), RuleError> {
+    for (rule_name, toml_content) in source {
+        let rule =
+            AstRule::from_toml_with_context(toml_content, Some(rule_context)).map_err(|e| {
+                RuleError::InvalidDefinition(format!(
+                    "Failed to parse built-in {} rule '{}': {}",
+                    label, rule_name, e
+                ))
+            })?;
         let rule_id = rule.id().clone();
         rules.push((rule_id, Box::new(rule) as Box<dyn Rule>));
     }
-
-    // Load Python regex rules
-    #[cfg(feature = "lang-python")]
-    {
-        for (rule_name, toml_content) in BUILTIN_PYTHON_REGEX_RULES {
-            let rule = RegexRule::from_toml(toml_content).map_err(|e| {
-                RuleError::InvalidDefinition(format!(
-                    "Failed to parse built-in Python regex rule '{}': {}",
-                    rule_name, e
-                ))
-            })?;
-
-            let rule_id = rule.id().clone();
-            rules.push((rule_id, Box::new(rule) as Box<dyn Rule>));
-        }
-    }
-
-    Ok(rules)
+    Ok(())
 }
 
 /// Load all built-in AST rules from embedded resources
@@ -282,59 +441,29 @@ pub fn load_builtin_ast_rules() -> Result<RuleList, RuleError> {
 
     let rule_context = RuleContext { patterns };
 
-    // Load Rust AST rules
     #[cfg(feature = "lang-rust")]
-    {
-        for (rule_name, toml_content) in BUILTIN_AST_RUST_RULES {
-            let rule = AstRule::from_toml_with_context(toml_content, Some(&rule_context)).map_err(
-                |e| {
-                    RuleError::InvalidDefinition(format!(
-                        "Failed to parse built-in Rust AST rule '{}': {}",
-                        rule_name, e
-                    ))
-                },
-            )?;
+    extend_ast_rules(
+        &mut rules,
+        BUILTIN_AST_RUST_RULES,
+        &rule_context,
+        "Rust AST",
+    )?;
 
-            let rule_id = rule.id().clone();
-            rules.push((rule_id, Box::new(rule) as Box<dyn Rule>));
-        }
-    }
-
-    // Load Python AST rules
     #[cfg(feature = "lang-python")]
-    {
-        for (rule_name, toml_content) in BUILTIN_AST_PYTHON_RULES {
-            let rule = AstRule::from_toml_with_context(toml_content, Some(&rule_context)).map_err(
-                |e| {
-                    RuleError::InvalidDefinition(format!(
-                        "Failed to parse built-in Python AST rule '{}': {}",
-                        rule_name, e
-                    ))
-                },
-            )?;
+    extend_ast_rules(
+        &mut rules,
+        BUILTIN_AST_PYTHON_RULES,
+        &rule_context,
+        "Python AST",
+    )?;
 
-            let rule_id = rule.id().clone();
-            rules.push((rule_id, Box::new(rule) as Box<dyn Rule>));
-        }
-    }
-
-    // Load TypeScript AST rules
     #[cfg(feature = "lang-typescript")]
-    {
-        for (rule_name, toml_content) in BUILTIN_AST_TYPESCRIPT_RULES {
-            let rule = AstRule::from_toml_with_context(toml_content, Some(&rule_context)).map_err(
-                |e| {
-                    RuleError::InvalidDefinition(format!(
-                        "Failed to parse built-in TypeScript AST rule '{}': {}",
-                        rule_name, e
-                    ))
-                },
-            )?;
-
-            let rule_id = rule.id().clone();
-            rules.push((rule_id, Box::new(rule) as Box<dyn Rule>));
-        }
-    }
+    extend_ast_rules(
+        &mut rules,
+        BUILTIN_AST_TYPESCRIPT_RULES,
+        &rule_context,
+        "TypeScript AST",
+    )?;
 
     Ok(rules)
 }
@@ -350,12 +479,19 @@ mod tests {
 
         let rules = result.unwrap();
 
-        // The number of rules depends on which language features are enabled
-        #[cfg(not(feature = "lang-python"))]
-        assert_eq!(rules.len(), 2); // no-todo-comments and no-fixme-comments
-
+        // Derive the expected count from the same constants the loader iterates.
+        // This keeps the assertion in sync as new TOMLs are registered, while
+        // still catching cases where a rule is registered but fails to load.
+        let mut expected = BUILTIN_REGEX_RULES.len();
         #[cfg(feature = "lang-python")]
-        assert_eq!(rules.len(), 22); // 2 common + 20 Python regex rules
+        {
+            expected += BUILTIN_PYTHON_REGEX_RULES.len();
+        }
+        #[cfg(feature = "lang-typescript")]
+        {
+            expected += BUILTIN_TYPESCRIPT_REGEX_RULES.len();
+        }
+        assert_eq!(rules.len(), expected);
 
         // Check that rule IDs are correct
         let rule_ids: Vec<&str> = rules.iter().map(|(id, _)| id.as_str()).collect();
@@ -381,16 +517,23 @@ mod tests {
 
         let rules = result.unwrap();
 
-        // The number of rules depends on which language features are enabled
+        // Derive the expected count from the same constants the loader iterates.
+        // This keeps the assertion in sync as new TOMLs are registered, while
+        // still catching cases where a rule is registered but fails to load.
+        let mut expected = 0;
         #[cfg(feature = "lang-rust")]
-        assert!(rules.len() >= 5); // At least the 5 Rust rules
-
-        #[cfg(all(
-            feature = "lang-rust",
-            not(feature = "lang-python"),
-            not(feature = "lang-typescript")
-        ))]
-        assert_eq!(rules.len(), 5); // Exactly 5 if only Rust is enabled
+        {
+            expected += BUILTIN_AST_RUST_RULES.len();
+        }
+        #[cfg(feature = "lang-python")]
+        {
+            expected += BUILTIN_AST_PYTHON_RULES.len();
+        }
+        #[cfg(feature = "lang-typescript")]
+        {
+            expected += BUILTIN_AST_TYPESCRIPT_RULES.len();
+        }
+        assert_eq!(rules.len(), expected);
 
         // Verify Rust rules are present when lang-rust feature is enabled
         #[cfg(feature = "lang-rust")]

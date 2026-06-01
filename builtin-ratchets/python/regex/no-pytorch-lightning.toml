@@ -1,0 +1,8 @@
+[rule]
+id = "no-pytorch-lightning"
+description = "Disallow imports of the pytorch_lightning package"
+severity = "error"
+
+[match]
+pattern = "import pytorch_lightning|from pytorch_lightning"
+languages = ["python"]

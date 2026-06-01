@@ -1,0 +1,8 @@
+[rule]
+id = "no-tree-sitter-text-decode"
+description = "Disallow node.text.decode() on tree-sitter nodes; use get_text/get_source_code_slice instead"
+severity = "warning"
+
+[match]
+pattern = "\\.text\\.decode"
+languages = ["python"]

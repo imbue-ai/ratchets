@@ -1,0 +1,8 @@
+[rule]
+id = "no-pyre-fixme"
+description = "Disallow '# pyre-fixme' comments; fewer of these over time is the goal"
+severity = "warning"
+
+[match]
+pattern = "# pyre-fixme"
+languages = ["python"]

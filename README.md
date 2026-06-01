@@ -35,6 +35,8 @@ This creates:
 - `ratchet-counts.toml` — Violation budgets
 - `ratchets/` — Directory for custom rules
 
+Optionally, drop a `.ratchetignore` file at any depth in the tree to exclude paths from ratchet enforcement. Syntax matches `.gitignore` (per-directory, nested files compose, negation supported with `!`); these files are checked in alongside source.
+
 Run checks:
 
 ```bash
@@ -51,7 +53,14 @@ Verify that violations are within budget:
 ratchets check                    # Check all files
 ratchets check --format jsonl     # Machine-readable output
 ratchets check src/               # Check specific path
+ratchets check --since main       # Only files changed since the `main` ref
 ```
+
+`--since <REF>` shells out to `git diff <REF> --name-only` and intersects the
+result with the file walker's output. Include/exclude/gitignore filters still
+apply, and files deleted relative to `<REF>` are skipped silently. The command
+exits with code 2 if `<REF>` is unknown or the current directory is not inside
+a git repository.
 
 ### `ratchets bump`
 

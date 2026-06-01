@@ -1,0 +1,20 @@
+[rule]
+id = "match-must-assert-never"
+description = "match statements must end with `case _ as <var>: assert_never(<var>)` for exhaustiveness"
+severity = "error"
+
+[match]
+language = "python"
+query = """
+((match_statement) @violation
+ (#not-match? @violation "case\\\\s+_\\\\s+as\\\\s+\\\\w+\\\\s*:\\\\s*\\\\n?\\\\s*assert_never\\\\(\\\\w+\\\\)"))
+"""
+
+# Matches any Python `match` statement whose captured text does NOT contain
+# `case _ as <var>: assert_never(<var>)`. This enforces exhaustiveness
+# checking by requiring an explicit wildcard arm that hands control to
+# `assert_never`.
+#
+# Caveat: Rust regex (used by tree-sitter's #not-match?) doesn't support
+# backreferences, so we relax the bound-variable equality check to `\w+`
+# in both positions. Mismatched variable names don't occur in practice.

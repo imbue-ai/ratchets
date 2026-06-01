@@ -1,0 +1,8 @@
+[rule]
+id = "no-make-composite-seed"
+description = "Disallow direct calls to make_composite_seed(); use the CompositeSeed class instead"
+severity = "error"
+
+[match]
+pattern = "[^a-zA-Z_]make_composite_seed\\("
+languages = ["python"]

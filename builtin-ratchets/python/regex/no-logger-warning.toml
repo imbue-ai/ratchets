@@ -1,0 +1,8 @@
+[rule]
+id = "no-logger-warning"
+description = "Disallow logger.warning calls; use logger.error or logger.info instead"
+severity = "warning"
+
+[match]
+pattern = "logger\\.warning"
+languages = ["python"]

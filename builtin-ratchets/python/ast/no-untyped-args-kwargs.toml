@@ -1,0 +1,45 @@
+[rule]
+id = "no-untyped-args-kwargs"
+description = "*args / **kwargs must be typed as P.args / P.kwargs (paramspec); other types or no annotation are banned"
+severity = "warning"
+
+[match]
+language = "python"
+query = """
+(parameters
+  (list_splat_pattern
+    (identifier) @name) @violation
+  (#eq? @name "args"))
+
+(parameters
+  (typed_parameter
+    (list_splat_pattern
+      (identifier) @name)
+    type: (type) @type) @violation
+  (#eq? @name "args")
+  (#not-eq? @type "P.args"))
+
+(parameters
+  (dictionary_splat_pattern
+    (identifier) @name) @violation
+  (#eq? @name "kwargs"))
+
+(parameters
+  (typed_parameter
+    (dictionary_splat_pattern
+      (identifier) @name)
+    type: (type) @type) @violation
+  (#eq? @name "kwargs")
+  (#not-eq? @type "P.kwargs"))
+"""
+
+# Matches per-splat (each *args / **kwargs is its own violation node, so
+# `def f(*args, **kwargs)` reports two distinct violations — one per fix).
+# Per-splat AST capture handles both multi-line signatures and the case where
+# both splats appear on a single `def` line. See bead code-xep for evidence.
+#
+# Cases caught:
+#   def foo(*args, ...)             -- untyped *args
+#   def foo(*args: NotP.args, ...)  -- mistyped *args
+#   def foo(**kwargs, ...)          -- untyped **kwargs
+#   def foo(**kwargs: NotP.kwargs)  -- mistyped **kwargs

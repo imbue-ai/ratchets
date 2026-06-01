@@ -1,0 +1,8 @@
+[rule]
+id = "no-logger-exception"
+description = "Disallow logger.exception(); use the log_exception(e) helper instead"
+severity = "warning"
+
+[match]
+pattern = "logger\\.exception\\("
+languages = ["python"]
