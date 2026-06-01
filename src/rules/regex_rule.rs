@@ -948,7 +948,7 @@ languages = ["rust"]
     #[test]
     fn test_include_matches_dot_slash_prefixed_path() {
         // Regression test for bead code-owl: when invoked with no PATH (or `.`),
-        // the file walker emits paths like `./sculptor/frontend/src/App.tsx`,
+        // the file walker emits paths like `./example_app/frontend/App.tsx`,
         // and anchored include globs must still match.
         let toml = r#"
 [rule]
@@ -958,13 +958,13 @@ severity = "warning"
 
 [match]
 pattern = "<button"
-include = ["sculptor/frontend/src/**/*.tsx"]
+include = ["example_app/frontend/**/*.tsx"]
 "#;
         let rule = RegexRule::from_toml(toml).unwrap();
 
         // With dot-slash prefix (what the walker emits when root is `.`):
         let ctx = ExecutionContext {
-            file_path: Path::new("./sculptor/frontend/src/App.tsx"),
+            file_path: Path::new("./example_app/frontend/App.tsx"),
             content: "<button>X</button>",
             ast: None,
             region_resolver: None,
@@ -978,7 +978,7 @@ include = ["sculptor/frontend/src/**/*.tsx"]
 
         // Without dot-slash prefix (what the walker emits when root is an explicit dir):
         let ctx = ExecutionContext {
-            file_path: Path::new("sculptor/frontend/src/App.tsx"),
+            file_path: Path::new("example_app/frontend/App.tsx"),
             content: "<button>X</button>",
             ast: None,
             region_resolver: None,

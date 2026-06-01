@@ -108,7 +108,7 @@ const BUILTIN_PYTHON_REGEX_RULES: &[(&str, &str)] = &[
         "no-fstring-logging",
         include_str!("../../builtin-ratchets/python/regex/no-fstring-logging.toml"),
     ),
-    // Group A — ports of sculptor's plain-regex ratchet rules
+    // Python regex rules: pattern-based checks
     (
         "no-pytorch-lightning",
         include_str!("../../builtin-ratchets/python/regex/no-pytorch-lightning.toml"),
@@ -283,7 +283,7 @@ const BUILTIN_AST_PYTHON_RULES: &[(&str, &str)] = &[
         "python-no-fixme-comments",
         include_str!("../../builtin-ratchets/python/ast/no-fixme-comments.toml"),
     ),
-    // Group C — ports of sculptor's lookaround-based ratchet rules as tree-sitter queries
+    // Python AST rules: tree-sitter query checks
     (
         "no-bare-exit",
         include_str!("../../builtin-ratchets/python/ast/no-bare-exit.toml"),
@@ -324,7 +324,6 @@ const BUILTIN_AST_PYTHON_RULES: &[(&str, &str)] = &[
         "no-mutable-attr-in-frozen-dataclass",
         include_str!("../../builtin-ratchets/python/ast/no-mutable-attr-in-frozen-dataclass.toml"),
     ),
-    // Group D — port of sculptor's bespoke match-exhaustiveness ratchet rule
     (
         "match-must-assert-never",
         include_str!("../../builtin-ratchets/python/ast/match-must-assert-never.toml"),

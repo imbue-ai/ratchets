@@ -7,10 +7,10 @@ severity = "warning"
 language = "python"
 # Match imports of underscore-prefixed names.
 #
-# We mirror sculptor's `import_underscore` rule (regex
-# `^(from [\w.]+ )?import __?\w+`), which catches the IMPORTED name starting
-# with one or more underscores. Crucially, sculptor does NOT flag
-# `from _module import foo` (private module path is a separate concern).
+# This rule flags imports where the IMPORTED name starts with one or more
+# underscores. It does NOT flag imports from underscore-prefixed modules
+# (e.g. `from _module import foo`), since a private module path is a
+# separate concern from importing a private name.
 #
 # Tree-sitter Python represents `from foo import _bar` as
 # `(import_from_statement
@@ -22,8 +22,8 @@ language = "python"
 # `import _bar` shape (`import_statement`, not `import_from_statement`).
 #
 # The `.` anchor on the dotted_name pins the predicate to the first identifier
-# in the path: `import foo._bar` is not flagged (sculptor's regex requires the
-# token right after `import ` to start with `_`), but `import _foo.bar` is.
+# in the path: `import foo._bar` is not flagged (the token right after
+# `import ` must itself start with `_`), but `import _foo.bar` is.
 query = """
 (import_from_statement
   name: (dotted_name

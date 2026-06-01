@@ -13,9 +13,9 @@ use std::sync::Arc;
 ///
 /// The `ignore` crate's `WalkBuilder` emits paths prefixed with the walk root.
 /// When ratchets is invoked with no path argument (or `.`), every emitted path
-/// is prefixed with `./` (e.g. `./sculptor/frontend/src/App.tsx`). Globsets
+/// is prefixed with `./` (e.g. `./example_app/frontend/App.tsx`). Globsets
 /// match that prefix literally, so anchored patterns like
-/// `sculptor/frontend/src/**/*.tsx` silently fail to match.
+/// `example_app/frontend/**/*.tsx` silently fail to match.
 ///
 /// This helper normalizes paths before glob comparison so rule include/exclude
 /// patterns match regardless of how the walker happened to spell the prefix.
@@ -464,17 +464,17 @@ mod tests {
 
     #[test]
     fn test_normalize_for_glob_match_strips_dot_slash() {
-        let input = Path::new("./sculptor/frontend/src/App.tsx");
+        let input = Path::new("./example_app/frontend/App.tsx");
         let normalized = normalize_for_glob_match(input);
         assert_eq!(
             normalized.as_ref(),
-            Path::new("sculptor/frontend/src/App.tsx")
+            Path::new("example_app/frontend/App.tsx")
         );
     }
 
     #[test]
     fn test_normalize_for_glob_match_passthrough_when_no_prefix() {
-        let input = Path::new("sculptor/frontend/src/App.tsx");
+        let input = Path::new("example_app/frontend/App.tsx");
         let normalized = normalize_for_glob_match(input);
         // No leading ./, should return the same path borrowed.
         assert_eq!(normalized.as_ref(), input);
@@ -483,7 +483,7 @@ mod tests {
 
     #[test]
     fn test_normalize_for_glob_match_absolute_path_unchanged() {
-        let input = Path::new("/tmp/sculptor/App.tsx");
+        let input = Path::new("/tmp/example_app/App.tsx");
         let normalized = normalize_for_glob_match(input);
         assert_eq!(normalized.as_ref(), input);
         assert!(matches!(normalized, std::borrow::Cow::Borrowed(_)));

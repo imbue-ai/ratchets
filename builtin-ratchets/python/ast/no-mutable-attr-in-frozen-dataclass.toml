@@ -29,5 +29,4 @@ query = """
 # Matches class fields in frozen attr.s dataclasses where the declared type is
 # Dict/List/Set (built-in mutable containers).  The structural form ensures we
 # only flag class-body assignments, never function parameters or assignments
-# elsewhere — sculptor's full-file regex needed nested negative groups to
-# achieve the same scoping.
+# elsewhere; the tree-sitter query scopes the match to the class body directly.
