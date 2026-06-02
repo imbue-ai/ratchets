@@ -589,6 +589,54 @@ fn test_tighten_missing_config() {
     });
 }
 
+#[test]
+fn test_tighten_warns_on_orphan_count_and_tightens_surviving_rule() {
+    // Phase 5 of the ratchet-sets plan keeps counts.toml entries for rules
+    // that are no longer in the resolved enabled set dormant (no cleanup),
+    // but `tighten` emits a stderr warning naming each orphan so users notice
+    // stale entries. Surviving rules still tighten.
+    with_temp_dir(|temp_dir| {
+        setup_basic_project(temp_dir.path());
+
+        // setup_basic_project enables `no-todo-comments` and gives it a
+        // budget of 5. Add a counts entry for an extra rule that is not in
+        // `enabled_ratchets` — it should be flagged as orphan but not
+        // prevent the surviving rule from tightening to its current count.
+        let counts = r#"
+[no-todo-comments]
+"." = 5
+
+[some-orphan-rule]
+"." = 42
+"#;
+        fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
+
+        let exit_code = cli::tighten::run_tighten(None, None);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
+
+        // Surviving rule tightens from 5 to 1 (single TODO in test.rs).
+        let counts_content =
+            fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
+        assert!(
+            counts_content.contains("\".\" = 1"),
+            "expected no-todo-comments to tighten to 1, got:\n{}",
+            counts_content
+        );
+
+        // Orphan entry is preserved (kept dormant), not cleaned up.
+        assert!(
+            counts_content.contains("[some-orphan-rule]"),
+            "expected orphan rule entry to be preserved, got:\n{}",
+            counts_content
+        );
+        assert!(
+            counts_content.contains("42"),
+            "expected orphan rule's budget to be preserved, got:\n{}",
+            counts_content
+        );
+    });
+}
+
 // ============================================================================
 // LIST COMMAND TESTS
 // ============================================================================

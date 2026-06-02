@@ -12,7 +12,9 @@ use crate::config::ratchet_toml::Config;
 use crate::engine::aggregator::ViolationAggregator;
 use crate::engine::executor::ExecutionEngine;
 use crate::error::ConfigError;
+use crate::rules::RuleRegistry;
 use crate::types::{RegionPath, RuleId};
+use std::collections::HashSet;
 use std::path::Path;
 
 /// Error type specific to tighten command
@@ -226,6 +228,12 @@ fn run_full_check(
         ));
     }
 
+    // Phase 5 of the ratchet-sets plan: warn about orphaned counts.toml
+    // entries — rules that previously had budgets but are no longer in the
+    // resolved enabled set. The entries stay dormant (no cleanup) so the user
+    // can re-enable the rule later without losing the count.
+    warn_orphaned_counts(&counts, &registry);
+
     // Discover files
     let files = super::common::discover_files(&[".".to_string()], config)?;
 
@@ -242,6 +250,43 @@ fn run_full_check(
     let aggregation_result = aggregator.aggregate(execution_result.violations);
 
     Ok(aggregation_result)
+}
+
+/// Emit a stderr warning for every rule ID in `counts` that is not present in
+/// the resolved `registry`. Orphan entries are kept dormant (no cleanup) so
+/// re-enabling the rule preserves the historical budget; the warning makes the
+/// stale state visible to the user so they can act on it.
+///
+/// Output is deterministic: orphans are sorted alphabetically by rule ID
+/// before printing so test assertions and human reads stay stable across runs.
+fn warn_orphaned_counts(counts: &CountsManager, registry: &RuleRegistry) {
+    for orphan in orphaned_count_rule_ids(counts, registry) {
+        eprintln!("{}", format_orphan_warning(&orphan));
+    }
+}
+
+/// Return rule IDs that appear in `counts` but not in the resolved `registry`,
+/// sorted alphabetically for deterministic output. Pure function — used both
+/// by [`warn_orphaned_counts`] and by unit tests asserting orphan detection.
+fn orphaned_count_rule_ids(counts: &CountsManager, registry: &RuleRegistry) -> Vec<RuleId> {
+    let resolved: HashSet<&RuleId> = registry.iter_rules().map(|r| r.id()).collect();
+    let mut orphans: Vec<RuleId> = counts
+        .iter_rule_ids()
+        .filter(|id| !resolved.contains(*id))
+        .cloned()
+        .collect();
+    orphans.sort_by(|a, b| a.as_str().cmp(b.as_str()));
+    orphans
+}
+
+/// Format the orphan warning line for a single rule ID. Kept separate from
+/// the stderr-emitting helper so unit tests can assert the exact message
+/// without capturing stderr.
+fn format_orphan_warning(rule_id: &RuleId) -> String {
+    format!(
+        "Warning: ratchet-counts.toml lists '{}' but the rule is not in the resolved enabled set; its count entry will not be tightened.",
+        rule_id.as_str()
+    )
 }
 
 #[cfg(test)]
@@ -305,5 +350,101 @@ mod tests {
             }
             _ => panic!("Expected ExceededBudget variant"),
         }
+    }
+
+    /// Build a [`RuleRegistry`] populated with the named rule IDs by writing
+    /// throwaway regex rule TOML files into a temp directory and loading them
+    /// via the builtin loader. Keeps the orphan-detection unit tests honest by
+    /// exercising the real registry rather than a hand-rolled mock.
+    fn registry_with_rules(rule_ids: &[&str]) -> RuleRegistry {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        for id in rule_ids {
+            let rule_toml = format!(
+                r#"
+[rule]
+id = "{}"
+description = "Test rule for orphan detection"
+severity = "warning"
+
+[match]
+pattern = "PLACEHOLDER"
+"#,
+                id
+            );
+            std::fs::write(temp_dir.path().join(format!("{}.toml", id)), rule_toml).unwrap();
+        }
+        let mut registry = RuleRegistry::new();
+        registry
+            .load_builtin_regex_rules(temp_dir.path())
+            .expect("test rules should load");
+        registry
+    }
+
+    #[test]
+    fn test_orphaned_count_rule_ids_returns_empty_when_all_present() {
+        let mut counts = CountsManager::new();
+        counts.set_count(
+            &RuleId::new("present-rule").unwrap(),
+            &RegionPath::new("."),
+            5,
+        );
+
+        let registry = registry_with_rules(&["present-rule"]);
+        let orphans = orphaned_count_rule_ids(&counts, &registry);
+        assert!(orphans.is_empty(), "no orphans expected, got {:?}", orphans);
+    }
+
+    #[test]
+    fn test_orphaned_count_rule_ids_detects_missing_rule() {
+        let mut counts = CountsManager::new();
+        counts.set_count(
+            &RuleId::new("orphan-rule").unwrap(),
+            &RegionPath::new("."),
+            5,
+        );
+
+        let registry = registry_with_rules(&[]); // no rules resolved
+        let orphans = orphaned_count_rule_ids(&counts, &registry);
+        assert_eq!(orphans.len(), 1);
+        assert_eq!(orphans[0].as_str(), "orphan-rule");
+    }
+
+    #[test]
+    fn test_orphaned_count_rule_ids_is_sorted_alphabetically() {
+        let mut counts = CountsManager::new();
+        for id in ["zeta-rule", "alpha-rule", "mu-rule"] {
+            counts.set_count(&RuleId::new(id).unwrap(), &RegionPath::new("."), 1);
+        }
+
+        let registry = registry_with_rules(&[]); // every rule is an orphan
+        let orphans = orphaned_count_rule_ids(&counts, &registry);
+        let names: Vec<&str> = orphans.iter().map(|id| id.as_str()).collect();
+        assert_eq!(names, vec!["alpha-rule", "mu-rule", "zeta-rule"]);
+    }
+
+    #[test]
+    fn test_orphaned_count_rule_ids_keeps_resolved_rules() {
+        let mut counts = CountsManager::new();
+        counts.set_count(&RuleId::new("kept-rule").unwrap(), &RegionPath::new("."), 3);
+        counts.set_count(
+            &RuleId::new("orphan-rule").unwrap(),
+            &RegionPath::new("."),
+            7,
+        );
+
+        let registry = registry_with_rules(&["kept-rule"]);
+        let orphans = orphaned_count_rule_ids(&counts, &registry);
+        assert_eq!(orphans.len(), 1);
+        assert_eq!(orphans[0].as_str(), "orphan-rule");
+    }
+
+    #[test]
+    fn test_format_orphan_warning_mentions_rule_id_and_intent() {
+        let rule_id = RuleId::new("retired-rule").unwrap();
+        let line = format_orphan_warning(&rule_id);
+        assert!(line.starts_with("Warning:"));
+        assert!(line.contains("'retired-rule'"));
+        assert!(line.contains("ratchet-counts.toml"));
+        assert!(line.contains("will not be tightened"));
     }
 }
