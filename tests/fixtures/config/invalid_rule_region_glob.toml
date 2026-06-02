@@ -1,6 +1,6 @@
 # Invalid: malformed glob pattern in rule regions
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 
 [rules]

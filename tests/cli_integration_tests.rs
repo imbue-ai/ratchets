@@ -39,21 +39,28 @@ fn setup_basic_project(temp_dir: &Path) {
     // Create ratchets.toml
     let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
     fs::write(temp_dir.join("ratchets.toml"), config).unwrap();
 
-    // Create ratchet-counts.toml
+    // Create ratchet-counts.toml. Phase 1 of the ratchet-sets plan removes the
+    // v1 `[rules].rule-id = false` shorthand, so embedded Rust AST rules
+    // (rust-no-todo-comments / rust-no-fixme-comments) can no longer be
+    // silenced through the config. We grant them a generous budget instead so
+    // these tests focus on the regex `no-todo-comments` rule under test.
     let counts = r#"
 [no-todo-comments]
 "." = 5
+
+[rust-no-todo-comments]
+"." = 1000
+
+[rust-no-fixme-comments]
+"." = 1000
 "#;
     fs::write(temp_dir.join("ratchet-counts.toml"), counts).unwrap();
 
@@ -258,14 +265,11 @@ fn test_check_with_no_files_found() {
         // Create config but no source files
         let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
@@ -623,7 +627,7 @@ fn test_list_with_no_rules_enabled() {
         // Create config with all rules disabled
         let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 
 [rules]
@@ -897,14 +901,11 @@ fn test_check_with_empty_counts_file() {
         // Create config but empty counts file
         let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
         fs::write(temp_dir.path().join("ratchet-counts.toml"), "").unwrap();
@@ -961,20 +962,24 @@ fn test_tighten_with_multiple_rules() {
         // Create config with multiple rules
         let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
+        // Phase 1: generous budgets for embedded Rust AST rules.
         let counts = r#"
 [no-todo-comments]
 "." = 10
+
+[rust-no-todo-comments]
+"." = 1000
+
+[rust-no-fixme-comments]
+"." = 1000
 "#;
         fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
 
@@ -1016,15 +1021,11 @@ fn test_bump_all_with_empty_initial_counts() {
         // Create config with multiple rules
         let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-no-fixme-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
@@ -1098,15 +1099,11 @@ fn test_bump_all_with_existing_counts() {
         // Create config with multiple rules
         let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-no-fixme-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
@@ -1181,14 +1178,11 @@ fn test_bump_all_no_violations() {
         // Create config with rules
         let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
@@ -1242,15 +1236,11 @@ fn test_bump_all_with_unchanged_budgets() {
         // Create config with rules
         let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-no-fixme-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
@@ -1325,7 +1315,7 @@ fn test_bump_all_with_no_rules_enabled() {
         // Create config with no languages (which results in no rules)
         let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = []
 include = ["**/*.rs"]
 
@@ -1374,22 +1364,27 @@ fn test_tighten_only_updates_configured_regions() {
         // Create config with rule enabled
         let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
-        // Configure only "." and "a" regions - NOT "a/b" or "c"
+        // Configure only "." and "a" regions - NOT "a/b" or "c".
+        // Generous budgets for the embedded Rust AST rules so tighten only
+        // exercises the rule under test (no-todo-comments).
         let counts = r#"
 [no-todo-comments]
 "." = 100
 "a" = 100
+
+[rust-no-todo-comments]
+"." = 1000
+
+[rust-no-fixme-comments]
+"." = 1000
 "#;
         fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
 
@@ -1484,21 +1479,25 @@ fn test_tighten_does_not_create_new_regions() {
         // Create config with rule enabled
         let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
-        // Configure ONLY the root region
+        // Configure ONLY the root region. Generous budgets for embedded
+        // Rust AST rules (Phase 1: the boolean disable shorthand is gone).
         let counts = r#"
 [no-todo-comments]
 "." = 100
+
+[rust-no-todo-comments]
+"." = 1000
+
+[rust-no-fixme-comments]
+"." = 1000
 "#;
         fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
 
@@ -1570,11 +1569,12 @@ pattern = "TODO"
             "Counts file should contain '.' region"
         );
 
-        // Count the number of region entries (should be exactly 1)
+        // Count the number of region entries: one each for no-todo-comments,
+        // rust-no-todo-comments, and rust-no-fixme-comments — three total.
         let region_count = counts_content.matches(" = ").count();
         assert_eq!(
-            region_count, 1,
-            "Should have exactly one region entry (root)"
+            region_count, 3,
+            "Should have exactly three region entries (one per configured rule)"
         );
     });
 }
@@ -1592,22 +1592,26 @@ fn test_tighten_with_deeply_nested_unconfigured_directories() {
         // Create config with rule enabled
         let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
-        // Configure only root and src
+        // Configure only root and src. Generous budgets for embedded
+        // Rust AST rules (Phase 1: boolean disable shorthand is gone).
         let counts = r#"
 [no-todo-comments]
 "." = 100
 "src" = 100
+
+[rust-no-todo-comments]
+"." = 1000
+
+[rust-no-fixme-comments]
+"." = 1000
 "#;
         fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
 
@@ -1684,9 +1688,12 @@ pattern = "TODO"
             "Counts file should contain 'src' region"
         );
 
-        // Count the number of region entries (should be exactly 2)
+        // Count region entries: ".", "src" under no-todo-comments, plus
+        // "." each for rust-no-todo-comments and rust-no-fixme-comments. Four
+        // total. The asserted-absent intermediate directories are still
+        // verified above.
         let region_count = counts_content.matches(" = ").count();
-        assert_eq!(region_count, 2, "Should have exactly two region entries");
+        assert_eq!(region_count, 4, "Should have exactly four region entries");
     });
 }
 
@@ -1708,23 +1715,27 @@ fn test_tighten_preserves_configured_regions_with_zero_violations() {
         // Create config with rule enabled
         let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
-        // Configure root, src, and tests
+        // Configure root, src, and tests. Generous budgets for embedded
+        // Rust AST rules (Phase 1: boolean disable shorthand is gone).
         let counts = r#"
 [no-todo-comments]
 "." = 100
 "src" = 100
 "tests" = 50
+
+[rust-no-todo-comments]
+"." = 1000
+
+[rust-no-fixme-comments]
+"." = 1000
 "#;
         fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
 

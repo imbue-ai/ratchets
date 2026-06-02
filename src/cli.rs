@@ -9,6 +9,7 @@ pub mod init;
 pub mod list;
 pub mod merge_driver;
 pub mod tighten;
+pub mod upgrade_notice;
 
 // Re-export types for convenient access
 pub use args::{Cli, ColorChoice, Command, OutputFormat};

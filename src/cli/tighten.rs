@@ -76,6 +76,11 @@ pub fn run_tighten(rule_id: Option<&str>, region: Option<&str>) -> i32 {
             EXIT_EXCEEDED
         }
         Err(e) => {
+            // Print the embedded upgrade notice for schema version mismatches
+            // before the generic error printer.
+            if let TightenError::Config(ConfigError::UnsupportedVersion(_)) = &e {
+                super::upgrade_notice::print_to_stderr();
+            }
             eprintln!("Error: {}", e);
             EXIT_ERROR
         }

@@ -56,6 +56,11 @@ pub fn run_list(format: OutputFormat) -> i32 {
     match run_list_inner(format) {
         Ok(()) => EXIT_SUCCESS,
         Err(e) => {
+            // Print the embedded upgrade notice for schema version mismatches
+            // before the generic error printer.
+            if let ListError::Config(crate::error::ConfigError::UnsupportedVersion(_)) = &e {
+                super::upgrade_notice::print_to_stderr();
+            }
             eprintln!("Error: {}", e);
             EXIT_ERROR
         }

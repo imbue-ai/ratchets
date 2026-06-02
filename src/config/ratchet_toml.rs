@@ -1,11 +1,20 @@
 //! Parsing and validation for ratchets.toml configuration files
 
 use crate::error::ConfigError;
-use crate::types::{GlobPattern, Language, RuleId, Severity};
-use serde::{Deserialize, Serialize};
+use crate::types::{GlobPattern, Language, RuleId, SetId, Severity};
+use serde::de::{self, Deserializer};
+use serde::{Deserialize, Serialize, Serializer};
 use std::collections::HashMap;
+use std::fmt;
 use std::fs;
 use std::path::Path;
+
+/// Expected `[ratchets].version` value for the current schema.
+///
+/// Phase 1 of the ratchet-sets plan bumps this from `"1"` to `"2"`. The library
+/// only parses configs that match this exact string; everything else is
+/// rejected via [`ConfigError::UnsupportedVersion`].
+const EXPECTED_CONFIG_VERSION: &str = "2";
 
 /// Main configuration struct for ratchets.toml
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -24,6 +33,20 @@ pub struct Config {
     /// Reusable pattern definitions
     #[serde(default)]
     pub patterns: HashMap<String, Vec<GlobPattern>>,
+
+    /// Enabled ratchets — a mix of single rule IDs and `$set-name` references.
+    ///
+    /// Parsed in Phase 1 but **not yet load-bearing**; resolution is added in
+    /// Phase 2. Each entry is a single TOML string: a leading `$` strips and
+    /// parses the remainder as a [`SetId`], otherwise the bare string parses as
+    /// a [`RuleId`].
+    #[serde(default)]
+    pub enabled_ratchets: Vec<RatchetRef>,
+
+    /// Disabled ratchets — same shape as `enabled_ratchets`. Disabled wins over
+    /// enabled at resolution time (Phase 2).
+    #[serde(default)]
+    pub disabled_ratchets: Vec<RatchetRef>,
 }
 
 impl Config {
@@ -42,12 +65,13 @@ impl Config {
 
     /// Validate the configuration
     fn validate(&self) -> Result<(), ConfigError> {
-        // Validate version
-        if self.ratchets.version != "1" {
-            return Err(ConfigError::Validation(format!(
-                "Unsupported configuration version '{}'. Expected '1'",
-                self.ratchets.version
-            )));
+        // Validate version. Anything other than the current `EXPECTED_CONFIG_VERSION`
+        // (including the previously valid `"1"`) is rejected via a structured
+        // error so the CLI layer can render the embedded upgrade notice.
+        if self.ratchets.version != EXPECTED_CONFIG_VERSION {
+            return Err(ConfigError::UnsupportedVersion(
+                self.ratchets.version.clone(),
+            ));
         }
 
         // Validate that at least one language is specified
@@ -79,11 +103,11 @@ impl Config {
             })?;
         }
 
-        // Validate rule settings regions (if specified)
-        for (rule_id, rule_value) in &self.rules.builtin {
-            if let RuleValue::Settings(settings) = rule_value
-                && let Some(regions) = &settings.regions
-            {
+        // Validate rule settings regions (if specified). Post-v2 the only
+        // shape allowed under `[rules]` is a settings table, so every entry
+        // is iterated directly.
+        for (rule_id, settings) in &self.rules.builtin {
+            if let Some(regions) = &settings.regions {
                 for region in regions {
                     globset::Glob::new(region.as_str()).map_err(|e| {
                         ConfigError::Validation(format!(
@@ -97,10 +121,8 @@ impl Config {
             }
         }
 
-        for (rule_id, rule_value) in &self.rules.custom {
-            if let RuleValue::Settings(settings) = rule_value
-                && let Some(regions) = &settings.regions
-            {
+        for (rule_id, settings) in &self.rules.custom {
+            if let Some(regions) = &settings.regions {
                 for region in regions {
                     globset::Glob::new(region.as_str()).map_err(|e| {
                         ConfigError::Validation(format!(
@@ -135,7 +157,9 @@ impl Config {
 /// Ratchets metadata section
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RatchetsMeta {
-    /// Configuration version (must be "1")
+    /// Configuration schema version (must equal [`EXPECTED_CONFIG_VERSION`],
+    /// currently `"2"`). Any other value is rejected via
+    /// [`ConfigError::UnsupportedVersion`].
     pub version: String,
 
     /// Languages to analyze
@@ -156,25 +180,19 @@ fn default_include() -> Vec<GlobPattern> {
 }
 
 /// Rules configuration section
+///
+/// Each entry maps a rule ID to a settings table. The v1 shorthand
+/// `[rules].rule-id = true | false` is removed in v2 — enable / disable now
+/// lives in [`Config::enabled_ratchets`] / [`Config::disabled_ratchets`].
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct RulesConfig {
     /// Built-in rules (flattened from `[rules]` table, excluding `[rules.custom]`)
     #[serde(flatten)]
-    pub builtin: HashMap<RuleId, RuleValue>,
+    pub builtin: HashMap<RuleId, RuleSettings>,
 
     /// Custom rules from `[rules.custom]` section
     #[serde(default)]
-    pub custom: HashMap<RuleId, RuleValue>,
-}
-
-/// A rule can be enabled with a boolean or configured with settings
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum RuleValue {
-    /// Simple boolean enable/disable
-    Enabled(bool),
-    /// Settings table for the rule
-    Settings(RuleSettings),
+    pub custom: HashMap<RuleId, RuleSettings>,
 }
 
 /// Settings for individual rules
@@ -187,6 +205,67 @@ pub struct RuleSettings {
     /// Specific regions (glob patterns) where this rule applies
     #[serde(skip_serializing_if = "Option::is_none")]
     pub regions: Option<Vec<GlobPattern>>,
+}
+
+/// A single entry in `enabled_ratchets` / `disabled_ratchets`.
+///
+/// Serialized as a TOML string. A leading `$` strips and parses the remainder
+/// as a [`SetId`]; otherwise the bare string parses as a [`RuleId`]. The
+/// `@`-prefix remains reserved for the existing `[patterns]` glob-reference
+/// mechanism and is rejected here by the underlying `RuleId` validator.
+///
+/// Phase 1 only validates these references — full resolution (including
+/// `SetRegistry` and DFS expansion) arrives in Phase 2.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum RatchetRef {
+    /// A ratchet-set reference (written as `"$set-name"` in TOML).
+    Set(SetId),
+    /// A single rule reference (written as the bare `"rule-id"` in TOML).
+    Rule(RuleId),
+}
+
+impl fmt::Display for RatchetRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RatchetRef::Set(id) => write!(f, "${}", id),
+            RatchetRef::Rule(id) => write!(f, "{}", id),
+        }
+    }
+}
+
+impl Serialize for RatchetRef {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for RatchetRef {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = String::deserialize(deserializer)?;
+        if let Some(rest) = raw.strip_prefix('$') {
+            let set_id = SetId::new(rest).ok_or_else(|| {
+                de::Error::custom(format!(
+                    "invalid ratchet-set reference '{}': expected '$<set-id>' with alphanumeric + '-' + '_'",
+                    raw
+                ))
+            })?;
+            Ok(RatchetRef::Set(set_id))
+        } else {
+            let rule_id = RuleId::new(&raw).ok_or_else(|| {
+                de::Error::custom(format!(
+                    "invalid ratchet reference '{}': expected a bare rule ID (alphanumeric + '-' + '_') or '$<set-id>'",
+                    raw
+                ))
+            })?;
+            Ok(RatchetRef::Rule(rule_id))
+        }
+    }
 }
 
 /// Output configuration section
@@ -240,19 +319,15 @@ mod tests {
 
     const VALID_CONFIG: &str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust", "typescript", "python"]
 include = ["src/**", "tests/**"]
 exclude = ["**/generated/**", "**/vendor/**"]
 
 [rules]
-no-unwrap = true
-no-expect = true
 no-todo-comments = { severity = "warning" }
-no-fixme-comments = false
 
 [rules.custom]
-my-company-rule = true
 legacy-api-usage = { regions = ["src/legacy/**"] }
 
 [output]
@@ -264,7 +339,7 @@ color = "auto"
     fn test_valid_config_parsing() {
         let config = Config::parse(VALID_CONFIG).unwrap();
 
-        assert_eq!(config.ratchets.version, "1");
+        assert_eq!(config.ratchets.version, "2");
         assert_eq!(config.ratchets.languages.len(), 3);
         assert!(config.ratchets.languages.contains(&Language::Rust));
         assert!(config.ratchets.languages.contains(&Language::TypeScript));
@@ -273,45 +348,24 @@ color = "auto"
         assert_eq!(config.ratchets.include.len(), 2);
         assert_eq!(config.ratchets.exclude.len(), 2);
 
-        // Check built-in rules
-        assert_eq!(config.rules.builtin.len(), 4);
-        assert_eq!(
-            config.rules.builtin.get(&RuleId::new("no-unwrap").unwrap()),
-            Some(&RuleValue::Enabled(true))
-        );
-        assert_eq!(
-            config.rules.builtin.get(&RuleId::new("no-expect").unwrap()),
-            Some(&RuleValue::Enabled(true))
-        );
-        assert_eq!(
-            config
-                .rules
-                .builtin
-                .get(&RuleId::new("no-fixme-comments").unwrap()),
-            Some(&RuleValue::Enabled(false))
-        );
-
-        // Check rule with settings
-        match config
+        // Only settings tables remain under [rules]; the boolean shorthand was
+        // removed when `RuleValue::Enabled(bool)` was deleted in Phase 1.
+        assert_eq!(config.rules.builtin.len(), 1);
+        let no_todo_settings = config
             .rules
             .builtin
             .get(&RuleId::new("no-todo-comments").unwrap())
-        {
-            Some(RuleValue::Settings(settings)) => {
-                assert_eq!(settings.severity, Some(Severity::Warning));
-            }
-            _ => panic!("Expected settings for no-todo-comments"),
-        }
+            .expect("no-todo-comments settings should be present");
+        assert_eq!(no_todo_settings.severity, Some(Severity::Warning));
 
         // Check custom rules
-        assert_eq!(config.rules.custom.len(), 2);
-        assert_eq!(
-            config
-                .rules
-                .custom
-                .get(&RuleId::new("my-company-rule").unwrap()),
-            Some(&RuleValue::Enabled(true))
-        );
+        assert_eq!(config.rules.custom.len(), 1);
+        let legacy_settings = config
+            .rules
+            .custom
+            .get(&RuleId::new("legacy-api-usage").unwrap())
+            .expect("legacy-api-usage settings should be present");
+        assert_eq!(legacy_settings.regions.as_ref().unwrap().len(), 1);
 
         // Check output settings
         assert_eq!(config.output.format, OutputFormat::Human);
@@ -322,35 +376,56 @@ color = "auto"
     fn test_minimal_config() {
         let minimal = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 "#;
 
         let config = Config::parse(minimal).unwrap();
-        assert_eq!(config.ratchets.version, "1");
+        assert_eq!(config.ratchets.version, "2");
         assert_eq!(config.ratchets.languages.len(), 1);
         assert_eq!(config.ratchets.include.len(), 1); // Default "**/*"
         assert_eq!(config.ratchets.exclude.len(), 0);
         assert_eq!(config.output.format, OutputFormat::Human);
         assert_eq!(config.output.color, ColorOption::Auto);
+        // New fields default to empty vectors when omitted.
+        assert!(config.enabled_ratchets.is_empty());
+        assert!(config.disabled_ratchets.is_empty());
     }
 
     #[test]
-    fn test_invalid_version() {
+    fn test_invalid_version_v1_rejected() {
+        // The legacy v1 schema is now a hard error: the structured
+        // `UnsupportedVersion` variant lets the CLI layer render the upgrade
+        // notice instead of a generic validation string.
         let invalid = r#"
 [ratchets]
-version = "2"
+version = "1"
 languages = ["rust"]
 "#;
 
-        let result = Config::parse(invalid);
-        assert!(result.is_err());
+        let err = Config::parse(invalid).expect_err("v1 config must be rejected");
+        match err {
+            ConfigError::UnsupportedVersion(ref v) => assert_eq!(v, "1"),
+            other => panic!("expected UnsupportedVersion, got {:?}", other),
+        }
         assert!(
-            result
-                .unwrap_err()
-                .to_string()
+            err.to_string()
                 .contains("Unsupported configuration version")
         );
+    }
+
+    #[test]
+    fn test_invalid_version_unknown_rejected() {
+        // Any non-`"2"` value should route to `UnsupportedVersion` — not just
+        // the previously valid `"1"`.
+        let invalid = r#"
+[ratchets]
+version = "99"
+languages = ["rust"]
+"#;
+
+        let err = Config::parse(invalid).expect_err("unknown version must be rejected");
+        assert!(matches!(err, ConfigError::UnsupportedVersion(ref v) if v == "99"));
     }
 
     #[test]
@@ -368,7 +443,7 @@ languages = ["rust"]
     fn test_no_languages() {
         let invalid = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = []
 "#;
 
@@ -383,7 +458,7 @@ languages = []
     fn test_invalid_glob_pattern_include() {
         let invalid = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["[invalid"]
 "#;
@@ -402,7 +477,7 @@ include = ["[invalid"]
     fn test_invalid_glob_pattern_exclude() {
         let invalid = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 exclude = ["[invalid"]
 "#;
@@ -421,7 +496,7 @@ exclude = ["[invalid"]
     fn test_invalid_rule_region_glob() {
         let invalid = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 
 [rules]
@@ -442,7 +517,7 @@ no-unwrap = { regions = ["[invalid"] }
     fn test_jsonl_output_format() {
         let config_str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 
 [output]
@@ -459,7 +534,7 @@ color = "never"
     fn test_color_always() {
         let config_str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 
 [output]
@@ -474,7 +549,7 @@ color = "always"
     fn test_rule_with_severity_and_regions() {
         let config_str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 
 [rules]
@@ -482,67 +557,50 @@ my-rule = { severity = "error", regions = ["src/**", "tests/**"] }
 "#;
 
         let config = Config::parse(config_str).unwrap();
-        match config.rules.builtin.get(&RuleId::new("my-rule").unwrap()) {
-            Some(RuleValue::Settings(settings)) => {
-                assert_eq!(settings.severity, Some(Severity::Error));
-                assert_eq!(settings.regions.as_ref().unwrap().len(), 2);
-            }
-            _ => panic!("Expected settings for my-rule"),
-        }
+        let settings = config
+            .rules
+            .builtin
+            .get(&RuleId::new("my-rule").unwrap())
+            .expect("my-rule settings should be present");
+        assert_eq!(settings.severity, Some(Severity::Error));
+        assert_eq!(settings.regions.as_ref().unwrap().len(), 2);
     }
 
     #[test]
     fn test_custom_rules_with_settings() {
         let config_str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 
 [rules.custom]
-custom-rule-1 = true
 custom-rule-2 = { severity = "warning" }
 custom-rule-3 = { regions = ["src/legacy/**"] }
 "#;
 
         let config = Config::parse(config_str).unwrap();
-        assert_eq!(config.rules.custom.len(), 3);
+        assert_eq!(config.rules.custom.len(), 2);
 
-        assert_eq!(
-            config
-                .rules
-                .custom
-                .get(&RuleId::new("custom-rule-1").unwrap()),
-            Some(&RuleValue::Enabled(true))
-        );
-
-        match config
+        let s2 = config
             .rules
             .custom
             .get(&RuleId::new("custom-rule-2").unwrap())
-        {
-            Some(RuleValue::Settings(settings)) => {
-                assert_eq!(settings.severity, Some(Severity::Warning));
-            }
-            _ => panic!("Expected settings for custom-rule-2"),
-        }
+            .expect("custom-rule-2 settings should be present");
+        assert_eq!(s2.severity, Some(Severity::Warning));
 
-        match config
+        let s3 = config
             .rules
             .custom
             .get(&RuleId::new("custom-rule-3").unwrap())
-        {
-            Some(RuleValue::Settings(settings)) => {
-                assert_eq!(settings.regions.as_ref().unwrap().len(), 1);
-            }
-            _ => panic!("Expected settings for custom-rule-3"),
-        }
+            .expect("custom-rule-3 settings should be present");
+        assert_eq!(s3.regions.as_ref().unwrap().len(), 1);
     }
 
     #[test]
     fn test_multiple_languages() {
         let config_str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust", "typescript", "javascript", "python", "go"]
 "#;
 
@@ -559,7 +617,7 @@ languages = ["rust", "typescript", "javascript", "python", "go"]
     fn test_invalid_language() {
         let config_str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust", "invalid"]
 "#;
 
@@ -584,7 +642,7 @@ languages = ["rust", "invalid"]
     fn test_missing_languages_field() {
         let invalid = r#"
 [ratchets]
-version = "1"
+version = "2"
 "#;
 
         let result = Config::parse(invalid);
@@ -598,7 +656,7 @@ version = "1"
     fn test_empty_include_patterns() {
         let config_str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = []
 "#;
@@ -611,7 +669,7 @@ include = []
     fn test_multiple_glob_patterns() {
         let config_str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["src/**/*.rs", "tests/**/*.rs", "benches/**/*.rs"]
 exclude = ["**/target/**", "**/generated/**", "**/*.bak"]
@@ -623,28 +681,43 @@ exclude = ["**/target/**", "**/generated/**", "**/*.bak"]
     }
 
     #[test]
-    fn test_rule_disabled_explicitly() {
-        let config_str = r#"
+    fn test_rule_boolean_shorthand_rejected() {
+        // `[rules].rule-id = false` (and `= true`) was the v1 enable/disable
+        // shorthand. In v2 enable/disable lives in `enabled_ratchets` /
+        // `disabled_ratchets`, and `[rules]` only accepts settings tables, so
+        // the boolean form is a TOML parse error.
+        let cfg_false = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 
 [rules]
 no-unwrap = false
 "#;
+        assert!(matches!(
+            Config::parse(cfg_false).expect_err("boolean shorthand must fail"),
+            ConfigError::Parse(_)
+        ));
 
-        let config = Config::parse(config_str).unwrap();
-        assert_eq!(
-            config.rules.builtin.get(&RuleId::new("no-unwrap").unwrap()),
-            Some(&RuleValue::Enabled(false))
-        );
+        let cfg_true = r#"
+[ratchets]
+version = "2"
+languages = ["rust"]
+
+[rules]
+no-unwrap = true
+"#;
+        assert!(matches!(
+            Config::parse(cfg_true).expect_err("boolean shorthand must fail"),
+            ConfigError::Parse(_)
+        ));
     }
 
     #[test]
     fn test_rule_with_only_severity() {
         let config_str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 
 [rules]
@@ -652,20 +725,20 @@ my-rule = { severity = "info" }
 "#;
 
         let config = Config::parse(config_str).unwrap();
-        match config.rules.builtin.get(&RuleId::new("my-rule").unwrap()) {
-            Some(RuleValue::Settings(settings)) => {
-                assert_eq!(settings.severity, Some(Severity::Info));
-                assert!(settings.regions.is_none());
-            }
-            _ => panic!("Expected settings for my-rule"),
-        }
+        let settings = config
+            .rules
+            .builtin
+            .get(&RuleId::new("my-rule").unwrap())
+            .expect("my-rule settings should be present");
+        assert_eq!(settings.severity, Some(Severity::Info));
+        assert!(settings.regions.is_none());
     }
 
     #[test]
     fn test_rule_with_only_regions() {
         let config_str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 
 [rules]
@@ -673,20 +746,20 @@ my-rule = { regions = ["src/**"] }
 "#;
 
         let config = Config::parse(config_str).unwrap();
-        match config.rules.builtin.get(&RuleId::new("my-rule").unwrap()) {
-            Some(RuleValue::Settings(settings)) => {
-                assert!(settings.severity.is_none());
-                assert_eq!(settings.regions.as_ref().unwrap().len(), 1);
-            }
-            _ => panic!("Expected settings for my-rule"),
-        }
+        let settings = config
+            .rules
+            .builtin
+            .get(&RuleId::new("my-rule").unwrap())
+            .expect("my-rule settings should be present");
+        assert!(settings.severity.is_none());
+        assert_eq!(settings.regions.as_ref().unwrap().len(), 1);
     }
 
     #[test]
     fn test_output_format_default() {
         let config_str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 "#;
 
@@ -698,7 +771,7 @@ languages = ["rust"]
     fn test_color_option_default() {
         let config_str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 "#;
 
@@ -720,33 +793,33 @@ languages = ["rust"]
 
     #[test]
     fn test_complex_rule_combinations() {
+        // Post-v2 every `[rules]` entry is a settings table — the boolean
+        // shorthand is gone, and enable/disable lives in
+        // `enabled_ratchets` / `disabled_ratchets`.
         let config_str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust", "python"]
 
 [rules]
-rule-1 = true
-rule-2 = false
 rule-3 = { severity = "error" }
 rule-4 = { regions = ["src/**"] }
 rule-5 = { severity = "warning", regions = ["tests/**"] }
 
 [rules.custom]
-custom-1 = true
 custom-2 = { severity = "info" }
 "#;
 
         let config = Config::parse(config_str).unwrap();
-        assert_eq!(config.rules.builtin.len(), 5);
-        assert_eq!(config.rules.custom.len(), 2);
+        assert_eq!(config.rules.builtin.len(), 3);
+        assert_eq!(config.rules.custom.len(), 1);
     }
 
     #[test]
     fn test_invalid_output_format() {
         let invalid = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 
 [output]
@@ -761,7 +834,7 @@ format = "xml"
     fn test_invalid_color_option() {
         let invalid = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 
 [output]
@@ -776,7 +849,7 @@ color = "sometimes"
     fn test_invalid_severity() {
         let invalid = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 
 [rules]
@@ -791,7 +864,7 @@ my-rule = { severity = "critical" }
     fn test_custom_rule_with_invalid_region_glob() {
         let invalid = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 
 [rules.custom]
@@ -812,7 +885,7 @@ my-rule = { regions = ["[invalid"] }
     fn test_all_supported_languages() {
         let config_str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust", "typescript", "javascript", "python", "go"]
 "#;
 
@@ -826,7 +899,7 @@ languages = ["rust", "typescript", "javascript", "python", "go"]
             let config_str = format!(
                 r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["{}"]
 "#,
                 lang
@@ -841,7 +914,7 @@ languages = ["{}"]
     fn test_patterns_section() {
         let config_str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 
 [patterns]
@@ -861,7 +934,7 @@ generated = ["**/generated/**", "**/vendor/**"]
     fn test_patterns_section_empty() {
         let config_str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 "#;
 
@@ -870,10 +943,85 @@ languages = ["rust"]
     }
 
     #[test]
+    fn test_enabled_and_disabled_ratchets_parsed() {
+        // Phase 1 only parses these arrays — resolution is added in Phase 2.
+        // The deserializer accepts bare rule IDs and `$set-name` references.
+        // Both arrays live at the root of `ratchets.toml`, not inside the
+        // `[ratchets]` table, so they appear before the first table header.
+        let config_str = r#"
+enabled_ratchets = ["$common-starter", "no-unwrap"]
+disabled_ratchets = ["no-todo-comments", "$strict-extras"]
+
+[ratchets]
+version = "2"
+languages = ["rust"]
+"#;
+
+        let config = Config::parse(config_str).unwrap();
+        assert_eq!(config.enabled_ratchets.len(), 2);
+        assert_eq!(config.disabled_ratchets.len(), 2);
+
+        assert!(matches!(
+            &config.enabled_ratchets[0],
+            RatchetRef::Set(id) if id.as_str() == "common-starter"
+        ));
+        assert!(matches!(
+            &config.enabled_ratchets[1],
+            RatchetRef::Rule(id) if id.as_str() == "no-unwrap"
+        ));
+        assert!(matches!(
+            &config.disabled_ratchets[0],
+            RatchetRef::Rule(id) if id.as_str() == "no-todo-comments"
+        ));
+        assert!(matches!(
+            &config.disabled_ratchets[1],
+            RatchetRef::Set(id) if id.as_str() == "strict-extras"
+        ));
+    }
+
+    #[test]
+    fn test_ratchet_ref_invalid_set_id_rejected() {
+        // `$` followed by an invalid identifier must fail at parse time.
+        let config_str = r#"
+enabled_ratchets = ["$bad set"]
+
+[ratchets]
+version = "2"
+languages = ["rust"]
+"#;
+        let err = Config::parse(config_str).expect_err("invalid set id must fail");
+        assert!(matches!(err, ConfigError::Parse(_)));
+    }
+
+    #[test]
+    fn test_ratchet_ref_invalid_rule_id_rejected() {
+        let config_str = r#"
+enabled_ratchets = ["bad rule"]
+
+[ratchets]
+version = "2"
+languages = ["rust"]
+"#;
+        let err = Config::parse(config_str).expect_err("invalid rule id must fail");
+        assert!(matches!(err, ConfigError::Parse(_)));
+    }
+
+    #[test]
+    fn test_ratchet_ref_round_trip_serializes_with_dollar_prefix() {
+        let set_ref = RatchetRef::Set(SetId::new("common-starter").unwrap());
+        let rule_ref = RatchetRef::Rule(RuleId::new("no-unwrap").unwrap());
+        assert_eq!(
+            serde_json::to_string(&set_ref).unwrap(),
+            "\"$common-starter\""
+        );
+        assert_eq!(serde_json::to_string(&rule_ref).unwrap(), "\"no-unwrap\"");
+    }
+
+    #[test]
     fn test_patterns_section_invalid_glob() {
         let config_str = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 
 [patterns]

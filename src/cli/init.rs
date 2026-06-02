@@ -6,8 +6,32 @@ use std::fs;
 use std::path::Path;
 
 /// Default content for ratchets.toml
-const DEFAULT_RATCHET_TOML: &str = r#"[ratchets]
-version = "1"
+///
+/// Phase 1 scaffold for the ratchet-sets feature:
+///   - `[ratchets].version = "2"` is the only schema the library accepts.
+///   - `enabled_ratchets = []` is the new opt-in list; entries are either
+///     `"$set-name"` references (ratchet-sets) or bare `"rule-id"` strings
+///     (single rules). Resolution arrives in bead `code-rs-p2`; the one
+///     starter set, `$common-starter`, ships in bead `code-rs-p4`.
+///   - `[rules]` now only carries per-rule severity / regions settings;
+///     enable / disable lives entirely in `enabled_ratchets` /
+///     `disabled_ratchets`.
+const DEFAULT_RATCHET_TOML: &str = r#"# Ratchets v2 configuration scaffold.
+#
+# enabled_ratchets / disabled_ratchets accept two reference shapes:
+#   - "$set-name" — a ratchet-set (group of rules) reference.
+#   - "rule-id"   — a single rule reference.
+#
+# The only set that ships with this binary today is `$common-starter`
+# (lands in bead code-rs-p4). Per-language starter sets are deferred to
+# follow-up MRs. To opt in to the common cross-language rules write:
+#   enabled_ratchets = ["$common-starter"]
+enabled_ratchets = []
+# disabled_ratchets always wins over enabled_ratchets at resolution time.
+disabled_ratchets = []
+
+[ratchets]
+version = "2"
 
 # Languages to enable (uncomment as needed)
 # languages = ["rust", "typescript", "javascript", "python", "go"]
@@ -18,10 +42,9 @@ version = "1"
 # File patterns to exclude
 # exclude = ["**/generated/**"]
 
+# Per-rule settings (severity / regions) live in [rules]. Enable / disable
+# moved out of [rules] — use enabled_ratchets / disabled_ratchets above.
 [rules]
-# Built-in rules are enabled by default
-# Disable a rule: rule-name = false
-# Configure a rule: rule-name = { severity = "warning" }
 
 [output]
 format = "human"
@@ -223,7 +246,9 @@ mod tests {
             assert!(ratchet_toml.exists());
             let content = fs::read_to_string(&ratchet_toml)?;
             assert!(content.contains("[ratchets]"));
-            assert!(content.contains("version = \"1\""));
+            assert!(content.contains("version = \"2\""));
+            // Phase 1 scaffold ships an explicit empty opt-in list.
+            assert!(content.contains("enabled_ratchets = []"));
 
             let counts_toml = temp_dir.path().join("ratchet-counts.toml");
             assert!(counts_toml.exists());
@@ -367,10 +392,16 @@ mod tests {
     #[test]
     fn test_default_ratchet_toml_content() {
         assert!(DEFAULT_RATCHET_TOML.contains("[ratchets]"));
-        assert!(DEFAULT_RATCHET_TOML.contains("version = \"1\""));
+        assert!(DEFAULT_RATCHET_TOML.contains("version = \"2\""));
         assert!(DEFAULT_RATCHET_TOML.contains("[rules]"));
         assert!(DEFAULT_RATCHET_TOML.contains("[output]"));
         assert!(DEFAULT_RATCHET_TOML.contains("format = \"human\""));
+        // Phase 1 scaffold introduces the opt-in ratchet-set arrays.
+        assert!(DEFAULT_RATCHET_TOML.contains("enabled_ratchets = []"));
+        assert!(DEFAULT_RATCHET_TOML.contains("disabled_ratchets = []"));
+        // Mention `$common-starter` so users discover the one shipped set
+        // from the scaffold without reading external docs.
+        assert!(DEFAULT_RATCHET_TOML.contains("$common-starter"));
     }
 
     #[test]

@@ -232,7 +232,7 @@ mod tests {
         // Create a minimal config for testing
         let config = Config {
             ratchets: crate::config::ratchet_toml::RatchetsMeta {
-                version: "1".to_string(),
+                version: "2".to_string(),
                 languages: vec![Language::Rust],
                 include: vec![GlobPattern::new("**/*.rs")],
                 exclude: vec![],
@@ -243,6 +243,8 @@ mod tests {
             },
             output: crate::config::ratchet_toml::OutputConfig::default(),
             patterns: std::collections::HashMap::new(),
+            enabled_ratchets: Vec::new(),
+            disabled_ratchets: Vec::new(),
         };
 
         let result = discover_files(&[], &config);
@@ -254,7 +256,7 @@ mod tests {
     fn test_build_registry_with_minimal_config() {
         let config = Config {
             ratchets: crate::config::ratchet_toml::RatchetsMeta {
-                version: "1".to_string(),
+                version: "2".to_string(),
                 languages: vec![Language::Rust],
                 include: vec![GlobPattern::new("**/*.rs")],
                 exclude: vec![],
@@ -265,6 +267,8 @@ mod tests {
             },
             output: crate::config::ratchet_toml::OutputConfig::default(),
             patterns: std::collections::HashMap::new(),
+            enabled_ratchets: Vec::new(),
+            disabled_ratchets: Vec::new(),
         };
 
         let result = build_registry(&config);

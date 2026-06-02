@@ -8,7 +8,7 @@
 //! - Filtering rules based on configuration
 //! - Providing access to rules by ID
 
-use crate::config::ratchet_toml::{RuleValue, RulesConfig};
+use crate::config::ratchet_toml::RulesConfig;
 use crate::error::RuleError;
 use crate::rules::{AstRule, RegexRule, Rule, RuleContext};
 use crate::types::{GlobPattern, RuleId};
@@ -402,42 +402,20 @@ impl RuleRegistry {
         Ok(())
     }
 
-    /// Filter rules based on configuration
+    /// Filter rules based on configuration.
     ///
-    /// This method removes rules that are disabled in the configuration.
-    /// Rules are enabled by default unless explicitly disabled.
+    /// Phase 1 of the ratchet-sets plan removes the v1
+    /// `[rules].rule-id = false` enable/disable shorthand entirely. Every entry
+    /// in `[rules]` is now a settings table for a rule that is implicitly
+    /// enabled, so there is no longer any rule to filter out at this step.
+    /// The function is retained as a no-op for now; Phase 3 replaces this call
+    /// with a resolver-driven filter (`filter_by_enabled_set`).
     ///
     /// # Arguments
     ///
-    /// * `config` - The rules configuration from ratchets.toml
-    pub fn filter_by_config(&mut self, config: &RulesConfig) {
-        // Collect rule IDs to remove
-        let mut to_remove = Vec::new();
-
-        for rule_id in self.rules.keys() {
-            // Check if rule is in builtin config
-            if let Some(rule_value) = config.builtin.get(rule_id) {
-                if !is_rule_enabled(rule_value) {
-                    to_remove.push(rule_id.clone());
-                }
-                continue;
-            }
-
-            // Check if rule is in custom config
-            if let Some(rule_value) = config.custom.get(rule_id) {
-                if !is_rule_enabled(rule_value) {
-                    to_remove.push(rule_id.clone());
-                }
-                continue;
-            }
-
-            // Rule not in config - keep it enabled by default
-        }
-
-        // Remove disabled rules
-        for rule_id in to_remove {
-            self.rules.remove(&rule_id);
-        }
+    /// * `_config` - The rules configuration from ratchets.toml
+    pub fn filter_by_config(&mut self, _config: &RulesConfig) {
+        // Intentionally a no-op in Phase 1. See doc-comment above.
     }
 
     /// Get a rule by its ID
@@ -608,14 +586,6 @@ impl RuleRegistry {
 impl Default for RuleRegistry {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// Helper function to determine if a rule is enabled
-fn is_rule_enabled(rule_value: &RuleValue) -> bool {
-    match rule_value {
-        RuleValue::Enabled(enabled) => *enabled,
-        RuleValue::Settings(_) => true, // If settings are provided, rule is enabled
     }
 }
 
@@ -820,45 +790,10 @@ pattern = "TODO"
     }
 
     #[test]
-    fn test_filter_by_config_explicitly_enabled() {
-        let temp_dir = TempDir::new().unwrap();
-        create_test_rule_file(temp_dir.path(), "rule1.toml", "rule-1");
-
-        let mut registry = RuleRegistry::new();
-        registry.load_builtin_regex_rules(temp_dir.path()).unwrap();
-
-        let mut config = RulesConfig::default();
-        config
-            .builtin
-            .insert(RuleId::new("rule-1").unwrap(), RuleValue::Enabled(true));
-        registry.filter_by_config(&config);
-
-        assert_eq!(registry.len(), 1);
-    }
-
-    #[test]
-    fn test_filter_by_config_explicitly_disabled() {
-        let temp_dir = TempDir::new().unwrap();
-        create_test_rule_file(temp_dir.path(), "rule1.toml", "rule-1");
-        create_test_rule_file(temp_dir.path(), "rule2.toml", "rule-2");
-
-        let mut registry = RuleRegistry::new();
-        registry.load_builtin_regex_rules(temp_dir.path()).unwrap();
-
-        let mut config = RulesConfig::default();
-        config
-            .builtin
-            .insert(RuleId::new("rule-1").unwrap(), RuleValue::Enabled(false));
-        registry.filter_by_config(&config);
-
-        // rule-1 should be removed, rule-2 should remain
-        assert_eq!(registry.len(), 1);
-        assert!(registry.get_rule(&RuleId::new("rule-1").unwrap()).is_none());
-        assert!(registry.get_rule(&RuleId::new("rule-2").unwrap()).is_some());
-    }
-
-    #[test]
-    fn test_filter_by_config_with_settings() {
+    fn test_filter_by_config_with_settings_keeps_rule() {
+        // Post-Phase-1 `filter_by_config` is a no-op: only settings tables
+        // appear under `[rules]`, and they implicitly mean "enabled with this
+        // settings table". The rule must survive the call.
         let temp_dir = TempDir::new().unwrap();
         create_test_rule_file(temp_dir.path(), "rule1.toml", "rule-1");
 
@@ -868,95 +803,34 @@ pattern = "TODO"
         let mut config = RulesConfig::default();
         config.builtin.insert(
             RuleId::new("rule-1").unwrap(),
-            RuleValue::Settings(crate::config::ratchet_toml::RuleSettings {
+            crate::config::ratchet_toml::RuleSettings {
                 severity: Some(crate::types::Severity::Error),
                 regions: None,
-            }),
+            },
         );
         registry.filter_by_config(&config);
 
-        // Rule with settings should be enabled
         assert_eq!(registry.len(), 1);
     }
 
     #[test]
-    fn test_filter_by_config_custom_rules() {
+    fn test_filter_by_config_is_noop_for_unrelated_rule() {
+        // A rule that has no entry under `[rules]` should survive — same as
+        // before. The Phase 1 implementation makes this trivial because the
+        // filter never removes anything.
         let temp_dir = TempDir::new().unwrap();
-        create_test_rule_file(temp_dir.path(), "custom1.toml", "custom-1");
-        create_test_rule_file(temp_dir.path(), "custom2.toml", "custom-2");
+        create_test_rule_file(temp_dir.path(), "rule1.toml", "rule-1");
+        create_test_rule_file(temp_dir.path(), "rule2.toml", "rule-2");
 
         let mut registry = RuleRegistry::new();
-        registry
-            .load_custom_regex_rules(temp_dir.path(), None)
-            .unwrap();
+        registry.load_builtin_regex_rules(temp_dir.path()).unwrap();
 
-        let mut config = RulesConfig::default();
-        config
-            .custom
-            .insert(RuleId::new("custom-1").unwrap(), RuleValue::Enabled(false));
+        let config = RulesConfig::default();
         registry.filter_by_config(&config);
 
-        // custom-1 should be removed, custom-2 should remain
-        assert_eq!(registry.len(), 1);
-        assert!(
-            registry
-                .get_rule(&RuleId::new("custom-1").unwrap())
-                .is_none()
-        );
-        assert!(
-            registry
-                .get_rule(&RuleId::new("custom-2").unwrap())
-                .is_some()
-        );
-    }
-
-    #[test]
-    fn test_filter_by_config_mixed_rules() {
-        let builtin_dir = TempDir::new().unwrap();
-        let custom_dir = TempDir::new().unwrap();
-
-        create_test_rule_file(builtin_dir.path(), "builtin.toml", "builtin-rule");
-        create_test_rule_file(custom_dir.path(), "custom.toml", "custom-rule");
-
-        let mut registry = RuleRegistry::new();
-        registry
-            .load_builtin_regex_rules(builtin_dir.path())
-            .unwrap();
-        registry
-            .load_custom_regex_rules(custom_dir.path(), None)
-            .unwrap();
-
-        let mut config = RulesConfig::default();
-        config.builtin.insert(
-            RuleId::new("builtin-rule").unwrap(),
-            RuleValue::Enabled(false),
-        );
-        registry.filter_by_config(&config);
-
-        // builtin-rule should be removed, custom-rule should remain
-        assert_eq!(registry.len(), 1);
-        assert!(
-            registry
-                .get_rule(&RuleId::new("builtin-rule").unwrap())
-                .is_none()
-        );
-        assert!(
-            registry
-                .get_rule(&RuleId::new("custom-rule").unwrap())
-                .is_some()
-        );
-    }
-
-    #[test]
-    fn test_is_rule_enabled() {
-        assert!(is_rule_enabled(&RuleValue::Enabled(true)));
-        assert!(!is_rule_enabled(&RuleValue::Enabled(false)));
-
-        let settings = crate::config::ratchet_toml::RuleSettings {
-            severity: Some(crate::types::Severity::Warning),
-            regions: None,
-        };
-        assert!(is_rule_enabled(&RuleValue::Settings(settings)));
+        assert_eq!(registry.len(), 2);
+        assert!(registry.get_rule(&RuleId::new("rule-1").unwrap()).is_some());
+        assert!(registry.get_rule(&RuleId::new("rule-2").unwrap()).is_some());
     }
 
     #[test]
@@ -1466,7 +1340,7 @@ query = "(unclosed_paren"
         // Create a minimal config (without requiring ratchets.toml file)
         let config = Config {
             ratchets: RatchetsMeta {
-                version: "1".to_string(),
+                version: "2".to_string(),
                 languages: vec![crate::types::Language::Rust],
                 include: vec![GlobPattern::new("**/*.rs".to_string())],
                 exclude: vec![],
@@ -1477,6 +1351,8 @@ query = "(unclosed_paren"
             },
             output: OutputConfig::default(),
             patterns: HashMap::new(),
+            enabled_ratchets: Vec::new(),
+            disabled_ratchets: Vec::new(),
         };
 
         // Build registry from config
@@ -1506,23 +1382,28 @@ query = "(unclosed_paren"
     }
 
     #[test]
-    fn test_build_from_config_respects_disabled_rules() {
+    fn test_build_from_config_loads_settings_record_without_removing_rule() {
+        // Post-Phase-1 there is no way to disable a rule from `[rules]` — that
+        // mechanism moves to `disabled_ratchets`. A settings record just
+        // applies severity/regions without affecting registry membership.
         use crate::config::ratchet_toml::{
-            Config, OutputConfig, RatchetsMeta, RuleValue, RulesConfig,
+            Config, OutputConfig, RatchetsMeta, RuleSettings, RulesConfig,
         };
         use crate::types::GlobPattern;
         use std::collections::HashMap;
 
-        // Create config with a disabled rule
         let mut builtin_rules = HashMap::new();
         builtin_rules.insert(
             RuleId::new("no-todo-comments").unwrap(),
-            RuleValue::Enabled(false),
+            RuleSettings {
+                severity: Some(crate::types::Severity::Warning),
+                regions: None,
+            },
         );
 
         let config = Config {
             ratchets: RatchetsMeta {
-                version: "1".to_string(),
+                version: "2".to_string(),
                 languages: vec![crate::types::Language::Rust],
                 include: vec![GlobPattern::new("**/*".to_string())],
                 exclude: vec![],
@@ -1533,16 +1414,15 @@ query = "(unclosed_paren"
             },
             output: OutputConfig::default(),
             patterns: HashMap::new(),
+            enabled_ratchets: Vec::new(),
+            disabled_ratchets: Vec::new(),
         };
 
-        // Build registry from config
         let registry = RuleRegistry::build_from_config(&config).unwrap();
-
-        // The no-todo-comments rule should be filtered out
         let no_todo_comments = RuleId::new("no-todo-comments").unwrap();
         assert!(
-            registry.get_rule(&no_todo_comments).is_none(),
-            "no-todo-comments should be filtered out when disabled in config"
+            registry.get_rule(&no_todo_comments).is_some(),
+            "settings record alone must not remove a rule from the registry"
         );
     }
 
@@ -1571,7 +1451,7 @@ query = "(unclosed_paren"
         // Create config with only Rust language
         let config = Config {
             ratchets: RatchetsMeta {
-                version: "1".to_string(),
+                version: "2".to_string(),
                 languages: vec![Language::Rust],
                 include: vec![GlobPattern::new("**/*".to_string())],
                 exclude: vec![],
@@ -1582,6 +1462,8 @@ query = "(unclosed_paren"
             },
             output: OutputConfig::default(),
             patterns: HashMap::new(),
+            enabled_ratchets: Vec::new(),
+            disabled_ratchets: Vec::new(),
         };
 
         // Build registry from config
@@ -1655,7 +1537,7 @@ query = "(unclosed_paren"
         // Create config with Rust and Python languages
         let config = Config {
             ratchets: RatchetsMeta {
-                version: "1".to_string(),
+                version: "2".to_string(),
                 languages: vec![Language::Rust, Language::Python],
                 include: vec![GlobPattern::new("**/*".to_string())],
                 exclude: vec![],
@@ -1666,6 +1548,8 @@ query = "(unclosed_paren"
             },
             output: OutputConfig::default(),
             patterns: HashMap::new(),
+            enabled_ratchets: Vec::new(),
+            disabled_ratchets: Vec::new(),
         };
 
         // Build registry from config
@@ -1702,7 +1586,7 @@ query = "(unclosed_paren"
         // Create config with only Rust language
         let config = Config {
             ratchets: RatchetsMeta {
-                version: "1".to_string(),
+                version: "2".to_string(),
                 languages: vec![Language::Rust],
                 include: vec![GlobPattern::new("**/*".to_string())],
                 exclude: vec![],
@@ -1713,6 +1597,8 @@ query = "(unclosed_paren"
             },
             output: OutputConfig::default(),
             patterns: HashMap::new(),
+            enabled_ratchets: Vec::new(),
+            disabled_ratchets: Vec::new(),
         };
 
         // Build registry from config

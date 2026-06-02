@@ -80,6 +80,12 @@ pub fn run_check(
             }
         }
         Err(e) => {
+            // Route schema version mismatches through the embedded upgrade
+            // notice before the generic error printer so the user always sees
+            // the migration pointer first.
+            if let CheckError::Config(ConfigError::UnsupportedVersion(_)) = &e {
+                super::upgrade_notice::print_to_stderr();
+            }
             eprintln!("Error: {}", e);
             // Determine exit code based on error type
             match e {

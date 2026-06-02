@@ -14,21 +14,26 @@ fn setup_test_project(temp_dir: &Path) {
     // Create ratchets.toml
     let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
     fs::write(temp_dir.join("ratchets.toml"), config).unwrap();
 
-    // Create ratchet-counts.toml
+    // Create ratchet-counts.toml. Phase 1 of the ratchet-sets plan removes
+    // the v1 `[rules].rule-id = false` shorthand, so we grant the embedded
+    // Rust AST rules a generous budget instead of silencing them via config.
     let counts = r#"
 [no-todo-comments]
 "." = 2
+
+[rust-no-todo-comments]
+"." = 1000
+
+[rust-no-fixme-comments]
+"." = 1000
 "#;
     fs::write(temp_dir.join("ratchet-counts.toml"), counts).unwrap();
 
@@ -92,12 +97,11 @@ fn test_check_command_exceeded_budget() {
     // Create ratchets.toml with lower budget
     let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
 "#;
     fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
@@ -191,12 +195,11 @@ fn test_check_command_no_files() {
     // Create config but no source files
     let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
 "#;
     fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
@@ -248,22 +251,27 @@ fn test_check_verbose_flag() {
     // Create ratchets.toml
     let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 exclude = ["excluded/**"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
     fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
-    // Create ratchet-counts.toml
+    // Create ratchet-counts.toml. Phase 1: embedded Rust AST rules can no
+    // longer be silenced via the boolean shorthand, so we grant generous
+    // budgets directly.
     let counts = r#"
 [no-todo-comments]
 "." = 10
+
+[rust-no-todo-comments]
+"." = 1000
+
+[rust-no-fixme-comments]
+"." = 1000
 "#;
     fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
 
@@ -352,12 +360,11 @@ fn test_check_verbose_with_jsonl_format() {
     // Create ratchets.toml with specific include pattern
     let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["src/**/*.rs"]
 
 [rules]
-no-todo-comments = true
 "#;
     fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
@@ -421,21 +428,25 @@ fn test_check_non_verbose_hides_violations() {
     // Create ratchets.toml
     let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
     fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 
-    // Create ratchet-counts.toml with budget of 10 (so check will pass)
+    // Create ratchet-counts.toml with budget of 10 (so check will pass).
+    // Phase 1 also requires explicit budgets for embedded Rust AST rules.
     let counts = r#"
 [no-todo-comments]
 "." = 10
+
+[rust-no-todo-comments]
+"." = 1000
+
+[rust-no-fixme-comments]
+"." = 1000
 "#;
     fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
 
@@ -567,9 +578,17 @@ fn test_check_since_filters_to_changed_files_only() {
     // baseline file is also scanned, but it still totals 2 TODOs, so the
     // budget is exceeded either way. The discriminating test is below: we
     // pre-stage a third TODO outside the diff and assert it is NOT counted.
+    // Phase 1: also need generous budgets for embedded Rust AST rules since
+    // they can no longer be silenced via the boolean shorthand.
     let counts = r#"
 [no-todo-comments]
 "." = 5
+
+[rust-no-todo-comments]
+"." = 1000
+
+[rust-no-fixme-comments]
+"." = 1000
 "#;
     fs::write(temp_dir.path().join("ratchet-counts.toml"), counts).unwrap();
 
@@ -673,13 +692,10 @@ fn test_check_anchored_include_glob_matches_from_dot_root() {
 
     let config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["typescript"]
 
 [rules]
-no-any = false
-no-todo-comments = false
-no-fixme-comments = false
 "#;
     fs::write(temp_dir.path().join("ratchets.toml"), config).unwrap();
 

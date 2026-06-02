@@ -1,5 +1,5 @@
 [ratchets]
-version = "1"
+version = "2"
 
 # Languages to enable (uncomment as needed)
 languages = ["rust"]
@@ -10,10 +10,9 @@ languages = ["rust"]
 # File patterns to exclude
 exclude = ["**/tests/**"]
 
+# Per-rule severity / region settings live under [rules]. Enable / disable
+# moved to enabled_ratchets / disabled_ratchets (ratchet-sets plan, Phase 1).
 [rules]
-# Built-in rules are enabled by default
-# Disable a rule: rule-name = false
-# Configure a rule: rule-name = { severity = "warning" }
 
 [output]
 format = "human"
