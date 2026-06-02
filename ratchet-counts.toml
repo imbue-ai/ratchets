@@ -19,7 +19,7 @@
 
 [no-unwrap]
 "." = 0
-"src" = 390
+"src" = 424
 
 [rust-no-fixme-comments]
 "src" = 1

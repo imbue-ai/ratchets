@@ -6,12 +6,23 @@
 //! using `include_str!`. This ensures the binary is self-contained and can run
 //! without external rule files.
 
+use crate::config::sets::RatchetSet;
 use crate::error::RuleError;
 use crate::rules::{AstRule, RegexRule, Rule};
 use crate::types::RuleId;
 
 /// Type alias for a list of rules with their IDs
 type RuleList = Vec<(RuleId, Box<dyn Rule>)>;
+
+/// Embedded built-in ratchet-set files.
+///
+/// Phase 2 of `blueprint/ratchet-sets/plan-ratchet-sets.md` wires the loader
+/// plumbing but does not yet ship any embedded sets — the curated
+/// `common-starter.toml` content arrives in Phase 4 (`code-rs-p4`). Leaving
+/// this array empty keeps [`load_builtin_sets`] exercised by tests without
+/// committing TOML content that the rest of the system can't yet enforce
+/// (Phase 3 wires the resolver into the rule registry).
+const BUILTIN_SETS: &[(&str, &str)] = &[];
 
 /// Embedded built-in regex rule files
 const BUILTIN_REGEX_RULES: &[(&str, &str)] = &[
@@ -466,6 +477,44 @@ pub fn load_builtin_ast_rules() -> Result<RuleList, RuleError> {
     )?;
 
     Ok(rules)
+}
+
+/// Parse `source` as embedded ratchet-sets and append them to `sets`. `label`
+/// is interpolated into the parse-error message verbatim, mirroring the rule
+/// extension helpers above.
+fn extend_sets(
+    sets: &mut Vec<RatchetSet>,
+    source: &[(&str, &str)],
+    label: &str,
+) -> Result<(), RuleError> {
+    for (set_name, toml_content) in source {
+        let set = RatchetSet::from_toml(toml_content).map_err(|e| {
+            RuleError::InvalidDefinition(format!(
+                "Failed to parse built-in {} set '{}': {}",
+                label, set_name, e
+            ))
+        })?;
+        sets.push(set);
+    }
+    Ok(())
+}
+
+/// Load all built-in ratchet-sets from embedded resources.
+///
+/// Phase 2 returns an empty vector — the curated `common-starter` content
+/// arrives in Phase 4 (`code-rs-p4`). The function exists so
+/// [`crate::config::SetRegistry::load_embedded_builtin_sets`] has a stable
+/// entry point that won't need to change shape when Phase 4 lands the TOML.
+///
+/// # Errors
+///
+/// Returns [`RuleError`] if any embedded set TOML fails to parse. Phase 2
+/// cannot return an error because [`BUILTIN_SETS`] is empty; the signature is
+/// future-proofed for Phase 4.
+pub fn load_builtin_sets() -> Result<Vec<RatchetSet>, RuleError> {
+    let mut sets = Vec::new();
+    extend_sets(&mut sets, BUILTIN_SETS, "embedded")?;
+    Ok(sets)
 }
 
 #[cfg(test)]
