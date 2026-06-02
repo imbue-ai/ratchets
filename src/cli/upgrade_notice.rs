@@ -1,25 +1,16 @@
 //! Embedded upgrade notice rendered on `ConfigError::UnsupportedVersion`.
 //!
-//! Phase 1 of the ratchet-sets plan only ships a placeholder string here. The
-//! canonical doc (`docs/upgrade-v1-to-v2.md`) is written in Phase 5 (bead
-//! `code-rs-p5`) and will be embedded via `include_str!()` at that point. Until
-//! then the placeholder keeps the `--upgrade` plumbing functional and points
-//! curious users at the bead where the canonical content will land.
+//! The notice text lives in `docs/upgrade-v1-to-v2.md` (the canonical hand-
+//! maintained source) and is embedded into the binary via `include_str!()`.
+//! Phase 5 of the ratchet-sets plan finalised the content; earlier phases
+//! shipped a placeholder string in this file.
 
 /// Embedded upgrade notice text printed to stderr when the loaded
 /// `ratchets.toml` declares a version other than `"2"`.
 ///
-/// Phase 1 placeholder — the canonical content arrives in bead `code-rs-p5`.
-pub const UPGRADE_NOTICE: &str = "\
-ratchets configuration: unsupported schema version.
-
-The library now only accepts `version = \"2\"` in ratchets.toml.
-
-A canonical upgrade guide will ship in docs/upgrade-v1-to-v2.md (bead code-rs-p5).
-For now: bump `[ratchets].version` to \"2\" and migrate any
-`[rules].rule-id = true | false` lines to `enabled_ratchets` /
-`disabled_ratchets` arrays at the top of the file.
-";
+/// Source of truth: `docs/upgrade-v1-to-v2.md` (markdown, printed raw —
+/// readable for humans and easy for LLMs to consume).
+pub const UPGRADE_NOTICE: &str = include_str!("../../docs/upgrade-v1-to-v2.md");
 
 /// Print [`UPGRADE_NOTICE`] to stderr. Called by every CLI subcommand that
 /// loads `ratchets.toml` when it encounters
@@ -43,5 +34,23 @@ mod tests {
             UPGRADE_NOTICE.contains("version = \"2\""),
             "notice should tell users the new required version"
         );
+    }
+
+    #[test]
+    fn upgrade_notice_links_to_canonical_url() {
+        assert!(
+            UPGRADE_NOTICE.contains(
+                "https://github.com/imbue-ai/ratchets/blob/main/docs/upgrade-v1-to-v2.md"
+            ),
+            "notice should point users at the canonical GitHub URL"
+        );
+    }
+
+    #[test]
+    fn upgrade_notice_shows_the_v2_arrays() {
+        // The doc must demonstrate the new opt-in arrays so users see the
+        // shape they need to migrate to, not just the version bump.
+        assert!(UPGRADE_NOTICE.contains("enabled_ratchets"));
+        assert!(UPGRADE_NOTICE.contains("disabled_ratchets"));
     }
 }
