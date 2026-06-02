@@ -12,15 +12,16 @@
 //! Loading layers mirror the existing rule loaders in [`crate::rules::registry`]:
 //!
 //! 1. Embedded starter sets baked into the binary (via
-//!    [`crate::rules::load_builtin_sets`]). Phase 2 lands the plumbing; the
-//!    TOML content arrives in Phase 4.
+//!    [`crate::rules::load_builtin_sets`]). Phase 4 ships the
+//!    `common-starter` content; per-language starter sets are deferred to
+//!    follow-up MRs.
 //! 2. Filesystem builtin sets under `builtin-ratchets/sets/*.toml` (overrides
 //!    embedded).
 //! 3. User-defined sets under `ratchets/sets/*.toml` (overrides filesystem
 //!    builtin).
 //!
-//! Phase 2 keeps the resolver decoupled from the rule registry; Phase 3
-//! (`code-rs-p3`) wires the resolver into [`crate::rules::RuleRegistry`].
+//! Phase 3 wires the resolver into [`crate::rules::RuleRegistry`]; the
+//! resolver remains decoupled from rule definitions.
 
 use crate::config::ratchet_toml::RatchetRef;
 use crate::error::RuleError;
@@ -215,8 +216,8 @@ impl SetRegistry {
 
     /// Load embedded builtin sets via [`crate::rules::load_builtin_sets`].
     ///
-    /// Phase 2 lands the plumbing; the embedded TOML content is added in
-    /// Phase 4 (`code-rs-p4`). Until then this is effectively a no-op.
+    /// Phase 4 of the ratchet-sets plan ships `common-starter`; per-language
+    /// starter sets land in follow-up MRs.
     ///
     /// # Errors
     ///
@@ -772,11 +773,30 @@ rules = ["a"]
     }
 
     #[test]
-    fn load_embedded_builtin_sets_is_empty_in_phase_2() {
-        // Phase 4 will populate this; Phase 2 only wires the plumbing. The
-        // call must succeed and not contribute any sets.
+    fn load_embedded_builtin_sets_includes_common_starter() {
+        // Phase 4 of the ratchet-sets plan lands `common-starter` as the only
+        // embedded set. Per-language starter sets (`python-starter`,
+        // `rust-starter`, `typescript-starter`) are deferred to follow-up MRs;
+        // if/when they land this assertion must be updated alongside the new
+        // toml files.
+        //
+        // The body uses explicit `match` ladders rather than `.unwrap()` /
+        // `.expect()` because both shorthands are governed by enforced rules
+        // against this very file.
         let mut registry = SetRegistry::new();
-        registry.load_embedded_builtin_sets().unwrap();
-        assert!(registry.is_empty());
+        match registry.load_embedded_builtin_sets() {
+            Ok(()) => {}
+            Err(e) => panic!("embedded sets must parse: {:?}", e),
+        }
+        assert_eq!(registry.len(), 1);
+
+        let common_starter_id = match SetId::new("common-starter") {
+            Some(id) => id,
+            None => panic!("common-starter is a valid SetId"),
+        };
+        match registry.get(&common_starter_id) {
+            Some(set) => assert_eq!(set.rules().len(), 2),
+            None => panic!("common-starter must be embedded in Phase 4"),
+        }
     }
 }

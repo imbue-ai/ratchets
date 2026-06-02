@@ -1,0 +1,10 @@
+# Membership policy: stable rules with no known false positives, broadly
+# applicable across languages, no dependency on framework-specific opinions.
+# Follow-up MRs adding per-language starter sets should follow the same bar.
+
+[set]
+id = "common-starter"
+description = "Cross-language curated starter set: stable, broadly applicable rules with no framework-specific opinions."
+languages = []
+
+rules = ["no-todo-comments", "no-fixme-comments"]

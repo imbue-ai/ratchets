@@ -16,13 +16,14 @@ type RuleList = Vec<(RuleId, Box<dyn Rule>)>;
 
 /// Embedded built-in ratchet-set files.
 ///
-/// Phase 2 of `blueprint/ratchet-sets/plan-ratchet-sets.md` wires the loader
-/// plumbing but does not yet ship any embedded sets — the curated
-/// `common-starter.toml` content arrives in Phase 4 (`code-rs-p4`). Leaving
-/// this array empty keeps [`load_builtin_sets`] exercised by tests without
-/// committing TOML content that the rest of the system can't yet enforce
-/// (Phase 3 wires the resolver into the rule registry).
-const BUILTIN_SETS: &[(&str, &str)] = &[];
+/// Phase 4 of `blueprint/ratchet-sets/plan-ratchet-sets.md` ships
+/// `common-starter` — the language-agnostic curated starter set. Per-language
+/// starter sets (`python-starter`, `rust-starter`, `typescript-starter`) are
+/// deferred to follow-up MRs so review can focus on rule curation separately.
+const BUILTIN_SETS: &[(&str, &str)] = &[(
+    "common-starter",
+    include_str!("../../builtin-ratchets/sets/common-starter.toml"),
+)];
 
 /// Embedded built-in regex rule files
 const BUILTIN_REGEX_RULES: &[(&str, &str)] = &[
@@ -501,16 +502,13 @@ fn extend_sets(
 
 /// Load all built-in ratchet-sets from embedded resources.
 ///
-/// Phase 2 returns an empty vector — the curated `common-starter` content
-/// arrives in Phase 4 (`code-rs-p4`). The function exists so
-/// [`crate::config::SetRegistry::load_embedded_builtin_sets`] has a stable
-/// entry point that won't need to change shape when Phase 4 lands the TOML.
+/// Phase 4 of the ratchet-sets plan ships `common-starter` (cross-language
+/// curated default). Per-language starter sets are deferred to follow-up
+/// MRs.
 ///
 /// # Errors
 ///
-/// Returns [`RuleError`] if any embedded set TOML fails to parse. Phase 2
-/// cannot return an error because [`BUILTIN_SETS`] is empty; the signature is
-/// future-proofed for Phase 4.
+/// Returns [`RuleError`] if any embedded set TOML fails to parse.
 pub fn load_builtin_sets() -> Result<Vec<RatchetSet>, RuleError> {
     let mut sets = Vec::new();
     extend_sets(&mut sets, BUILTIN_SETS, "embedded")?;
