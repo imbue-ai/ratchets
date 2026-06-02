@@ -26,6 +26,7 @@ Before starting any work, you MUST read: README.md, STYLE_GUIDE.md, ARCHITECTURE
 - **Accreted code layers** - Multiple layers of additions that could be simplified
 - **Naming inconsistencies** - Similar concepts with different names
 - **Dead code** - Unused functions, types, or modules
+- **Policy-on-policy friction** - Commits whose bodies mention "moved test to `tests/` to avoid…", "bumped budget instead of fixing…", "weakened prose to dodge…", or similar workaround language. The fix-it bead targets the *rule shape*, not the workaround site. AST rules (e.g. `no-unwrap`) can usually be fixed via an ancestor predicate that ignores `#[cfg(test)]` blocks; regex rules (e.g. `no-todo-comments` under `builtin-ratchets/common/regex/`) lack AST context and want a per-rule `exclude = ["**/tests/**", "**/benches/**"]` default in the TOML instead.
 
 ## Actions you may take
 - File beads to fix high-priority problems that you identify using `br create`

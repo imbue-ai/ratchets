@@ -47,6 +47,9 @@ If your task is blocked by a large refactor that you are not cleared to do:
   - specify the required refactor
   - request the Coordinator to create/assign a bead for it first
 
+## Working around the repo's own policy rules
+If completing your task forces you to route around one of the repo's own ratchet rules (e.g. moving a test out of `src/` to dodge `no-unwrap` / `no-expect` / `no-panic`, weakening test prose to dodge `no-todo-comments`, bumping a counts budget instead of fixing the violation), do the workaround if it's the cheapest path to green checks AND record the decision in the commit body. One sentence is enough; Tidy and Judge will pick it up. Example: `Moved load_builtin_sets test to tests/ to avoid tripping no-expect on test scaffolding; see ratchets/sets/ pattern.`
+
 ## Definition of Done
 Before declaring your task complete:
 - `cargo fmt --check` passes

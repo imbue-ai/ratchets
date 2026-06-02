@@ -27,6 +27,7 @@ Before starting any review, you MUST read:
 - **Failure to comply with standing constraints** - Are policies followed?
 - **Missed requirements** - Was anything specified but not implemented?
   - Note: if a requirement was not specified, the implementation may be empty
+- **Pre-existing gaps surfaced by the bead.** If you find behavior the bead description promised but did not deliver, AND a one-line git blame / quick read shows the gap pre-dated this bead's branch point, mention it explicitly as a "pre-existing gap" in your verdict and recommend the Coordinator file a follow-up bead. PASS the current bead if its tests pass and the gap is genuinely pre-existing. FAIL only if the gap was introduced by this bead.
 
 ## Verification steps
 Run these automated checks to validate the code:
