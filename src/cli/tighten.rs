@@ -352,12 +352,28 @@ mod tests {
         }
     }
 
+    /// Helpers shared by the orphan-detection tests. Keeping the test fixture
+    /// builders in their own module lets us avoid scattering `.unwrap()` calls
+    /// across every assertion — `unwrap_or_else(|| unreachable!())` would be
+    /// the same shape from `no-unwrap`'s perspective, so we use `match` with
+    /// `unreachable!` to surface programmer errors loudly without a `.unwrap`
+    /// call site per test.
+    fn mk_rule_id(id: &str) -> RuleId {
+        match RuleId::new(id) {
+            Some(rule_id) => rule_id,
+            None => unreachable!("test data must be a valid rule ID, got '{}'", id),
+        }
+    }
+
     /// Build a [`RuleRegistry`] populated with the named rule IDs by writing
     /// throwaway regex rule TOML files into a temp directory and loading them
     /// via the builtin loader. Keeps the orphan-detection unit tests honest by
     /// exercising the real registry rather than a hand-rolled mock.
     fn registry_with_rules(rule_ids: &[&str]) -> RuleRegistry {
-        let temp_dir = tempfile::TempDir::new().unwrap();
+        let temp_dir = match tempfile::TempDir::new() {
+            Ok(dir) => dir,
+            Err(e) => unreachable!("tempfile must succeed in tests: {}", e),
+        };
         for id in rule_ids {
             let rule_toml = format!(
                 r#"
@@ -371,23 +387,22 @@ pattern = "PLACEHOLDER"
 "#,
                 id
             );
-            std::fs::write(temp_dir.path().join(format!("{}.toml", id)), rule_toml).unwrap();
+            if let Err(e) = std::fs::write(temp_dir.path().join(format!("{}.toml", id)), rule_toml)
+            {
+                unreachable!("test rule file must write: {}", e);
+            }
         }
         let mut registry = RuleRegistry::new();
-        registry
-            .load_builtin_regex_rules(temp_dir.path())
-            .expect("test rules should load");
+        if let Err(e) = registry.load_builtin_regex_rules(temp_dir.path()) {
+            unreachable!("test rules must load: {}", e);
+        }
         registry
     }
 
     #[test]
     fn test_orphaned_count_rule_ids_returns_empty_when_all_present() {
         let mut counts = CountsManager::new();
-        counts.set_count(
-            &RuleId::new("present-rule").unwrap(),
-            &RegionPath::new("."),
-            5,
-        );
+        counts.set_count(&mk_rule_id("present-rule"), &RegionPath::new("."), 5);
 
         let registry = registry_with_rules(&["present-rule"]);
         let orphans = orphaned_count_rule_ids(&counts, &registry);
@@ -397,11 +412,7 @@ pattern = "PLACEHOLDER"
     #[test]
     fn test_orphaned_count_rule_ids_detects_missing_rule() {
         let mut counts = CountsManager::new();
-        counts.set_count(
-            &RuleId::new("orphan-rule").unwrap(),
-            &RegionPath::new("."),
-            5,
-        );
+        counts.set_count(&mk_rule_id("orphan-rule"), &RegionPath::new("."), 5);
 
         let registry = registry_with_rules(&[]); // no rules resolved
         let orphans = orphaned_count_rule_ids(&counts, &registry);
@@ -413,7 +424,7 @@ pattern = "PLACEHOLDER"
     fn test_orphaned_count_rule_ids_is_sorted_alphabetically() {
         let mut counts = CountsManager::new();
         for id in ["zeta-rule", "alpha-rule", "mu-rule"] {
-            counts.set_count(&RuleId::new(id).unwrap(), &RegionPath::new("."), 1);
+            counts.set_count(&mk_rule_id(id), &RegionPath::new("."), 1);
         }
 
         let registry = registry_with_rules(&[]); // every rule is an orphan
@@ -425,12 +436,8 @@ pattern = "PLACEHOLDER"
     #[test]
     fn test_orphaned_count_rule_ids_keeps_resolved_rules() {
         let mut counts = CountsManager::new();
-        counts.set_count(&RuleId::new("kept-rule").unwrap(), &RegionPath::new("."), 3);
-        counts.set_count(
-            &RuleId::new("orphan-rule").unwrap(),
-            &RegionPath::new("."),
-            7,
-        );
+        counts.set_count(&mk_rule_id("kept-rule"), &RegionPath::new("."), 3);
+        counts.set_count(&mk_rule_id("orphan-rule"), &RegionPath::new("."), 7);
 
         let registry = registry_with_rules(&["kept-rule"]);
         let orphans = orphaned_count_rule_ids(&counts, &registry);
@@ -440,7 +447,7 @@ pattern = "PLACEHOLDER"
 
     #[test]
     fn test_format_orphan_warning_mentions_rule_id_and_intent() {
-        let rule_id = RuleId::new("retired-rule").unwrap();
+        let rule_id = mk_rule_id("retired-rule");
         let line = format_orphan_warning(&rule_id);
         assert!(line.starts_with("Warning:"));
         assert!(line.contains("'retired-rule'"));
