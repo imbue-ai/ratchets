@@ -6,6 +6,7 @@
 use crate::cli::git_diff::{self, GitDiffError};
 use crate::config::counts::CountsManager;
 use crate::config::ratchet_toml::Config;
+use crate::config::sets::ResolveError;
 use crate::engine::file_walker::{FileEntry, FileWalker, FileWalkerError};
 use crate::error::{ConfigError, RuleError};
 use crate::rules::RuleRegistry;
@@ -191,6 +192,27 @@ fn changed_set_contains(changed: &std::collections::HashSet<PathBuf>, path: &Pat
 /// Returns `RuleError` if there is an error loading or building rules.
 pub(crate) fn build_registry(config: &Config) -> Result<RuleRegistry, RuleError> {
     RuleRegistry::build_from_config(config)
+}
+
+/// Render a [`ResolveError`] to stderr using the wording prescribed by
+/// Phase 3 of the ratchet-sets plan.
+///
+/// `Cycle` becomes `Set composition cycle: $a -> $b -> $a` (note the
+/// `$` sigil on each set ID so the line round-trips with the reference
+/// syntax users see in `ratchets.toml`). `UnknownSet` becomes
+/// `Unknown set '$foo' in ratchets.toml`. Both lines go to stderr; the
+/// caller is responsible for the non-zero exit code.
+pub(crate) fn print_resolve_error(err: &ResolveError) {
+    match err {
+        ResolveError::Cycle(chain) => {
+            let formatted: Vec<String> =
+                chain.iter().map(|id| format!("${}", id.as_str())).collect();
+            eprintln!("Set composition cycle: {}", formatted.join(" -> "));
+        }
+        ResolveError::UnknownSet(id) => {
+            eprintln!("Unknown set '${}' in ratchets.toml", id.as_str());
+        }
+    }
 }
 
 /// Load ratchet-counts.toml

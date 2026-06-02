@@ -63,6 +63,17 @@ pub enum RuleError {
     /// Invalid tree-sitter query
     #[error("Invalid tree-sitter query: {0}")]
     InvalidQuery(String),
+
+    /// Failed to resolve `enabled_ratchets` / `disabled_ratchets` against
+    /// the [`crate::config::SetRegistry`].
+    ///
+    /// Phase 3 of the ratchet-sets plan wires [`crate::config::SetRegistry::resolve`]
+    /// into [`crate::rules::RuleRegistry::build_from_config`]. A `Cycle` or
+    /// `UnknownSet` reported by the resolver surfaces here so each CLI
+    /// subcommand can match on it and emit the plan's prescribed stderr
+    /// message before exiting non-zero.
+    #[error("Ratchet-set resolution failed: {0}")]
+    SetResolve(#[from] crate::config::sets::ResolveError),
 }
 
 /// Top-level error type for Ratchets

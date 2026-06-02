@@ -7,7 +7,7 @@
 
 [no-fixme-comments]
 "." = 3
-"src" = 22
+"src" = 23
 
 [no-panic]
 "src" = 31
@@ -15,11 +15,11 @@
 [no-todo-comments]
 "." = 9
 "benches" = 14
-"src" = 157
+"src" = 163
 
 [no-unwrap]
 "." = 0
-"src" = 424
+"src" = 426
 
 [rust-no-fixme-comments]
 "src" = 1

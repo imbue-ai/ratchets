@@ -65,6 +65,11 @@ pub fn run_bump(rule_id: Option<&str>, region: &str, count: Option<u64>, all: bo
             if let BumpError::Config(ConfigError::UnsupportedVersion(_)) = &e {
                 super::upgrade_notice::print_to_stderr();
             }
+            // Phase 3: surface the ratchet-set resolver error in the
+            // plan-prescribed wording before the generic printer.
+            if let BumpError::Rule(crate::error::RuleError::SetResolve(ref resolve)) = e {
+                super::common::print_resolve_error(resolve);
+            }
             eprintln!("Error: {}", e);
             EXIT_ERROR
         }

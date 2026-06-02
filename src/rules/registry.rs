@@ -8,11 +8,11 @@
 //! - Filtering rules based on configuration
 //! - Providing access to rules by ID
 
-use crate::config::ratchet_toml::RulesConfig;
+use crate::config::sets::SetRegistry;
 use crate::error::RuleError;
 use crate::rules::{AstRule, RegexRule, Rule, RuleContext};
 use crate::types::{GlobPattern, RuleId};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 
@@ -402,20 +402,28 @@ impl RuleRegistry {
         Ok(())
     }
 
-    /// Filter rules based on configuration.
+    /// Filter rules to only those whose ID appears in `enabled`.
     ///
-    /// Phase 1 of the ratchet-sets plan removes the v1
-    /// `[rules].rule-id = false` enable/disable shorthand entirely. Every entry
-    /// in `[rules]` is now a settings table for a rule that is implicitly
-    /// enabled, so there is no longer any rule to filter out at this step.
-    /// The function is retained as a no-op for now; Phase 3 replaces this call
-    /// with a resolver-driven filter (`filter_by_enabled_set`).
+    /// Phase 3 of the ratchet-sets plan replaces the legacy
+    /// `filter_by_config` (a no-op since Phase 1) with this resolver-driven
+    /// step. The `enabled` set is produced by
+    /// [`SetRegistry::resolve`] in [`Self::build_from_config`]; any rule whose
+    /// ID is not present is dropped from the registry, regardless of how it
+    /// arrived (embedded, filesystem builtin, or user-defined).
     ///
     /// # Arguments
     ///
-    /// * `_config` - The rules configuration from ratchets.toml
-    pub fn filter_by_config(&mut self, _config: &RulesConfig) {
-        // Intentionally a no-op in Phase 1. See doc-comment above.
+    /// * `enabled` - Set of rule IDs that should remain in the registry.
+    pub fn filter_by_enabled_set(&mut self, enabled: &HashSet<RuleId>) {
+        let to_remove: Vec<RuleId> = self
+            .rules
+            .keys()
+            .filter(|id| !enabled.contains(*id))
+            .cloned()
+            .collect();
+        for id in to_remove {
+            self.rules.remove(&id);
+        }
     }
 
     /// Get a rule by its ID
@@ -490,8 +498,15 @@ impl RuleRegistry {
     /// 1. Embedded builtin rules (compiled into binary)
     /// 2. Filesystem builtin rules (from builtin-ratchets/ - for overrides/development)
     /// 3. Custom rules (from ratchets/ - user-defined rules)
-    /// 4. Filters by config (removes disabled rules)
-    /// 5. Filters by language (removes rules for unconfigured languages)
+    /// 4. Resolve `enabled_ratchets` / `disabled_ratchets` via a
+    ///    [`SetRegistry`] (embedded → filesystem builtin → user-defined sets)
+    ///    and drop any rule whose ID is not in the resolved enabled set.
+    /// 5. Filter by language (removes rules for unconfigured languages).
+    ///
+    /// Unknown rule IDs that appear in `[rules]` produce a stderr warning
+    /// (not a hard error) — they may simply have been disabled by
+    /// `disabled_ratchets`, or refer to rules that aren't loaded for the
+    /// configured languages.
     ///
     /// # Arguments
     ///
@@ -499,7 +514,9 @@ impl RuleRegistry {
     ///
     /// # Errors
     ///
-    /// Returns `RuleError` if any rule loading step fails
+    /// Returns `RuleError` if any rule loading step fails, or if the
+    /// ratchet-set resolver rejects the config (cycle in user-defined sets or
+    /// reference to an unknown set).
     pub fn build_from_config(
         config: &crate::config::ratchet_toml::Config,
     ) -> Result<Self, RuleError> {
@@ -538,8 +555,30 @@ impl RuleRegistry {
             registry.load_custom_ast_rules(&custom_ast_dir, Some(&rule_context))?;
         }
 
-        // Step 4: Filter by config (remove disabled rules)
-        registry.filter_by_config(&config.rules);
+        // Step 4: Resolve `enabled_ratchets` / `disabled_ratchets` via the
+        // SetRegistry and filter the rule set down to the resolved IDs.
+        //
+        // Loading order for the SetRegistry mirrors the rule loaders:
+        // embedded → filesystem-builtin → user-defined. Later sets override
+        // earlier ones with the same ID.
+        let mut set_registry = SetRegistry::new();
+        set_registry.load_embedded_builtin_sets()?;
+
+        let builtin_sets_dir = std::path::PathBuf::from("builtin-ratchets").join("sets");
+        set_registry.load_builtin_sets(&builtin_sets_dir)?;
+
+        let user_sets_dir = std::path::PathBuf::from("ratchets").join("sets");
+        set_registry.load_custom_sets(&user_sets_dir)?;
+
+        let resolved = set_registry.resolve(&config.enabled_ratchets, &config.disabled_ratchets)?;
+
+        registry.filter_by_enabled_set(&resolved);
+
+        // Per-rule `[rules]` entries are settings tables for rules that are
+        // already in the resolved set. Any entry whose rule ID is absent from
+        // the surviving registry is reported as a warning so users learn about
+        // typos or stale config without a hard failure.
+        warn_orphan_rule_settings(&registry, &config.rules);
 
         // Step 5: Filter by language (remove rules for unconfigured languages)
         registry.filter_by_languages(&config.ratchets.languages);
@@ -586,6 +625,37 @@ impl RuleRegistry {
 impl Default for RuleRegistry {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Emit a stderr warning for any `[rules]` entry whose ID is not present in
+/// the resolved registry.
+///
+/// Phase 3 of the ratchet-sets plan: per-rule settings (severity / regions)
+/// are only meaningful for rules that survived the resolver filter. An entry
+/// referencing a rule that was never enabled (or was explicitly disabled)
+/// almost certainly indicates a typo or stale configuration; we tell the user
+/// without failing the run, mirroring the orphan-counts handling planned for
+/// Phase 5.
+fn warn_orphan_rule_settings(
+    registry: &RuleRegistry,
+    rules_config: &crate::config::ratchet_toml::RulesConfig,
+) {
+    for rule_id in rules_config.builtin.keys() {
+        if !registry.rules.contains_key(rule_id) {
+            eprintln!(
+                "Warning: [rules].{} has settings but the rule is not in the resolved enabled set",
+                rule_id.as_str()
+            );
+        }
+    }
+    for rule_id in rules_config.custom.keys() {
+        if !registry.rules.contains_key(rule_id) {
+            eprintln!(
+                "Warning: [rules.custom].{} has settings but the rule is not in the resolved enabled set",
+                rule_id.as_str()
+            );
+        }
     }
 }
 
@@ -774,63 +844,66 @@ pattern = "TODO"
     }
 
     #[test]
-    fn test_filter_by_config_no_config() {
+    fn test_filter_by_enabled_set_empty_drops_all() {
+        // Phase 3: an empty resolved set means "no rules enabled". Strict
+        // opt-in is the whole point of the schema bump.
         let temp_dir = TempDir::new().unwrap();
         create_test_rule_file(temp_dir.path(), "rule1.toml", "rule-1");
         create_test_rule_file(temp_dir.path(), "rule2.toml", "rule-2");
 
         let mut registry = RuleRegistry::new();
         registry.load_builtin_regex_rules(temp_dir.path()).unwrap();
-
-        let config = RulesConfig::default();
-        registry.filter_by_config(&config);
-
-        // All rules should remain (enabled by default)
         assert_eq!(registry.len(), 2);
+
+        registry.filter_by_enabled_set(&HashSet::new());
+        assert!(registry.is_empty());
     }
 
     #[test]
-    fn test_filter_by_config_with_settings_keeps_rule() {
-        // Post-Phase-1 `filter_by_config` is a no-op: only settings tables
-        // appear under `[rules]`, and they implicitly mean "enabled with this
-        // settings table". The rule must survive the call.
-        let temp_dir = TempDir::new().unwrap();
-        create_test_rule_file(temp_dir.path(), "rule1.toml", "rule-1");
-
-        let mut registry = RuleRegistry::new();
-        registry.load_builtin_regex_rules(temp_dir.path()).unwrap();
-
-        let mut config = RulesConfig::default();
-        config.builtin.insert(
-            RuleId::new("rule-1").unwrap(),
-            crate::config::ratchet_toml::RuleSettings {
-                severity: Some(crate::types::Severity::Error),
-                regions: None,
-            },
-        );
-        registry.filter_by_config(&config);
-
-        assert_eq!(registry.len(), 1);
-    }
-
-    #[test]
-    fn test_filter_by_config_is_noop_for_unrelated_rule() {
-        // A rule that has no entry under `[rules]` should survive — same as
-        // before. The Phase 1 implementation makes this trivial because the
-        // filter never removes anything.
+    fn test_filter_by_enabled_set_keeps_listed_rules_only() {
         let temp_dir = TempDir::new().unwrap();
         create_test_rule_file(temp_dir.path(), "rule1.toml", "rule-1");
         create_test_rule_file(temp_dir.path(), "rule2.toml", "rule-2");
+        create_test_rule_file(temp_dir.path(), "rule3.toml", "rule-3");
 
         let mut registry = RuleRegistry::new();
         registry.load_builtin_regex_rules(temp_dir.path()).unwrap();
+        assert_eq!(registry.len(), 3);
 
-        let config = RulesConfig::default();
-        registry.filter_by_config(&config);
+        let enabled: HashSet<RuleId> = [
+            RuleId::new("rule-1").unwrap(),
+            RuleId::new("rule-3").unwrap(),
+        ]
+        .into_iter()
+        .collect();
+        registry.filter_by_enabled_set(&enabled);
 
         assert_eq!(registry.len(), 2);
         assert!(registry.get_rule(&RuleId::new("rule-1").unwrap()).is_some());
-        assert!(registry.get_rule(&RuleId::new("rule-2").unwrap()).is_some());
+        assert!(registry.get_rule(&RuleId::new("rule-2").unwrap()).is_none());
+        assert!(registry.get_rule(&RuleId::new("rule-3").unwrap()).is_some());
+    }
+
+    #[test]
+    fn test_filter_by_enabled_set_ignores_unknown_ids() {
+        // Resolved IDs that don't map to any loaded rule are silently
+        // dropped — the resolver only operates on IDs, not on definitions.
+        let temp_dir = TempDir::new().unwrap();
+        create_test_rule_file(temp_dir.path(), "rule1.toml", "rule-1");
+
+        let mut registry = RuleRegistry::new();
+        registry.load_builtin_regex_rules(temp_dir.path()).unwrap();
+
+        let enabled: HashSet<RuleId> = [
+            RuleId::new("rule-1").unwrap(),
+            RuleId::new("typo-rule").unwrap(),
+        ]
+        .into_iter()
+        .collect();
+        registry.filter_by_enabled_set(&enabled);
+
+        assert_eq!(registry.len(), 1);
+        assert!(registry.get_rule(&RuleId::new("rule-1").unwrap()).is_some());
     }
 
     #[test]
@@ -1332,12 +1405,63 @@ query = "(unclosed_paren"
 
     #[test]
     #[cfg(feature = "lang-rust")]
-    fn test_build_from_config_loads_embedded_rules() {
+    fn test_build_from_config_loads_embedded_rules_when_enabled() {
         use crate::config::ratchet_toml::{Config, OutputConfig, RatchetsMeta, RulesConfig};
         use crate::types::GlobPattern;
         use std::collections::HashMap;
 
-        // Create a minimal config (without requiring ratchets.toml file)
+        // Phase 3: rules must be explicitly listed in `enabled_ratchets` to
+        // survive the resolver filter. Bare rule IDs still work — Phase 4
+        // introduces the curated `$common-starter` set.
+        let config = Config {
+            ratchets: RatchetsMeta {
+                version: "2".to_string(),
+                languages: vec![crate::types::Language::Rust],
+                include: vec![GlobPattern::new("**/*.rs".to_string())],
+                exclude: vec![],
+            },
+            rules: RulesConfig {
+                builtin: HashMap::new(),
+                custom: HashMap::new(),
+            },
+            output: OutputConfig::default(),
+            patterns: HashMap::new(),
+            enabled_ratchets: vec![
+                crate::config::ratchet_toml::RatchetRef::Rule(RuleId::new("no-unwrap").unwrap()),
+                crate::config::ratchet_toml::RatchetRef::Rule(RuleId::new("no-panic").unwrap()),
+                crate::config::ratchet_toml::RatchetRef::Rule(RuleId::new("no-expect").unwrap()),
+            ],
+            disabled_ratchets: Vec::new(),
+        };
+
+        let registry = RuleRegistry::build_from_config(&config).unwrap();
+
+        assert_eq!(registry.len(), 3);
+        assert!(
+            registry
+                .get_rule(&RuleId::new("no-unwrap").unwrap())
+                .is_some()
+        );
+        assert!(
+            registry
+                .get_rule(&RuleId::new("no-panic").unwrap())
+                .is_some()
+        );
+        assert!(
+            registry
+                .get_rule(&RuleId::new("no-expect").unwrap())
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn test_build_from_config_empty_enabled_ratchets_yields_empty_registry() {
+        // Phase 3: explicit opt-in. With no enabled refs, the registry
+        // resolves to zero rules even though embedded rules loaded.
+        use crate::config::ratchet_toml::{Config, OutputConfig, RatchetsMeta, RulesConfig};
+        use crate::types::GlobPattern;
+        use std::collections::HashMap;
+
         let config = Config {
             ratchets: RatchetsMeta {
                 version: "2".to_string(),
@@ -1355,39 +1479,59 @@ query = "(unclosed_paren"
             disabled_ratchets: Vec::new(),
         };
 
-        // Build registry from config
         let registry = RuleRegistry::build_from_config(&config).unwrap();
+        assert!(registry.is_empty());
+    }
 
-        // Should have loaded embedded builtin rules
-        // At minimum, we should have the Rust AST rules: no-unwrap, no-panic, no-expect
-        assert!(registry.len() >= 3);
+    #[test]
+    fn test_build_from_config_disabled_ratchets_removes_rule() {
+        // Phase 3: disabled wins over enabled.
+        use crate::config::ratchet_toml::{
+            Config, OutputConfig, RatchetRef, RatchetsMeta, RulesConfig,
+        };
+        use crate::types::GlobPattern;
+        use std::collections::HashMap;
 
-        // Verify specific embedded rules are present
-        let no_unwrap = RuleId::new("no-unwrap").unwrap();
-        let no_panic = RuleId::new("no-panic").unwrap();
-        let no_expect = RuleId::new("no-expect").unwrap();
+        let config = Config {
+            ratchets: RatchetsMeta {
+                version: "2".to_string(),
+                languages: vec![crate::types::Language::Rust],
+                include: vec![GlobPattern::new("**/*".to_string())],
+                exclude: vec![],
+            },
+            rules: RulesConfig {
+                builtin: HashMap::new(),
+                custom: HashMap::new(),
+            },
+            output: OutputConfig::default(),
+            patterns: HashMap::new(),
+            enabled_ratchets: vec![
+                RatchetRef::Rule(RuleId::new("no-todo-comments").unwrap()),
+                RatchetRef::Rule(RuleId::new("no-fixme-comments").unwrap()),
+            ],
+            disabled_ratchets: vec![RatchetRef::Rule(RuleId::new("no-todo-comments").unwrap())],
+        };
 
+        let registry = RuleRegistry::build_from_config(&config).unwrap();
         assert!(
-            registry.get_rule(&no_unwrap).is_some(),
-            "no-unwrap rule should be loaded from embedded rules"
+            registry
+                .get_rule(&RuleId::new("no-todo-comments").unwrap())
+                .is_none()
         );
         assert!(
-            registry.get_rule(&no_panic).is_some(),
-            "no-panic rule should be loaded from embedded rules"
-        );
-        assert!(
-            registry.get_rule(&no_expect).is_some(),
-            "no-expect rule should be loaded from embedded rules"
+            registry
+                .get_rule(&RuleId::new("no-fixme-comments").unwrap())
+                .is_some()
         );
     }
 
     #[test]
-    fn test_build_from_config_loads_settings_record_without_removing_rule() {
-        // Post-Phase-1 there is no way to disable a rule from `[rules]` — that
-        // mechanism moves to `disabled_ratchets`. A settings record just
-        // applies severity/regions without affecting registry membership.
+    fn test_build_from_config_keeps_settings_record_for_enabled_rule() {
+        // Phase 3: settings records under `[rules]` apply to enabled rules.
+        // A settings record without a matching enabled_ratchet entry is
+        // reported as a warning (see `warn_orphan_rule_settings`).
         use crate::config::ratchet_toml::{
-            Config, OutputConfig, RatchetsMeta, RuleSettings, RulesConfig,
+            Config, OutputConfig, RatchetRef, RatchetsMeta, RuleSettings, RulesConfig,
         };
         use crate::types::GlobPattern;
         use std::collections::HashMap;
@@ -1414,7 +1558,7 @@ query = "(unclosed_paren"
             },
             output: OutputConfig::default(),
             patterns: HashMap::new(),
-            enabled_ratchets: Vec::new(),
+            enabled_ratchets: vec![RatchetRef::Rule(RuleId::new("no-todo-comments").unwrap())],
             disabled_ratchets: Vec::new(),
         };
 
@@ -1422,7 +1566,7 @@ query = "(unclosed_paren"
         let no_todo_comments = RuleId::new("no-todo-comments").unwrap();
         assert!(
             registry.get_rule(&no_todo_comments).is_some(),
-            "settings record alone must not remove a rule from the registry"
+            "settings record on an enabled rule must keep it in the registry"
         );
     }
 
@@ -1444,11 +1588,27 @@ query = "(unclosed_paren"
     #[test]
     #[cfg(feature = "lang-rust")]
     fn test_filter_by_languages_removes_non_matching_rules() {
-        use crate::config::ratchet_toml::{Config, OutputConfig, RatchetsMeta, RulesConfig};
+        use crate::config::ratchet_toml::{
+            Config, OutputConfig, RatchetRef, RatchetsMeta, RulesConfig,
+        };
         use crate::types::{GlobPattern, Language};
         use std::collections::HashMap;
 
-        // Create config with only Rust language
+        // Phase 3: every rule we want to assert against must be enabled
+        // explicitly. Python and TypeScript rules are still loaded (for the
+        // negative assertions below) but get filtered out by language because
+        // `enabled_ratchets` lists their IDs and `filter_by_languages`
+        // subsequently removes anything not tagged Rust.
+        let enabled_ratchets = vec![
+            RatchetRef::Rule(RuleId::new("no-unwrap").unwrap()),
+            RatchetRef::Rule(RuleId::new("no-panic").unwrap()),
+            RatchetRef::Rule(RuleId::new("no-expect").unwrap()),
+            RatchetRef::Rule(RuleId::new("no-todo-comments").unwrap()),
+            RatchetRef::Rule(RuleId::new("no-fixme-comments").unwrap()),
+            RatchetRef::Rule(RuleId::new("no-args-in-docstrings").unwrap()),
+            RatchetRef::Rule(RuleId::new("no-any").unwrap()),
+        ];
+
         let config = Config {
             ratchets: RatchetsMeta {
                 version: "2".to_string(),
@@ -1462,7 +1622,7 @@ query = "(unclosed_paren"
             },
             output: OutputConfig::default(),
             patterns: HashMap::new(),
-            enabled_ratchets: Vec::new(),
+            enabled_ratchets,
             disabled_ratchets: Vec::new(),
         };
 
@@ -1530,11 +1690,18 @@ query = "(unclosed_paren"
     #[test]
     #[cfg(all(feature = "lang-rust", feature = "lang-python"))]
     fn test_filter_by_languages_keeps_multiple_languages() {
-        use crate::config::ratchet_toml::{Config, OutputConfig, RatchetsMeta, RulesConfig};
+        use crate::config::ratchet_toml::{
+            Config, OutputConfig, RatchetRef, RatchetsMeta, RulesConfig,
+        };
         use crate::types::{GlobPattern, Language};
         use std::collections::HashMap;
 
-        // Create config with Rust and Python languages
+        let enabled_ratchets = vec![
+            RatchetRef::Rule(RuleId::new("no-unwrap").unwrap()),
+            RatchetRef::Rule(RuleId::new("no-args-in-docstrings").unwrap()),
+            RatchetRef::Rule(RuleId::new("no-any").unwrap()),
+        ];
+
         let config = Config {
             ratchets: RatchetsMeta {
                 version: "2".to_string(),
@@ -1548,7 +1715,7 @@ query = "(unclosed_paren"
             },
             output: OutputConfig::default(),
             patterns: HashMap::new(),
-            enabled_ratchets: Vec::new(),
+            enabled_ratchets,
             disabled_ratchets: Vec::new(),
         };
 
@@ -1579,11 +1746,17 @@ query = "(unclosed_paren"
 
     #[test]
     fn test_filter_by_languages_keeps_language_agnostic_rules() {
-        use crate::config::ratchet_toml::{Config, OutputConfig, RatchetsMeta, RulesConfig};
+        use crate::config::ratchet_toml::{
+            Config, OutputConfig, RatchetRef, RatchetsMeta, RulesConfig,
+        };
         use crate::types::{GlobPattern, Language};
         use std::collections::HashMap;
 
-        // Create config with only Rust language
+        let enabled_ratchets = vec![
+            RatchetRef::Rule(RuleId::new("no-todo-comments").unwrap()),
+            RatchetRef::Rule(RuleId::new("no-fixme-comments").unwrap()),
+        ];
+
         let config = Config {
             ratchets: RatchetsMeta {
                 version: "2".to_string(),
@@ -1597,7 +1770,7 @@ query = "(unclosed_paren"
             },
             output: OutputConfig::default(),
             patterns: HashMap::new(),
-            enabled_ratchets: Vec::new(),
+            enabled_ratchets,
             disabled_ratchets: Vec::new(),
         };
 

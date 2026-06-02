@@ -13,6 +13,8 @@ use tempfile::TempDir;
 fn setup_test_project(temp_dir: &Path) {
     // Create ratchets.toml
     let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -96,6 +98,8 @@ fn test_check_command_exceeded_budget() {
 
     // Create ratchets.toml with lower budget
     let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -194,6 +198,8 @@ fn test_check_command_no_files() {
 
     // Create config but no source files
     let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -250,6 +256,8 @@ fn test_check_verbose_flag() {
 
     // Create ratchets.toml
     let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -359,6 +367,8 @@ fn test_check_verbose_with_jsonl_format() {
 
     // Create ratchets.toml with specific include pattern
     let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -427,6 +437,8 @@ fn test_check_non_verbose_hides_violations() {
 
     // Create ratchets.toml
     let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -691,6 +703,8 @@ fn test_check_anchored_include_glob_matches_from_dot_root() {
     let temp_dir = TempDir::new().unwrap();
 
     let config = r#"
+enabled_ratchets = ["no-raw-button-jsx"]
+
 [ratchets]
 version = "2"
 languages = ["typescript"]
@@ -789,4 +803,250 @@ fn test_check_since_outside_git_repo_returns_error() {
     assert_eq!(exit_code, ratchets::cli::common::EXIT_ERROR);
 
     std::env::set_current_dir(original_dir).unwrap();
+}
+
+// ============================================================================
+// PHASE 3 (`code-6ik`): resolver-driven enablement via SetRegistry
+// ============================================================================
+//
+// Phase 3 of `blueprint/ratchet-sets/plan-ratchet-sets.md` wires
+// `SetRegistry::resolve` into `RuleRegistry::build_from_config`. These tests
+// exercise the end-to-end behavior the bead calls out: bare rule IDs in
+// `enabled_ratchets` load exactly those rules, `disabled_ratchets` subtracts
+// rules from the resolved set, user-defined sets under `ratchets/sets/`
+// expand correctly, and cycles in user-defined sets surface as the
+// plan-prescribed error (non-zero exit, clear stderr).
+
+/// Set up a project with no embedded rules involved — only custom regex
+/// rules and an `enabled_ratchets` list naming them. Lets the Phase 3
+/// tests focus on resolver behavior without dragging in budgets for the
+/// embedded Rust AST rules.
+fn setup_phase3_custom_rule_project(temp_dir: &Path, ratchets_toml_body: &str) {
+    let config = format!(
+        r#"
+{ratchets_toml_body}
+
+[ratchets]
+version = "2"
+languages = ["rust"]
+include = ["**/*.rs"]
+
+[rules]
+"#
+    );
+    fs::write(temp_dir.join("ratchets.toml"), config).unwrap();
+
+    // Budget of 0 so any violation makes check exit EXCEEDED. Lets each test
+    // assert pass/fail purely from rule resolution, not from counts.
+    let counts = r#"
+[phase3-no-todo]
+"." = 0
+
+[phase3-no-fixme]
+"." = 0
+"#;
+    fs::write(temp_dir.join("ratchet-counts.toml"), counts).unwrap();
+
+    let custom_regex_dir = temp_dir.join("ratchets").join("regex");
+    fs::create_dir_all(&custom_regex_dir).unwrap();
+
+    fs::write(
+        custom_regex_dir.join("phase3-no-todo.toml"),
+        r#"
+[rule]
+id = "phase3-no-todo"
+description = "Phase 3 fixture rule: forbid TODO"
+severity = "warning"
+
+[match]
+pattern = "TODO"
+"#,
+    )
+    .unwrap();
+
+    fs::write(
+        custom_regex_dir.join("phase3-no-fixme.toml"),
+        r#"
+[rule]
+id = "phase3-no-fixme"
+description = "Phase 3 fixture rule: forbid FIXME"
+severity = "warning"
+
+[match]
+pattern = "FIXME"
+"#,
+    )
+    .unwrap();
+}
+
+#[test]
+#[serial]
+fn test_phase3_bare_rule_ids_in_enabled_ratchets_load_exactly_those_rules() {
+    // Acceptance criterion: a config with `enabled_ratchets = ["a", "b"]`
+    // loads exactly those two rules. Use Phase-3 fixture rules to avoid
+    // entangling the assertion with embedded builtins.
+    let temp_dir = TempDir::new().unwrap();
+    setup_phase3_custom_rule_project(temp_dir.path(), r#"enabled_ratchets = ["phase3-no-todo"]"#);
+
+    // Source file matches BOTH custom rules, but only phase3-no-todo is
+    // enabled — so only that rule's violation should exceed budget.
+    fs::write(
+        temp_dir.path().join("src.rs"),
+        "// TODO: a\n// FIXME: b\nfn main() {}\n",
+    )
+    .unwrap();
+
+    let original_dir = std::env::current_dir().unwrap();
+    std::env::set_current_dir(temp_dir.path()).unwrap();
+
+    let exit_code = ratchets::cli::check::run_check(
+        &[".".to_string()],
+        ratchets::cli::OutputFormat::Human,
+        false,
+        None,
+    );
+
+    std::env::set_current_dir(original_dir).unwrap();
+
+    // phase3-no-todo finds a violation against budget 0 -> EXCEEDED. The fact
+    // that the check fires at all confirms the bare rule ID resolved to the
+    // expected rule; if `phase3-no-fixme` had also been enabled it would also
+    // have fired, but we did not list it so it should have been filtered out
+    // of the registry entirely.
+    assert_eq!(exit_code, ratchets::cli::common::EXIT_EXCEEDED);
+}
+
+#[test]
+#[serial]
+fn test_phase3_disabled_ratchets_removes_rule_from_resolved_set() {
+    // Acceptance criterion: `disabled_ratchets` removes a rule even if it is
+    // present in `enabled_ratchets`.
+    let temp_dir = TempDir::new().unwrap();
+    setup_phase3_custom_rule_project(
+        temp_dir.path(),
+        r#"
+enabled_ratchets = ["phase3-no-todo", "phase3-no-fixme"]
+disabled_ratchets = ["phase3-no-todo"]
+"#,
+    );
+
+    // Only phase3-no-fixme should remain in the resolved set. A file with a
+    // TODO but no FIXME should therefore pass (no enabled rule fires).
+    fs::write(
+        temp_dir.path().join("src.rs"),
+        "// TODO: keep me\nfn main() {}\n",
+    )
+    .unwrap();
+
+    let original_dir = std::env::current_dir().unwrap();
+    std::env::set_current_dir(temp_dir.path()).unwrap();
+
+    let exit_code = ratchets::cli::check::run_check(
+        &[".".to_string()],
+        ratchets::cli::OutputFormat::Human,
+        false,
+        None,
+    );
+
+    std::env::set_current_dir(original_dir).unwrap();
+
+    assert_eq!(exit_code, ratchets::cli::common::EXIT_SUCCESS);
+}
+
+#[test]
+#[serial]
+fn test_phase3_user_defined_set_expands_to_member_rule_ids() {
+    // Acceptance criterion: a user-defined set under `ratchets/sets/*.toml`
+    // expands to its rules at resolution time. This stands in for the
+    // `$common-starter` end-to-end test that Phase 4 will exercise once the
+    // shipped set lands.
+    let temp_dir = TempDir::new().unwrap();
+    setup_phase3_custom_rule_project(temp_dir.path(), r#"enabled_ratchets = ["$phase3-strict"]"#);
+
+    let user_sets_dir = temp_dir.path().join("ratchets").join("sets");
+    fs::create_dir_all(&user_sets_dir).unwrap();
+    fs::write(
+        user_sets_dir.join("phase3-strict.toml"),
+        r#"
+[set]
+id = "phase3-strict"
+description = "Phase 3 inline fixture set covering both no-todo and no-fixme"
+
+rules = ["phase3-no-todo", "phase3-no-fixme"]
+"#,
+    )
+    .unwrap();
+
+    fs::write(
+        temp_dir.path().join("src.rs"),
+        "// FIXME: a\nfn main() {}\n",
+    )
+    .unwrap();
+
+    let original_dir = std::env::current_dir().unwrap();
+    std::env::set_current_dir(temp_dir.path()).unwrap();
+
+    let exit_code = ratchets::cli::check::run_check(
+        &[".".to_string()],
+        ratchets::cli::OutputFormat::Human,
+        false,
+        None,
+    );
+
+    std::env::set_current_dir(original_dir).unwrap();
+
+    // FIXME hits phase3-no-fixme (resolved via the set), budget 0 -> EXCEEDED.
+    assert_eq!(exit_code, ratchets::cli::common::EXIT_EXCEEDED);
+}
+
+#[test]
+#[serial]
+fn test_phase3_cycle_in_user_defined_sets_exits_error_not_hang() {
+    // Acceptance criterion: a cycle surfaces as a clear error and non-zero
+    // exit, never a hang. The resolver's DFS detects the cycle in O(depth);
+    // this test simply confirms the CLI translates the error into
+    // `EXIT_ERROR` rather than panicking or looping.
+    let temp_dir = TempDir::new().unwrap();
+    setup_phase3_custom_rule_project(temp_dir.path(), r#"enabled_ratchets = ["$phase3-a"]"#);
+
+    let user_sets_dir = temp_dir.path().join("ratchets").join("sets");
+    fs::create_dir_all(&user_sets_dir).unwrap();
+    fs::write(
+        user_sets_dir.join("phase3-a.toml"),
+        r#"
+[set]
+id = "phase3-a"
+description = "Cycle fixture A"
+
+rules = ["$phase3-b"]
+"#,
+    )
+    .unwrap();
+    fs::write(
+        user_sets_dir.join("phase3-b.toml"),
+        r#"
+[set]
+id = "phase3-b"
+description = "Cycle fixture B"
+
+rules = ["$phase3-a"]
+"#,
+    )
+    .unwrap();
+
+    fs::write(temp_dir.path().join("src.rs"), "fn main() {}\n").unwrap();
+
+    let original_dir = std::env::current_dir().unwrap();
+    std::env::set_current_dir(temp_dir.path()).unwrap();
+
+    let exit_code = ratchets::cli::check::run_check(
+        &[".".to_string()],
+        ratchets::cli::OutputFormat::Human,
+        false,
+        None,
+    );
+
+    std::env::set_current_dir(original_dir).unwrap();
+
+    assert_eq!(exit_code, ratchets::cli::common::EXIT_ERROR);
 }

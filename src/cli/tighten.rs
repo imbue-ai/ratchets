@@ -81,6 +81,11 @@ pub fn run_tighten(rule_id: Option<&str>, region: Option<&str>) -> i32 {
             if let TightenError::Config(ConfigError::UnsupportedVersion(_)) = &e {
                 super::upgrade_notice::print_to_stderr();
             }
+            // Phase 3: render ratchet-set resolution errors in the wording
+            // prescribed by the plan before the generic printer.
+            if let TightenError::Rule(crate::error::RuleError::SetResolve(ref resolve)) = e {
+                super::common::print_resolve_error(resolve);
+            }
             eprintln!("Error: {}", e);
             EXIT_ERROR
         }

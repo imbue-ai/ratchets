@@ -36,8 +36,12 @@ where
 
 /// Helper to create a basic test project structure
 fn setup_basic_project(temp_dir: &Path) {
-    // Create ratchets.toml
+    // Create ratchets.toml. Phase 3 of the ratchet-sets plan makes opt-in the
+    // only way to enable rules, so the regex `no-todo-comments` rule under
+    // test must be listed in `enabled_ratchets` for these tests to fire.
     let config = r#"
+enabled_ratchets = ["no-todo-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -47,20 +51,10 @@ include = ["**/*.rs"]
 "#;
     fs::write(temp_dir.join("ratchets.toml"), config).unwrap();
 
-    // Create ratchet-counts.toml. Phase 1 of the ratchet-sets plan removes the
-    // v1 `[rules].rule-id = false` shorthand, so embedded Rust AST rules
-    // (rust-no-todo-comments / rust-no-fixme-comments) can no longer be
-    // silenced through the config. We grant them a generous budget instead so
-    // these tests focus on the regex `no-todo-comments` rule under test.
+    // Create ratchet-counts.toml with a budget for the rule under test.
     let counts = r#"
 [no-todo-comments]
 "." = 5
-
-[rust-no-todo-comments]
-"." = 1000
-
-[rust-no-fixme-comments]
-"." = 1000
 "#;
     fs::write(temp_dir.join("ratchet-counts.toml"), counts).unwrap();
 
@@ -264,6 +258,8 @@ fn test_check_with_no_files_found() {
     with_temp_dir(|temp_dir| {
         // Create config but no source files
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -900,6 +896,8 @@ fn test_check_with_empty_counts_file() {
     with_temp_dir(|temp_dir| {
         // Create config but empty counts file
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -961,6 +959,8 @@ fn test_tighten_with_multiple_rules() {
     with_temp_dir(|temp_dir| {
         // Create config with multiple rules
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -1020,6 +1020,8 @@ fn test_bump_all_with_empty_initial_counts() {
     with_temp_dir(|temp_dir| {
         // Create config with multiple rules
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -1098,6 +1100,8 @@ fn test_bump_all_with_existing_counts() {
     with_temp_dir(|temp_dir| {
         // Create config with multiple rules
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -1177,6 +1181,8 @@ fn test_bump_all_no_violations() {
     with_temp_dir(|temp_dir| {
         // Create config with rules
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -1235,6 +1241,8 @@ fn test_bump_all_with_unchanged_budgets() {
     with_temp_dir(|temp_dir| {
         // Create config with rules
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -1363,6 +1371,8 @@ fn test_tighten_only_updates_configured_regions() {
     with_temp_dir(|temp_dir| {
         // Create config with rule enabled
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -1478,6 +1488,8 @@ fn test_tighten_does_not_create_new_regions() {
     with_temp_dir(|temp_dir| {
         // Create config with rule enabled
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -1591,6 +1603,8 @@ fn test_tighten_with_deeply_nested_unconfigured_directories() {
     with_temp_dir(|temp_dir| {
         // Create config with rule enabled
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -1714,6 +1728,8 @@ fn test_tighten_preserves_configured_regions_with_zero_violations() {
     with_temp_dir(|temp_dir| {
         // Create config with rule enabled
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]

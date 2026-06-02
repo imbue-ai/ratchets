@@ -240,6 +240,8 @@ fn test_e2e_full_workflow_init_add_check_tighten() {
 
         // Update config to enable rust and include patterns
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -302,6 +304,8 @@ fn test_e2e_multi_file_project_with_regions() {
         create_multi_file_rust_project(temp_dir.path());
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -372,6 +376,8 @@ fn main() {
         .unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -461,6 +467,8 @@ fn test_e2e_region_inheritance() {
         fs::write(utils.join("helpers.rs"), "// TODO: 3\n").unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -542,6 +550,8 @@ fn test_e2e_gitignore_respected() {
         fs::write(src.join("main.rs"), "// TODO: this counts\n").unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -584,6 +594,8 @@ fn test_e2e_all_exit_codes() {
         fs::write(temp_dir.path().join("test.rs"), "// TODO: test\n").unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -692,6 +704,8 @@ fn main() {
         .unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -777,6 +791,8 @@ fn test_e2e_gradual_cleanup_workflow() {
         }
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -841,6 +857,8 @@ fn test_e2e_multiple_paths_check() {
         fs::write(tests.join("test.rs"), "// TODO: test todo\n").unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -884,6 +902,8 @@ fn test_e2e_jsonl_output_format() {
         fs::write(src.join("main.rs"), "// TODO: test\n").unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -919,6 +939,8 @@ fn test_e2e_tighten_with_violations_fails() {
         fs::write(temp_dir.path().join("test.rs"), "// TODO: test\n").unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -952,6 +974,8 @@ fn test_e2e_empty_project() {
         cli::init::run_init(false).expect("init should succeed");
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]
@@ -980,6 +1004,8 @@ fn test_e2e_no_violations_found() {
         fs::write(src.join("main.rs"), "fn main() {}\n").unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
 version = "2"
 languages = ["rust"]

@@ -1,3 +1,18 @@
+# Phase 3 of the ratchet-sets plan makes rule enablement explicitly opt-in:
+# every rule the repo wants to enforce must be listed in `enabled_ratchets`
+# here (or arrive via a `$set-name` reference once Phase 4 lands the curated
+# starter sets). Listing each builtin Rust rule by ID keeps `ratchets check`
+# behaviour identical to Phases 1-2 until the starter sets exist.
+enabled_ratchets = [
+    "no-todo-comments",
+    "no-fixme-comments",
+    "no-unwrap",
+    "no-panic",
+    "no-expect",
+    "rust-no-todo-comments",
+    "rust-no-fixme-comments",
+]
+
 [ratchets]
 version = "2"
 

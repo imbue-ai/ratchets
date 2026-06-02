@@ -6,6 +6,6 @@ pub mod sets;
 
 pub use counts::{CountsManager, RegionTree};
 pub use ratchet_toml::{
-    ColorOption, Config, OutputConfig, OutputFormat, RuleSettings, RulesConfig,
+    ColorOption, Config, OutputConfig, OutputFormat, RatchetRef, RuleSettings, RulesConfig,
 };
 pub use sets::{RatchetSet, ResolveError, SetRegistry};
