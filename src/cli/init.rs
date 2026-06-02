@@ -71,6 +71,16 @@ pub enum InitError {
     /// Path error
     #[error("Path error: {0}")]
     Path(String),
+
+    /// An existing `ratchets.toml` declares the v1 schema. Without `--force`
+    /// the bead-spec'd Phase 5 behaviour is to print the embedded upgrade
+    /// notice and exit with the standard error code rather than silently
+    /// skipping the file. The CLI dispatcher (`main.rs`) renders the notice
+    /// when it sees this variant.
+    #[error(
+        "ratchets.toml already exists with version = \"1\". Migrate to v2 (see the upgrade notice above) or re-run with --force to overwrite."
+    )]
+    ExistingV1Config,
 }
 
 /// Result of init command
@@ -110,6 +120,16 @@ impl InitResult {
 /// * `Ok(InitResult)` - Summary of created/skipped/overwritten files
 /// * `Err(InitError)` - If an I/O error occurred
 pub fn run_init(force: bool) -> Result<InitResult, InitError> {
+    // Phase 5 of the ratchet-sets plan: without `--force`, an existing v1
+    // `ratchets.toml` is no longer silently skipped. We surface
+    // `InitError::ExistingV1Config` so the CLI dispatcher can print the
+    // embedded upgrade notice and exit with `EXIT_ERROR`. `--force` keeps the
+    // previous overwrite-the-file behaviour so users on a half-migrated repo
+    // can still re-scaffold.
+    if !force && existing_ratchets_toml_is_v1(Path::new("ratchets.toml"))? {
+        return Err(InitError::ExistingV1Config);
+    }
+
     let mut result = InitResult::new();
 
     // Create ratchets.toml
@@ -192,6 +212,32 @@ fn path_to_string(path: &Path) -> Result<String, InitError> {
     path.to_str()
         .map(|s| s.to_string())
         .ok_or_else(|| InitError::Path(format!("Invalid UTF-8 in path: {:?}", path)))
+}
+
+/// Returns `true` if `path` exists and its `[ratchets].version` is `"1"`.
+///
+/// Used by [`run_init`] to special-case the "existing v1 config + no
+/// `--force`" path: rather than silently skipping the file as we used to,
+/// the dispatcher prints the embedded upgrade notice.
+///
+/// A malformed `ratchets.toml` (or any version other than `"1"`) returns
+/// `false` so the regular skip / overwrite flow handles those cases. We do
+/// not want a parse-error from a half-migrated file to prevent users from
+/// running `init --force`.
+fn existing_ratchets_toml_is_v1(path: &Path) -> Result<bool, InitError> {
+    if !path.exists() {
+        return Ok(false);
+    }
+    let content = fs::read_to_string(path)?;
+    let parsed: toml::Value = match toml::from_str(&content) {
+        Ok(value) => value,
+        Err(_) => return Ok(false),
+    };
+    let version = parsed
+        .get("ratchets")
+        .and_then(|table| table.get("version"))
+        .and_then(|value| value.as_str());
+    Ok(version == Some("1"))
 }
 
 #[cfg(test)]
@@ -425,5 +471,111 @@ mod tests {
         let result = path_to_string(path);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "test/path");
+    }
+
+    #[test]
+    fn test_existing_ratchets_toml_is_v1_returns_false_when_missing()
+    -> Result<(), Box<dyn std::error::Error>> {
+        with_temp_dir(|temp_dir| {
+            let path = temp_dir.path().join("ratchets.toml");
+            assert!(!existing_ratchets_toml_is_v1(&path)?);
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_existing_ratchets_toml_is_v1_detects_v1_version()
+    -> Result<(), Box<dyn std::error::Error>> {
+        with_temp_dir(|_temp_dir| {
+            fs::write(
+                "ratchets.toml",
+                r#"[ratchets]
+version = "1"
+languages = ["rust"]
+"#,
+            )?;
+            assert!(existing_ratchets_toml_is_v1(Path::new("ratchets.toml"))?);
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_existing_ratchets_toml_is_v1_rejects_v2_version()
+    -> Result<(), Box<dyn std::error::Error>> {
+        with_temp_dir(|_temp_dir| {
+            fs::write(
+                "ratchets.toml",
+                r#"[ratchets]
+version = "2"
+languages = ["rust"]
+"#,
+            )?;
+            assert!(!existing_ratchets_toml_is_v1(Path::new("ratchets.toml"))?);
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_existing_ratchets_toml_is_v1_rejects_malformed_toml()
+    -> Result<(), Box<dyn std::error::Error>> {
+        // Malformed TOML must not be classified as v1 — the regular skip path
+        // handles those files.
+        with_temp_dir(|_temp_dir| {
+            fs::write("ratchets.toml", "= = =")?;
+            assert!(!existing_ratchets_toml_is_v1(Path::new("ratchets.toml"))?);
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_existing_ratchets_toml_is_v1_rejects_missing_version_field()
+    -> Result<(), Box<dyn std::error::Error>> {
+        with_temp_dir(|_temp_dir| {
+            fs::write(
+                "ratchets.toml",
+                r#"[ratchets]
+languages = ["rust"]
+"#,
+            )?;
+            assert!(!existing_ratchets_toml_is_v1(Path::new("ratchets.toml"))?);
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_run_init_errors_for_existing_v1_without_force() -> Result<(), Box<dyn std::error::Error>>
+    {
+        with_temp_dir(|_temp_dir| {
+            fs::write(
+                "ratchets.toml",
+                r#"[ratchets]
+version = "1"
+languages = ["rust"]
+"#,
+            )?;
+            let result = run_init(false);
+            assert!(matches!(result, Err(InitError::ExistingV1Config)));
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_run_init_force_overwrites_existing_v1() -> Result<(), Box<dyn std::error::Error>> {
+        with_temp_dir(|_temp_dir| {
+            fs::write(
+                "ratchets.toml",
+                r#"[ratchets]
+version = "1"
+languages = ["rust"]
+"#,
+            )?;
+            let result = run_init(true)?;
+            assert!(result.overwritten.contains(&"ratchets.toml".to_string()));
+
+            // Confirm the v2 scaffold replaced the v1 content.
+            let content = fs::read_to_string("ratchets.toml")?;
+            assert!(content.contains("version = \"2\""));
+            Ok(())
+        })
     }
 }

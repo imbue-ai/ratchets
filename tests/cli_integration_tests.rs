@@ -165,6 +165,93 @@ fn test_init_is_idempotent() {
     });
 }
 
+#[test]
+fn test_init_with_existing_v1_config_errors_without_force() {
+    // Phase 5 of the ratchet-sets plan stops silently skipping existing v1
+    // configs: `init` now surfaces `InitError::ExistingV1Config` so the CLI
+    // can render the upgrade notice instead.
+    with_temp_dir(|temp_dir| {
+        let v1_config = r#"[ratchets]
+version = "1"
+languages = ["rust"]
+
+[rules]
+no-todo-comments = true
+"#;
+        fs::write(temp_dir.path().join("ratchets.toml"), v1_config).unwrap();
+
+        let result = cli::init::run_init(false);
+        assert!(
+            matches!(result, Err(cli::init::InitError::ExistingV1Config)),
+            "expected ExistingV1Config, got {:?}",
+            result
+        );
+
+        // The file should not have been overwritten.
+        let content = fs::read_to_string(temp_dir.path().join("ratchets.toml")).unwrap();
+        assert!(
+            content.contains("version = \"1\""),
+            "expected v1 file to be preserved without --force"
+        );
+    });
+}
+
+#[test]
+fn test_init_force_overwrites_existing_v1_config_with_v2_scaffold() {
+    // `--force` still wins: users on a half-migrated repo can re-scaffold
+    // their config without manually deleting the v1 file first.
+    with_temp_dir(|temp_dir| {
+        let v1_config = r#"[ratchets]
+version = "1"
+languages = ["rust"]
+
+[rules]
+no-todo-comments = false
+"#;
+        fs::write(temp_dir.path().join("ratchets.toml"), v1_config).unwrap();
+
+        let result =
+            cli::init::run_init(true).expect("init --force should succeed on existing v1 file");
+
+        assert!(result.overwritten.contains(&"ratchets.toml".to_string()));
+
+        // The scaffold replaced the v1 file with the v2 shape.
+        let content = fs::read_to_string(temp_dir.path().join("ratchets.toml")).unwrap();
+        assert!(
+            content.contains("version = \"2\""),
+            "expected --force to write v2 scaffold, got:\n{}",
+            content
+        );
+        assert!(
+            content.contains("enabled_ratchets"),
+            "expected v2 scaffold to mention enabled_ratchets, got:\n{}",
+            content
+        );
+    });
+}
+
+#[test]
+fn test_init_with_malformed_existing_config_still_skips_without_force() {
+    // A `ratchets.toml` that fails TOML parsing is not classified as v1; the
+    // regular skip behaviour applies so `init` (without --force) does not
+    // overwrite the user's file. `--force` would still overwrite (existing
+    // overwrite behaviour) — we don't need a fresh test for that path.
+    with_temp_dir(|temp_dir| {
+        fs::write(
+            temp_dir.path().join("ratchets.toml"),
+            "this is not valid toml = = =",
+        )
+        .unwrap();
+
+        let result = cli::init::run_init(false).expect("init should succeed on malformed file");
+        assert!(result.skipped.contains(&"ratchets.toml".to_string()));
+
+        // File is preserved unchanged.
+        let content = fs::read_to_string(temp_dir.path().join("ratchets.toml")).unwrap();
+        assert_eq!(content, "this is not valid toml = = =");
+    });
+}
+
 // ============================================================================
 // CHECK COMMAND TESTS
 // ============================================================================
