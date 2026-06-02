@@ -24,9 +24,10 @@ include = ["**/*.rs"]
 "#;
     fs::write(temp_dir.join("ratchets.toml"), config).unwrap();
 
-    // Create ratchet-counts.toml. Phase 1 of the ratchet-sets plan removes
-    // the v1 `[rules].rule-id = false` shorthand, so we grant the embedded
-    // Rust AST rules a generous budget instead of silencing them via config.
+    // Create ratchet-counts.toml. The v2 schema removed the `[rules].rule-id
+    // = false` shorthand for silencing rules; the equivalent now is
+    // `disabled_ratchets = ["..."]`, but here we just grant the embedded
+    // Rust AST rules a generous budget so the test is rule-set-agnostic.
     let counts = r#"
 [no-todo-comments]
 "." = 2

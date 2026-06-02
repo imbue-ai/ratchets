@@ -94,20 +94,66 @@ ratchets list --format jsonl
 
 ### ratchets.toml
 
+Ratchets uses an explicit opt-in model: rules only fire when listed in
+`enabled_ratchets` (directly or via a `$set-name` reference). Anything in
+`disabled_ratchets` is subtracted from the resolved enabled set — disabled
+always wins.
+
 ```toml
+enabled_ratchets = ["$common-starter", "no-unwrap"]
+disabled_ratchets = ["no-fixme-comments"]
+
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust", "typescript"]
 include = ["src/**", "tests/**"]
 exclude = ["**/generated/**"]
 
+# Optional per-rule settings (severity, regions). Entries here do NOT
+# enable rules; enablement is governed by enabled_ratchets above.
 [rules]
-no-unwrap = true
 no-todo-comments = { severity = "warning" }
 
 [output]
 format = "human"
 ```
+
+#### Reference syntax
+
+- `"rule-id"` — enables (or disables) a single rule by ID.
+- `"$set-name"` — references a **ratchet-set**: a curated bundle of rule IDs.
+  Sets can compose other sets via `$other-set` inside their own `rules`
+  array; cycle-aware resolution catches accidental loops.
+- The `@` sigil is unchanged — it still refers to entries in the existing
+  `[patterns]` table for glob references.
+
+#### Shipped ratchet-sets
+
+This binary ships a single starter set:
+
+- **`$common-starter`** — the language-agnostic curated default. Today's
+  members: `no-todo-comments`, `no-fixme-comments`. Membership criterion
+  ("stable, broadly applicable, no framework-specific opinions") is
+  documented at the top of `builtin-ratchets/sets/common-starter.toml`.
+
+Per-language starter sets (`$python-starter`, `$rust-starter`,
+`$typescript-starter`) will land in follow-up MRs — their curation is
+its own review topic.
+
+#### User-defined ratchet-sets
+
+Drop your own set files under `ratchets/sets/*.toml`. User-defined sets
+override embedded sets with the same ID, mirroring how `ratchets/regex/`
+and `ratchets/ast/` override embedded rules. A set file looks like:
+
+```toml
+[set]
+id = "house-style"
+description = "Rules that match our coding conventions"
+rules = ["$common-starter", "no-unwrap"]
+```
+
+`enabled_ratchets = ["$house-style"]` then enables the union.
 
 ### ratchet-counts.toml
 
@@ -122,6 +168,10 @@ format = "human"
 ```
 
 Regions are explicitly configured directory paths. Files in unconfigured subdirectories count toward their nearest configured parent region. Regions are scoped per-rule.
+
+Counts for rules no longer in the resolved enabled set are kept dormant
+(no cleanup). `ratchets tighten` emits a stderr warning naming each
+orphan so you can re-enable the rule later without losing the count.
 
 ## Git Integration
 

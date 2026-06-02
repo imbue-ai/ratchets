@@ -79,12 +79,23 @@ project/
 ### ratchets.toml
 
 The configuration file specifies which rules are enabled and global settings.
+Enablement is explicit opt-in via `enabled_ratchets` / `disabled_ratchets`;
+the `[rules]` table only carries per-rule settings (severity, regions).
 
 ```toml
 # Ratchets configuration
 
+# Enable specific rules or ratchet-sets. A `$set-name` reference expands to
+# every rule transitively reachable from the set; a bare `rule-id` enables
+# the single rule.
+enabled_ratchets = ["$common-starter", "no-unwrap"]
+
+# Disabled always wins. Remove rules pulled in by a set, or quiet a typo
+# without editing the upstream definition.
+disabled_ratchets = ["no-fixme-comments"]
+
 [ratchets]
-version = "1"
+version = "2"
 
 # Languages to analyze (determines which parsers to load)
 languages = ["rust", "typescript", "python"]
@@ -95,20 +106,10 @@ include = ["src/**", "tests/**"]
 # File patterns to exclude (glob syntax)
 exclude = ["**/generated/**", "**/vendor/**"]
 
+# Per-rule settings for rules that survive resolution. Entries here do NOT
+# enable rules; enablement is governed entirely by enabled_ratchets above.
 [rules]
-# Enable built-in rules by ID
-# Values: true (enable with defaults), false (disable), or table (enable with options)
-
-no-unwrap = true
-no-expect = true
 no-todo-comments = { severity = "warning" }
-no-fixme-comments = false
-
-[rules.custom]
-# Enable custom rules from ratchets/ directory
-# Reference by filename (without .toml extension)
-
-my-company-rule = true
 legacy-api-usage = { regions = ["src/legacy/**"] }
 
 [output]
@@ -388,7 +389,7 @@ The **RuleRegistry** is the canonical interface for loading and managing rules i
 1. **Embedded rules**: Built-in rules compiled into the binary (from `include_str!` macros)
 2. **Filesystem builtin rules**: Rules from `builtin-ratchets/` directory (for development/overrides)
 3. **Custom rules**: User-defined rules from `ratchets/` directory
-4. **Config filter**: Remove disabled rules based on `ratchets.toml` settings
+4. **Ratchet-set resolution**: Build a `SetRegistry` (embedded → filesystem builtin → user-defined sets), resolve `enabled_ratchets` / `disabled_ratchets`, and drop every rule whose ID is not in the resolved enabled set. See the [Ratchet-Set Resolution](#ratchet-set-resolution) section below for the algorithm.
 5. **Language filter**: Remove rules for unconfigured languages
 
 Later rules override earlier rules with the same ID. This allows filesystem rules to override embedded rules, and custom rules to override builtin rules.
@@ -426,6 +427,96 @@ All commands that need rules use `RuleRegistry::build_from_config()`:
 - `ratchets list`: Lists all enabled rules with their status
 
 This centralization eliminates rule loading duplication and ensures all commands see the same set of rules.
+
+## Ratchet-Set Resolution
+
+A **ratchet-set** is a named collection of rule IDs. Users reference a set
+with `$set-name` in `enabled_ratchets` / `disabled_ratchets`; the
+`SetRegistry` resolves those references into a flat `HashSet<RuleId>` that
+the `RuleRegistry` uses to filter loaded rules.
+
+### Set sources and override layers
+
+`SetRegistry` mirrors the rule loaders' override behaviour:
+
+1. **Embedded sets**: Starter sets compiled into the binary via
+   `include_str!`. Today this is just `$common-starter`; per-language starter
+   sets land in follow-up MRs.
+2. **Filesystem builtin sets**: `builtin-ratchets/sets/*.toml` (optional, for
+   development or repo-local overrides of an embedded set).
+3. **User-defined sets**: `ratchets/sets/*.toml`. Wins over layers above
+   when set IDs collide.
+
+Later layers shadow earlier ones for the same `SetId`. A user can ship
+`ratchets/sets/common-starter.toml` to redefine the embedded set entirely.
+
+### Resolution algorithm
+
+`SetRegistry::resolve(enabled, disabled) -> HashSet<RuleId>`:
+
+1. For each `RatchetRef` in `enabled`, DFS-expand recursively:
+   - `Rule(rule_id)` contributes the rule ID directly.
+   - `Set(set_id)` looks up the set definition, then DFS-expands every
+     `RatchetRef` in its `rules` array (which may itself mix bare rule IDs
+     and `$other-set` references).
+2. A `visiting` stack (Vec, not Set, so the cycle chain preserves traversal
+   order) tracks the active recursion. Re-entering a set already on the
+   stack returns `ResolveError::Cycle(chain)` with the offending chain
+   including the repeated set.
+3. After `enabled` is fully expanded, expand `disabled` with the same DFS
+   and subtract every reachable rule ID from the result. **Disabled always
+   wins**; a rule present in both lists ends up disabled regardless of
+   order.
+4. Unknown set IDs (in either input) yield `ResolveError::UnknownSet(id)`.
+5. Unknown *rule* IDs are NOT an error at resolution time. The resolver
+   operates purely on IDs; missing rule definitions are caught later when
+   `RuleRegistry` filters its loaded set.
+
+### counts.toml orphans
+
+Counts entries for rules no longer in the resolved enabled set are kept
+dormant (no cleanup). `ratchets tighten` emits a stderr warning naming each
+orphan so users notice stale entries; the budget is preserved so
+re-enabling the rule later does not lose history.
+
+## v1 → v2 Schema Migration Rationale
+
+`ratchets.toml` `[ratchets].version` was bumped from `"1"` to `"2"` as a
+hard schema break: v1 is rejected at parse time via
+`ConfigError::UnsupportedVersion`, and every CLI subcommand that reads the
+file prints the embedded upgrade notice (`docs/upgrade-v1-to-v2.md`)
+before exiting with the standard configuration-error code.
+
+The migration eliminates:
+
+- `[rules].rule-id = true` (silent default-on opt-out). v1's "every builtin
+  rule fires unless you explicitly silence it" was the root cause of the
+  upgrade-changes-behaviour problem: shipping a new builtin rule would
+  start failing CI on repos that hadn't opted into it.
+- `[rules].rule-id = false` (silencing shorthand). Disabling now goes
+  through `disabled_ratchets`, which the resolver applies after
+  expansion — so a rule pulled in by a set can be subtracted just as
+  easily as a rule listed individually.
+
+v2 is opt-in only: rules fire only when reachable from `enabled_ratchets`.
+A bare `enabled_ratchets = []` produces a registry with zero rules and a
+clean `check`. Library upgrades that ship new rules no longer change
+behaviour for existing configs.
+
+The version bump uses a hard break rather than a compatibility mode so
+that:
+
+1. There is no ambiguity about which schema a given config is targeting —
+   a single line at the top of the file unambiguously declares it.
+2. CLI error paths can route uniformly through the embedded upgrade notice
+   rather than spawning subtly different errors per legacy field.
+3. The library does not carry parser branches for two schemas. New
+   features (e.g. set composition syntax) land on a single shape.
+
+`init --force` overwrites an existing v1 file with the v2 scaffold; `init`
+without `--force` against a v1 file prints the upgrade notice and exits
+with `EXIT_ERROR` rather than silently skipping. `merge-driver` operates
+on `ratchet-counts.toml` only and is unaffected by the schema bump.
 
 ## Design Principles
 

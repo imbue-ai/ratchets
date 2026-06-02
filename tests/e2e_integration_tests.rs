@@ -20,11 +20,12 @@ use tempfile::TempDir;
 // Global mutex to ensure tests that change directory don't interfere with each other
 static TEST_MUTEX: Mutex<()> = Mutex::new(());
 
-/// Generous budgets for embedded builtin rules that the v1 schema used to
-/// silence via `[rules].rule-id = false`. Phase 1 of the ratchet-sets plan
-/// removes that shorthand, so tests must grant budgets directly. Embedding
-/// these as a TOML fragment keeps the per-test inline counts focused on the
-/// rule under test.
+/// Generous budgets for embedded builtin rules. Each test focuses on one
+/// rule and would otherwise be tripped up by violations against the other
+/// embedded rules; granting large budgets here keeps the per-test inline
+/// counts focused on the rule under test. (In production code these
+/// budgets would either come from `tighten` or be silenced via
+/// `disabled_ratchets`; tests sidestep that for clarity.)
 const BUILTIN_RULE_BUDGETS: &str = r#"
 [no-fixme-comments]
 "." = 1000
@@ -1025,10 +1026,12 @@ include = ["**/*.rs"]
     });
 }
 
-// `test_e2e_rule_disabled_in_config` was removed in Phase 1 of the
-// ratchet-sets plan. It relied on the v1 `[rules].rule-id = false` shorthand to
-// disable a rule, which is no longer a valid TOML shape. The equivalent test
-// returns in Phase 3 (bead `code-rs-p3`) using `disabled_ratchets = [...]`.
+// `test_e2e_rule_disabled_in_config` was removed when the v2 schema
+// dropped the `[rules].rule-id = false` shorthand. The equivalent v2
+// behaviour ("rule listed in `disabled_ratchets` produces no violations")
+// is covered by integration coverage of `disabled_ratchets` in
+// `tests/cli_integration_tests.rs` and the resolver-level coverage in
+// `src/config/sets.rs`'s tests; no e2e replacement is needed here.
 
 #[test]
 fn test_e2e_init_force_overwrites() {

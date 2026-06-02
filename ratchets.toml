@@ -1,11 +1,12 @@
-# Phase 3 of the ratchet-sets plan makes rule enablement explicitly opt-in:
-# every rule the repo wants to enforce must be listed in `enabled_ratchets`
-# here (or arrive via a `$set-name` reference once Phase 4 lands the curated
-# starter sets). Listing each builtin Rust rule by ID keeps `ratchets check`
-# behaviour identical to Phases 1-2 until the starter sets exist.
+# The ratchet-sets model makes rule enablement explicitly opt-in: every rule
+# this repo enforces must be reachable from `enabled_ratchets`, either as a
+# bare `rule-id` or via a `$set-name` reference. `$common-starter` covers
+# the language-agnostic baseline (no-todo-comments, no-fixme-comments); the
+# Rust-specific rules below are listed individually until per-language
+# starter sets (`$rust-starter`) land in a follow-up MR. `disabled_ratchets`
+# stays empty here — we have nothing to subtract from the union today.
 enabled_ratchets = [
-    "no-todo-comments",
-    "no-fixme-comments",
+    "$common-starter",
     "no-unwrap",
     "no-panic",
     "no-expect",
