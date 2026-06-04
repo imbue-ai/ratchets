@@ -336,8 +336,8 @@ color = "auto"
 "#;
 
     #[test]
-    fn test_valid_config_parsing() {
-        let config = Config::parse(VALID_CONFIG).unwrap();
+    fn test_valid_config_parsing() -> Result<(), Box<dyn std::error::Error>> {
+        let config = Config::parse(VALID_CONFIG)?;
 
         assert_eq!(config.ratchets.version, "2");
         assert_eq!(config.ratchets.languages.len(), 3);
@@ -354,8 +354,8 @@ color = "auto"
         let no_todo_settings = config
             .rules
             .builtin
-            .get(&RuleId::new("no-todo-comments").unwrap())
-            .expect("no-todo-comments settings should be present");
+            .get(&RuleId::new("no-todo-comments").ok_or("invalid rule id")?)
+            .ok_or("no-todo-comments settings should be present")?;
         assert_eq!(no_todo_settings.severity, Some(Severity::Warning));
 
         // Check custom rules
@@ -363,24 +363,32 @@ color = "auto"
         let legacy_settings = config
             .rules
             .custom
-            .get(&RuleId::new("legacy-api-usage").unwrap())
-            .expect("legacy-api-usage settings should be present");
-        assert_eq!(legacy_settings.regions.as_ref().unwrap().len(), 1);
+            .get(&RuleId::new("legacy-api-usage").ok_or("invalid rule id")?)
+            .ok_or("legacy-api-usage settings should be present")?;
+        assert_eq!(
+            legacy_settings
+                .regions
+                .as_ref()
+                .ok_or("regions should be present")?
+                .len(),
+            1
+        );
 
         // Check output settings
         assert_eq!(config.output.format, OutputFormat::Human);
         assert_eq!(config.output.color, ColorOption::Auto);
+        Ok(())
     }
 
     #[test]
-    fn test_minimal_config() {
+    fn test_minimal_config() -> Result<(), Box<dyn std::error::Error>> {
         let minimal = r#"
 [ratchets]
 version = "2"
 languages = ["rust"]
 "#;
 
-        let config = Config::parse(minimal).unwrap();
+        let config = Config::parse(minimal)?;
         assert_eq!(config.ratchets.version, "2");
         assert_eq!(config.ratchets.languages.len(), 1);
         assert_eq!(config.ratchets.include.len(), 1); // Default "**/*"
@@ -390,10 +398,11 @@ languages = ["rust"]
         // New fields default to empty vectors when omitted.
         assert!(config.enabled_ratchets.is_empty());
         assert!(config.disabled_ratchets.is_empty());
+        Ok(())
     }
 
     #[test]
-    fn test_invalid_version_v1_rejected() {
+    fn test_invalid_version_v1_rejected() -> Result<(), Box<dyn std::error::Error>> {
         // The legacy v1 schema is now a hard error: the structured
         // `UnsupportedVersion` variant lets the CLI layer render the upgrade
         // notice instead of a generic validation string.
@@ -406,12 +415,13 @@ languages = ["rust"]
         let err = Config::parse(invalid).expect_err("v1 config must be rejected");
         match err {
             ConfigError::UnsupportedVersion(ref v) => assert_eq!(v, "1"),
-            other => panic!("expected UnsupportedVersion, got {:?}", other),
+            other => return Err(format!("expected UnsupportedVersion, got {:?}", other).into()),
         }
         assert!(
             err.to_string()
                 .contains("Unsupported configuration version")
         );
+        Ok(())
     }
 
     #[test]
@@ -514,7 +524,7 @@ no-unwrap = { regions = ["[invalid"] }
     }
 
     #[test]
-    fn test_jsonl_output_format() {
+    fn test_jsonl_output_format() -> Result<(), Box<dyn std::error::Error>> {
         let config_str = r#"
 [ratchets]
 version = "2"
@@ -525,13 +535,14 @@ format = "jsonl"
 color = "never"
 "#;
 
-        let config = Config::parse(config_str).unwrap();
+        let config = Config::parse(config_str)?;
         assert_eq!(config.output.format, OutputFormat::Jsonl);
         assert_eq!(config.output.color, ColorOption::Never);
+        Ok(())
     }
 
     #[test]
-    fn test_color_always() {
+    fn test_color_always() -> Result<(), Box<dyn std::error::Error>> {
         let config_str = r#"
 [ratchets]
 version = "2"
@@ -541,12 +552,13 @@ languages = ["rust"]
 color = "always"
 "#;
 
-        let config = Config::parse(config_str).unwrap();
+        let config = Config::parse(config_str)?;
         assert_eq!(config.output.color, ColorOption::Always);
+        Ok(())
     }
 
     #[test]
-    fn test_rule_with_severity_and_regions() {
+    fn test_rule_with_severity_and_regions() -> Result<(), Box<dyn std::error::Error>> {
         let config_str = r#"
 [ratchets]
 version = "2"
@@ -556,18 +568,26 @@ languages = ["rust"]
 my-rule = { severity = "error", regions = ["src/**", "tests/**"] }
 "#;
 
-        let config = Config::parse(config_str).unwrap();
+        let config = Config::parse(config_str)?;
         let settings = config
             .rules
             .builtin
-            .get(&RuleId::new("my-rule").unwrap())
-            .expect("my-rule settings should be present");
+            .get(&RuleId::new("my-rule").ok_or("invalid rule id")?)
+            .ok_or("my-rule settings should be present")?;
         assert_eq!(settings.severity, Some(Severity::Error));
-        assert_eq!(settings.regions.as_ref().unwrap().len(), 2);
+        assert_eq!(
+            settings
+                .regions
+                .as_ref()
+                .ok_or("regions should be present")?
+                .len(),
+            2
+        );
+        Ok(())
     }
 
     #[test]
-    fn test_custom_rules_with_settings() {
+    fn test_custom_rules_with_settings() -> Result<(), Box<dyn std::error::Error>> {
         let config_str = r#"
 [ratchets]
 version = "2"
@@ -578,39 +598,47 @@ custom-rule-2 = { severity = "warning" }
 custom-rule-3 = { regions = ["src/legacy/**"] }
 "#;
 
-        let config = Config::parse(config_str).unwrap();
+        let config = Config::parse(config_str)?;
         assert_eq!(config.rules.custom.len(), 2);
 
         let s2 = config
             .rules
             .custom
-            .get(&RuleId::new("custom-rule-2").unwrap())
-            .expect("custom-rule-2 settings should be present");
+            .get(&RuleId::new("custom-rule-2").ok_or("invalid rule id")?)
+            .ok_or("custom-rule-2 settings should be present")?;
         assert_eq!(s2.severity, Some(Severity::Warning));
 
         let s3 = config
             .rules
             .custom
-            .get(&RuleId::new("custom-rule-3").unwrap())
-            .expect("custom-rule-3 settings should be present");
-        assert_eq!(s3.regions.as_ref().unwrap().len(), 1);
+            .get(&RuleId::new("custom-rule-3").ok_or("invalid rule id")?)
+            .ok_or("custom-rule-3 settings should be present")?;
+        assert_eq!(
+            s3.regions
+                .as_ref()
+                .ok_or("regions should be present")?
+                .len(),
+            1
+        );
+        Ok(())
     }
 
     #[test]
-    fn test_multiple_languages() {
+    fn test_multiple_languages() -> Result<(), Box<dyn std::error::Error>> {
         let config_str = r#"
 [ratchets]
 version = "2"
 languages = ["rust", "typescript", "javascript", "python", "go"]
 "#;
 
-        let config = Config::parse(config_str).unwrap();
+        let config = Config::parse(config_str)?;
         assert_eq!(config.ratchets.languages.len(), 5);
         assert!(config.ratchets.languages.contains(&Language::Rust));
         assert!(config.ratchets.languages.contains(&Language::TypeScript));
         assert!(config.ratchets.languages.contains(&Language::JavaScript));
         assert!(config.ratchets.languages.contains(&Language::Python));
         assert!(config.ratchets.languages.contains(&Language::Go));
+        Ok(())
     }
 
     #[test]
@@ -626,16 +654,17 @@ languages = ["rust", "invalid"]
     }
 
     #[test]
-    fn test_config_round_trip() {
-        let config = Config::parse(VALID_CONFIG).unwrap();
-        let serialized = toml::to_string(&config).unwrap();
-        let deserialized = Config::parse(&serialized).unwrap();
+    fn test_config_round_trip() -> Result<(), Box<dyn std::error::Error>> {
+        let config = Config::parse(VALID_CONFIG)?;
+        let serialized = toml::to_string(&config)?;
+        let deserialized = Config::parse(&serialized)?;
 
         // Compare key fields (order may differ in serialization)
         assert_eq!(config.ratchets.version, deserialized.ratchets.version);
         assert_eq!(config.ratchets.languages, deserialized.ratchets.languages);
         assert_eq!(config.output.format, deserialized.output.format);
         assert_eq!(config.output.color, deserialized.output.color);
+        Ok(())
     }
 
     #[test]
@@ -653,7 +682,7 @@ version = "2"
     }
 
     #[test]
-    fn test_empty_include_patterns() {
+    fn test_empty_include_patterns() -> Result<(), Box<dyn std::error::Error>> {
         let config_str = r#"
 [ratchets]
 version = "2"
@@ -661,12 +690,13 @@ languages = ["rust"]
 include = []
 "#;
 
-        let config = Config::parse(config_str).unwrap();
+        let config = Config::parse(config_str)?;
         assert_eq!(config.ratchets.include.len(), 0);
+        Ok(())
     }
 
     #[test]
-    fn test_multiple_glob_patterns() {
+    fn test_multiple_glob_patterns() -> Result<(), Box<dyn std::error::Error>> {
         let config_str = r#"
 [ratchets]
 version = "2"
@@ -675,9 +705,10 @@ include = ["src/**/*.rs", "tests/**/*.rs", "benches/**/*.rs"]
 exclude = ["**/target/**", "**/generated/**", "**/*.bak"]
 "#;
 
-        let config = Config::parse(config_str).unwrap();
+        let config = Config::parse(config_str)?;
         assert_eq!(config.ratchets.include.len(), 3);
         assert_eq!(config.ratchets.exclude.len(), 3);
+        Ok(())
     }
 
     #[test]
@@ -714,7 +745,7 @@ no-unwrap = true
     }
 
     #[test]
-    fn test_rule_with_only_severity() {
+    fn test_rule_with_only_severity() -> Result<(), Box<dyn std::error::Error>> {
         let config_str = r#"
 [ratchets]
 version = "2"
@@ -724,18 +755,19 @@ languages = ["rust"]
 my-rule = { severity = "info" }
 "#;
 
-        let config = Config::parse(config_str).unwrap();
+        let config = Config::parse(config_str)?;
         let settings = config
             .rules
             .builtin
-            .get(&RuleId::new("my-rule").unwrap())
-            .expect("my-rule settings should be present");
+            .get(&RuleId::new("my-rule").ok_or("invalid rule id")?)
+            .ok_or("my-rule settings should be present")?;
         assert_eq!(settings.severity, Some(Severity::Info));
         assert!(settings.regions.is_none());
+        Ok(())
     }
 
     #[test]
-    fn test_rule_with_only_regions() {
+    fn test_rule_with_only_regions() -> Result<(), Box<dyn std::error::Error>> {
         let config_str = r#"
 [ratchets]
 version = "2"
@@ -745,38 +777,48 @@ languages = ["rust"]
 my-rule = { regions = ["src/**"] }
 "#;
 
-        let config = Config::parse(config_str).unwrap();
+        let config = Config::parse(config_str)?;
         let settings = config
             .rules
             .builtin
-            .get(&RuleId::new("my-rule").unwrap())
-            .expect("my-rule settings should be present");
+            .get(&RuleId::new("my-rule").ok_or("invalid rule id")?)
+            .ok_or("my-rule settings should be present")?;
         assert!(settings.severity.is_none());
-        assert_eq!(settings.regions.as_ref().unwrap().len(), 1);
+        assert_eq!(
+            settings
+                .regions
+                .as_ref()
+                .ok_or("regions should be present")?
+                .len(),
+            1
+        );
+        Ok(())
     }
 
     #[test]
-    fn test_output_format_default() {
+    fn test_output_format_default() -> Result<(), Box<dyn std::error::Error>> {
         let config_str = r#"
 [ratchets]
 version = "2"
 languages = ["rust"]
 "#;
 
-        let config = Config::parse(config_str).unwrap();
+        let config = Config::parse(config_str)?;
         assert_eq!(config.output.format, OutputFormat::Human);
+        Ok(())
     }
 
     #[test]
-    fn test_color_option_default() {
+    fn test_color_option_default() -> Result<(), Box<dyn std::error::Error>> {
         let config_str = r#"
 [ratchets]
 version = "2"
 languages = ["rust"]
 "#;
 
-        let config = Config::parse(config_str).unwrap();
+        let config = Config::parse(config_str)?;
         assert_eq!(config.output.color, ColorOption::Auto);
+        Ok(())
     }
 
     #[test]
@@ -792,7 +834,7 @@ languages = ["rust"]
     }
 
     #[test]
-    fn test_complex_rule_combinations() {
+    fn test_complex_rule_combinations() -> Result<(), Box<dyn std::error::Error>> {
         // Post-v2 every `[rules]` entry is a settings table — the boolean
         // shorthand is gone, and enable/disable lives in
         // `enabled_ratchets` / `disabled_ratchets`.
@@ -810,9 +852,10 @@ rule-5 = { severity = "warning", regions = ["tests/**"] }
 custom-2 = { severity = "info" }
 "#;
 
-        let config = Config::parse(config_str).unwrap();
+        let config = Config::parse(config_str)?;
         assert_eq!(config.rules.builtin.len(), 3);
         assert_eq!(config.rules.custom.len(), 1);
+        Ok(())
     }
 
     #[test]
@@ -882,19 +925,20 @@ my-rule = { regions = ["[invalid"] }
     }
 
     #[test]
-    fn test_all_supported_languages() {
+    fn test_all_supported_languages() -> Result<(), Box<dyn std::error::Error>> {
         let config_str = r#"
 [ratchets]
 version = "2"
 languages = ["rust", "typescript", "javascript", "python", "go"]
 "#;
 
-        let config = Config::parse(config_str).unwrap();
+        let config = Config::parse(config_str)?;
         assert_eq!(config.ratchets.languages.len(), 5);
+        Ok(())
     }
 
     #[test]
-    fn test_single_language() {
+    fn test_single_language() -> Result<(), Box<dyn std::error::Error>> {
         for lang in &["rust", "typescript", "javascript", "python", "go"] {
             let config_str = format!(
                 r#"
@@ -905,13 +949,14 @@ languages = ["{}"]
                 lang
             );
 
-            let config = Config::parse(&config_str).unwrap();
+            let config = Config::parse(&config_str)?;
             assert_eq!(config.ratchets.languages.len(), 1);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_patterns_section() {
+    fn test_patterns_section() -> Result<(), Box<dyn std::error::Error>> {
         let config_str = r#"
 [ratchets]
 version = "2"
@@ -923,27 +968,50 @@ rust_tests = ["**/tests/**", "**/benches/**"]
 generated = ["**/generated/**", "**/vendor/**"]
 "#;
 
-        let config = Config::parse(config_str).unwrap();
+        let config = Config::parse(config_str)?;
         assert_eq!(config.patterns.len(), 3);
-        assert_eq!(config.patterns.get("python_tests").unwrap().len(), 3);
-        assert_eq!(config.patterns.get("rust_tests").unwrap().len(), 2);
-        assert_eq!(config.patterns.get("generated").unwrap().len(), 2);
+        assert_eq!(
+            config
+                .patterns
+                .get("python_tests")
+                .ok_or("python_tests pattern should be present")?
+                .len(),
+            3
+        );
+        assert_eq!(
+            config
+                .patterns
+                .get("rust_tests")
+                .ok_or("rust_tests pattern should be present")?
+                .len(),
+            2
+        );
+        assert_eq!(
+            config
+                .patterns
+                .get("generated")
+                .ok_or("generated pattern should be present")?
+                .len(),
+            2
+        );
+        Ok(())
     }
 
     #[test]
-    fn test_patterns_section_empty() {
+    fn test_patterns_section_empty() -> Result<(), Box<dyn std::error::Error>> {
         let config_str = r#"
 [ratchets]
 version = "2"
 languages = ["rust"]
 "#;
 
-        let config = Config::parse(config_str).unwrap();
+        let config = Config::parse(config_str)?;
         assert!(config.patterns.is_empty());
+        Ok(())
     }
 
     #[test]
-    fn test_enabled_and_disabled_ratchets_parsed() {
+    fn test_enabled_and_disabled_ratchets_parsed() -> Result<(), Box<dyn std::error::Error>> {
         // Phase 1 only parses these arrays — resolution is added in Phase 2.
         // The deserializer accepts bare rule IDs and `$set-name` references.
         // Both arrays live at the root of `ratchets.toml`, not inside the
@@ -957,7 +1025,7 @@ version = "2"
 languages = ["rust"]
 "#;
 
-        let config = Config::parse(config_str).unwrap();
+        let config = Config::parse(config_str)?;
         assert_eq!(config.enabled_ratchets.len(), 2);
         assert_eq!(config.disabled_ratchets.len(), 2);
 
@@ -977,6 +1045,7 @@ languages = ["rust"]
             &config.disabled_ratchets[1],
             RatchetRef::Set(id) if id.as_str() == "strict-extras"
         ));
+        Ok(())
     }
 
     #[test]
@@ -1007,14 +1076,13 @@ languages = ["rust"]
     }
 
     #[test]
-    fn test_ratchet_ref_round_trip_serializes_with_dollar_prefix() {
-        let set_ref = RatchetRef::Set(SetId::new("common-starter").unwrap());
-        let rule_ref = RatchetRef::Rule(RuleId::new("no-unwrap").unwrap());
-        assert_eq!(
-            serde_json::to_string(&set_ref).unwrap(),
-            "\"$common-starter\""
-        );
-        assert_eq!(serde_json::to_string(&rule_ref).unwrap(), "\"no-unwrap\"");
+    fn test_ratchet_ref_round_trip_serializes_with_dollar_prefix()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let set_ref = RatchetRef::Set(SetId::new("common-starter").ok_or("invalid set id")?);
+        let rule_ref = RatchetRef::Rule(RuleId::new("no-unwrap").ok_or("invalid rule id")?);
+        assert_eq!(serde_json::to_string(&set_ref)?, "\"$common-starter\"");
+        assert_eq!(serde_json::to_string(&rule_ref)?, "\"no-unwrap\"");
+        Ok(())
     }
 
     #[test]
