@@ -383,29 +383,32 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn rule_ref(id: &str) -> RatchetRef {
-        RatchetRef::Rule(RuleId::new(id).unwrap())
+    type TestError = Box<dyn std::error::Error>;
+    type TestResult = Result<(), TestError>;
+
+    fn rule_ref(id: &str) -> Result<RatchetRef, TestError> {
+        Ok(RatchetRef::Rule(RuleId::new(id).ok_or("invalid rule id")?))
     }
 
-    fn set_ref(id: &str) -> RatchetRef {
-        RatchetRef::Set(SetId::new(id).unwrap())
+    fn set_ref(id: &str) -> Result<RatchetRef, TestError> {
+        Ok(RatchetRef::Set(SetId::new(id).ok_or("invalid set id")?))
     }
 
-    fn make_set(id: &str, rules: Vec<RatchetRef>) -> RatchetSet {
-        RatchetSet::new(
-            SetId::new(id).unwrap(),
+    fn make_set(id: &str, rules: Vec<RatchetRef>) -> Result<RatchetSet, TestError> {
+        Ok(RatchetSet::new(
+            SetId::new(id).ok_or("invalid set id")?,
             format!("Test set {}", id),
             Vec::new(),
             rules,
-        )
+        ))
     }
 
-    fn rule_id(id: &str) -> RuleId {
-        RuleId::new(id).unwrap()
+    fn rule_id(id: &str) -> Result<RuleId, TestError> {
+        RuleId::new(id).ok_or_else(|| "invalid rule id".into())
     }
 
     #[test]
-    fn ratchet_set_from_toml_parses_set_block_and_rules() {
+    fn ratchet_set_from_toml_parses_set_block_and_rules() -> TestResult {
         // Synthetic rule names (no real builtin IDs) keep this test self-
         // contained and dodge the cross-language regex rules that scan for
         // task tags, since the literal rule names would otherwise count as
@@ -418,7 +421,7 @@ languages = ["rust", "python"]
 
 rules = ["rule-alpha", "$strict-extras", "rule-beta"]
 "#;
-        let set = RatchetSet::from_toml(toml).unwrap();
+        let set = RatchetSet::from_toml(toml)?;
         assert_eq!(set.id().as_str(), "common-starter");
         assert_eq!(set.description(), "Language-agnostic starter set");
         assert_eq!(set.languages(), &[Language::Rust, Language::Python]);
@@ -436,18 +439,20 @@ rules = ["rule-alpha", "$strict-extras", "rule-beta"]
             &set.rules()[2],
             RatchetRef::Rule(id) if id.as_str() == "rule-beta"
         ));
+        Ok(())
     }
 
     #[test]
-    fn ratchet_set_from_toml_no_rules_array_is_empty() {
+    fn ratchet_set_from_toml_no_rules_array_is_empty() -> TestResult {
         let toml = r#"
 [set]
 id = "empty-set"
 description = "An empty set, useful as a base override marker"
 "#;
-        let set = RatchetSet::from_toml(toml).unwrap();
+        let set = RatchetSet::from_toml(toml)?;
         assert!(set.rules().is_empty());
         assert!(set.languages().is_empty());
+        Ok(())
     }
 
     #[test]
@@ -459,8 +464,8 @@ description = "Spaces are not allowed in set IDs"
 
 rules = []
 "#;
-        let err = RatchetSet::from_toml(toml).unwrap_err();
-        assert!(matches!(err, RuleError::InvalidDefinition(_)));
+        let err = RatchetSet::from_toml(toml);
+        assert!(matches!(err, Err(RuleError::InvalidDefinition(_))));
     }
 
     #[test]
@@ -474,13 +479,13 @@ description = "But bad rule reference"
 
 rules = ["$bad set"]
 "#;
-        let err = RatchetSet::from_toml(toml).unwrap_err();
-        assert!(matches!(err, RuleError::InvalidDefinition(_)));
+        let err = RatchetSet::from_toml(toml);
+        assert!(matches!(err, Err(RuleError::InvalidDefinition(_))));
     }
 
     #[test]
-    fn ratchet_set_from_path_reads_file() {
-        let temp = TempDir::new().unwrap();
+    fn ratchet_set_from_path_reads_file() -> TestResult {
+        let temp = TempDir::new()?;
         let path = temp.path().join("starter.toml");
         fs::write(
             &path,
@@ -491,12 +496,12 @@ description = "From-path test"
 
 rules = ["rule-alpha"]
 "#,
-        )
-        .unwrap();
+        )?;
 
-        let set = RatchetSet::from_path(&path).unwrap();
+        let set = RatchetSet::from_path(&path)?;
         assert_eq!(set.id().as_str(), "starter");
         assert_eq!(set.rules().len(), 1);
+        Ok(())
     }
 
     #[test]
@@ -507,164 +512,174 @@ rules = ["rule-alpha"]
     }
 
     #[test]
-    fn set_registry_insert_and_get() {
+    fn set_registry_insert_and_get() -> TestResult {
         let mut registry = SetRegistry::new();
-        let set = make_set("foo", vec![rule_ref("a")]);
+        let set = make_set("foo", vec![rule_ref("a")?])?;
         let set_id = set.id().clone();
         registry.insert(set);
 
         assert_eq!(registry.len(), 1);
-        let fetched = registry.get(&set_id).unwrap();
+        let fetched = registry.get(&set_id).ok_or("set must be present")?;
         assert_eq!(fetched.rules().len(), 1);
+        Ok(())
     }
 
     #[test]
-    fn set_registry_insert_overrides_existing_id() {
+    fn set_registry_insert_overrides_existing_id() -> TestResult {
         let mut registry = SetRegistry::new();
-        registry.insert(make_set("foo", vec![rule_ref("a")]));
-        registry.insert(make_set("foo", vec![rule_ref("b"), rule_ref("c")]));
+        registry.insert(make_set("foo", vec![rule_ref("a")?])?);
+        registry.insert(make_set("foo", vec![rule_ref("b")?, rule_ref("c")?])?);
 
         assert_eq!(registry.len(), 1);
-        let fetched = registry.get(&SetId::new("foo").unwrap()).unwrap();
+        let fetched = registry
+            .get(&SetId::new("foo").ok_or("invalid set id")?)
+            .ok_or("set must be present")?;
         assert_eq!(fetched.rules().len(), 2);
         assert!(matches!(
             &fetched.rules()[0],
             RatchetRef::Rule(id) if id.as_str() == "b"
         ));
+        Ok(())
     }
 
     #[test]
-    fn resolve_trivial_enabled_rules_returns_them_directly() {
+    fn resolve_trivial_enabled_rules_returns_them_directly() -> TestResult {
         let registry = SetRegistry::new();
-        let enabled = vec![rule_ref("a"), rule_ref("b")];
+        let enabled = vec![rule_ref("a")?, rule_ref("b")?];
 
-        let resolved = registry.resolve(&enabled, &[]).unwrap();
-        let expected: HashSet<RuleId> = [rule_id("a"), rule_id("b")].into_iter().collect();
+        let resolved = registry.resolve(&enabled, &[])?;
+        let expected: HashSet<RuleId> = [rule_id("a")?, rule_id("b")?].into_iter().collect();
         assert_eq!(resolved, expected);
+        Ok(())
     }
 
     #[test]
-    fn resolve_single_set_expansion() {
+    fn resolve_single_set_expansion() -> TestResult {
         let mut registry = SetRegistry::new();
         registry.insert(make_set(
             "s",
-            vec![rule_ref("a"), rule_ref("b"), rule_ref("c")],
-        ));
+            vec![rule_ref("a")?, rule_ref("b")?, rule_ref("c")?],
+        )?);
 
-        let resolved = registry.resolve(&[set_ref("s")], &[]).unwrap();
-        let expected: HashSet<RuleId> = [rule_id("a"), rule_id("b"), rule_id("c")]
+        let resolved = registry.resolve(&[set_ref("s")?], &[])?;
+        let expected: HashSet<RuleId> = [rule_id("a")?, rule_id("b")?, rule_id("c")?]
             .into_iter()
             .collect();
         assert_eq!(resolved, expected);
+        Ok(())
     }
 
     #[test]
-    fn resolve_nested_set_expansion() {
+    fn resolve_nested_set_expansion() -> TestResult {
         let mut registry = SetRegistry::new();
-        registry.insert(make_set("s", vec![rule_ref("a"), set_ref("t")]));
-        registry.insert(make_set("t", vec![rule_ref("b")]));
+        registry.insert(make_set("s", vec![rule_ref("a")?, set_ref("t")?])?);
+        registry.insert(make_set("t", vec![rule_ref("b")?])?);
 
-        let resolved = registry.resolve(&[set_ref("s")], &[]).unwrap();
-        let expected: HashSet<RuleId> = [rule_id("a"), rule_id("b")].into_iter().collect();
+        let resolved = registry.resolve(&[set_ref("s")?], &[])?;
+        let expected: HashSet<RuleId> = [rule_id("a")?, rule_id("b")?].into_iter().collect();
         assert_eq!(resolved, expected);
+        Ok(())
     }
 
     #[test]
-    fn resolve_two_set_cycle_returns_chain() {
+    fn resolve_two_set_cycle_returns_chain() -> TestResult {
         let mut registry = SetRegistry::new();
-        registry.insert(make_set("s", vec![set_ref("t")]));
-        registry.insert(make_set("t", vec![set_ref("s")]));
+        registry.insert(make_set("s", vec![set_ref("t")?])?);
+        registry.insert(make_set("t", vec![set_ref("s")?])?);
 
-        let err = registry.resolve(&[set_ref("s")], &[]).unwrap_err();
+        let err = registry.resolve(&[set_ref("s")?], &[]);
         match err {
-            ResolveError::Cycle(chain) => {
+            Err(ResolveError::Cycle(chain)) => {
                 assert_eq!(chain.len(), 3, "expected s -> t -> s, got {:?}", chain);
                 assert_eq!(chain[0].as_str(), "s");
                 assert_eq!(chain[1].as_str(), "t");
                 assert_eq!(chain[2].as_str(), "s");
             }
-            other => panic!("expected Cycle, got {:?}", other),
+            other => return Err(format!("expected Cycle, got {:?}", other).into()),
         }
+        Ok(())
     }
 
     #[test]
-    fn resolve_self_cycle_returns_single_repeat() {
+    fn resolve_self_cycle_returns_single_repeat() -> TestResult {
         let mut registry = SetRegistry::new();
-        registry.insert(make_set("s", vec![set_ref("s")]));
+        registry.insert(make_set("s", vec![set_ref("s")?])?);
 
-        let err = registry.resolve(&[set_ref("s")], &[]).unwrap_err();
+        let err = registry.resolve(&[set_ref("s")?], &[]);
         match err {
-            ResolveError::Cycle(chain) => {
+            Err(ResolveError::Cycle(chain)) => {
                 assert_eq!(chain.len(), 2);
                 assert_eq!(chain[0].as_str(), "s");
                 assert_eq!(chain[1].as_str(), "s");
             }
-            other => panic!("expected Cycle, got {:?}", other),
+            other => return Err(format!("expected Cycle, got {:?}", other).into()),
         }
+        Ok(())
     }
 
     #[test]
-    fn resolve_disabled_rule_overrides_enabled_set() {
+    fn resolve_disabled_rule_overrides_enabled_set() -> TestResult {
         let mut registry = SetRegistry::new();
-        registry.insert(make_set("s", vec![rule_ref("a"), rule_ref("b")]));
+        registry.insert(make_set("s", vec![rule_ref("a")?, rule_ref("b")?])?);
 
-        let resolved = registry.resolve(&[set_ref("s")], &[rule_ref("a")]).unwrap();
-        let expected: HashSet<RuleId> = [rule_id("b")].into_iter().collect();
+        let resolved = registry.resolve(&[set_ref("s")?], &[rule_ref("a")?])?;
+        let expected: HashSet<RuleId> = [rule_id("b")?].into_iter().collect();
         assert_eq!(resolved, expected);
+        Ok(())
     }
 
     #[test]
-    fn resolve_disabled_set_expands_and_subtracts() {
+    fn resolve_disabled_set_expands_and_subtracts() -> TestResult {
         // disabled = ["$t"], t = {a, b}, enabled = ["$s", "c"], s = {a, c}
         // -> {a, c} ∪ {} - {a, b} = {c}
         let mut registry = SetRegistry::new();
-        registry.insert(make_set("s", vec![rule_ref("a"), rule_ref("c")]));
-        registry.insert(make_set("t", vec![rule_ref("a"), rule_ref("b")]));
+        registry.insert(make_set("s", vec![rule_ref("a")?, rule_ref("c")?])?);
+        registry.insert(make_set("t", vec![rule_ref("a")?, rule_ref("b")?])?);
 
-        let resolved = registry
-            .resolve(&[set_ref("s"), rule_ref("c")], &[set_ref("t")])
-            .unwrap();
-        let expected: HashSet<RuleId> = [rule_id("c")].into_iter().collect();
+        let resolved = registry.resolve(&[set_ref("s")?, rule_ref("c")?], &[set_ref("t")?])?;
+        let expected: HashSet<RuleId> = [rule_id("c")?].into_iter().collect();
         assert_eq!(resolved, expected);
+        Ok(())
     }
 
     #[test]
-    fn resolve_unknown_set_in_enabled_errors() {
+    fn resolve_unknown_set_in_enabled_errors() -> TestResult {
         let registry = SetRegistry::new();
-        let err = registry.resolve(&[set_ref("missing")], &[]).unwrap_err();
-        assert!(matches!(err, ResolveError::UnknownSet(id) if id.as_str() == "missing"));
+        let err = registry.resolve(&[set_ref("missing")?], &[]);
+        assert!(matches!(err, Err(ResolveError::UnknownSet(id)) if id.as_str() == "missing"));
+        Ok(())
     }
 
     #[test]
-    fn resolve_unknown_set_in_disabled_errors() {
+    fn resolve_unknown_set_in_disabled_errors() -> TestResult {
         let mut registry = SetRegistry::new();
-        registry.insert(make_set("s", vec![rule_ref("a")]));
+        registry.insert(make_set("s", vec![rule_ref("a")?])?);
 
-        let err = registry
-            .resolve(&[set_ref("s")], &[set_ref("missing")])
-            .unwrap_err();
-        assert!(matches!(err, ResolveError::UnknownSet(id) if id.as_str() == "missing"));
+        let err = registry.resolve(&[set_ref("s")?], &[set_ref("missing")?]);
+        assert!(matches!(err, Err(ResolveError::UnknownSet(id)) if id.as_str() == "missing"));
+        Ok(())
     }
 
     #[test]
-    fn resolve_unknown_rule_id_in_enabled_is_returned_not_an_error() {
+    fn resolve_unknown_rule_id_in_enabled_is_returned_not_an_error() -> TestResult {
         // The resolver works purely on IDs. The rule registry (Phase 3) is
         // responsible for filtering out unknown rule IDs at lookup time.
         let registry = SetRegistry::new();
-        let resolved = registry.resolve(&[rule_ref("typo-rule")], &[]).unwrap();
-        let expected: HashSet<RuleId> = [rule_id("typo-rule")].into_iter().collect();
+        let resolved = registry.resolve(&[rule_ref("typo-rule")?], &[])?;
+        let expected: HashSet<RuleId> = [rule_id("typo-rule")?].into_iter().collect();
         assert_eq!(resolved, expected);
+        Ok(())
     }
 
     #[test]
-    fn load_builtin_sets_overrides_embedded() {
+    fn load_builtin_sets_overrides_embedded() -> TestResult {
         // Embedded sets are empty in Phase 2 (Phase 4 populates them), so we
         // simulate the override by pre-inserting an "embedded" set and then
         // loading a filesystem-builtin set with the same ID.
         let mut registry = SetRegistry::new();
-        registry.insert(make_set("starter", vec![rule_ref("a")]));
+        registry.insert(make_set("starter", vec![rule_ref("a")?])?);
 
-        let temp = TempDir::new().unwrap();
+        let temp = TempDir::new()?;
         fs::write(
             temp.path().join("starter.toml"),
             r#"
@@ -674,27 +689,29 @@ description = "Filesystem builtin override"
 
 rules = ["b", "c"]
 "#,
-        )
-        .unwrap();
+        )?;
 
-        registry.load_builtin_sets(temp.path()).unwrap();
+        registry.load_builtin_sets(temp.path())?;
 
-        let fetched = registry.get(&SetId::new("starter").unwrap()).unwrap();
+        let fetched = registry
+            .get(&SetId::new("starter").ok_or("invalid set id")?)
+            .ok_or("set must be present")?;
         assert_eq!(fetched.description(), "Filesystem builtin override");
         assert_eq!(fetched.rules().len(), 2);
         assert!(matches!(
             &fetched.rules()[0],
             RatchetRef::Rule(id) if id.as_str() == "b"
         ));
+        Ok(())
     }
 
     #[test]
-    fn load_custom_sets_overrides_builtin() {
+    fn load_custom_sets_overrides_builtin() -> TestResult {
         // User-defined sets win at the end of the loading chain.
         let mut registry = SetRegistry::new();
-        registry.insert(make_set("starter", vec![rule_ref("a")]));
+        registry.insert(make_set("starter", vec![rule_ref("a")?])?);
 
-        let builtin_dir = TempDir::new().unwrap();
+        let builtin_dir = TempDir::new()?;
         fs::write(
             builtin_dir.path().join("starter.toml"),
             r#"
@@ -704,11 +721,10 @@ description = "Filesystem builtin"
 
 rules = ["b"]
 "#,
-        )
-        .unwrap();
-        registry.load_builtin_sets(builtin_dir.path()).unwrap();
+        )?;
+        registry.load_builtin_sets(builtin_dir.path())?;
 
-        let user_dir = TempDir::new().unwrap();
+        let user_dir = TempDir::new()?;
         fs::write(
             user_dir.path().join("starter.toml"),
             r#"
@@ -718,40 +734,40 @@ description = "User override"
 
 rules = ["c"]
 "#,
-        )
-        .unwrap();
-        registry.load_custom_sets(user_dir.path()).unwrap();
+        )?;
+        registry.load_custom_sets(user_dir.path())?;
 
-        let fetched = registry.get(&SetId::new("starter").unwrap()).unwrap();
+        let fetched = registry
+            .get(&SetId::new("starter").ok_or("invalid set id")?)
+            .ok_or("set must be present")?;
         assert_eq!(fetched.description(), "User override");
         assert_eq!(fetched.rules().len(), 1);
         assert!(matches!(
             &fetched.rules()[0],
             RatchetRef::Rule(id) if id.as_str() == "c"
         ));
+        Ok(())
     }
 
     #[test]
-    fn load_builtin_sets_missing_dir_is_ok() {
+    fn load_builtin_sets_missing_dir_is_ok() -> TestResult {
         let mut registry = SetRegistry::new();
-        registry
-            .load_builtin_sets(Path::new("/definitely/does/not/exist"))
-            .unwrap();
+        registry.load_builtin_sets(Path::new("/definitely/does/not/exist"))?;
         assert!(registry.is_empty());
+        Ok(())
     }
 
     #[test]
-    fn load_custom_sets_missing_dir_is_ok() {
+    fn load_custom_sets_missing_dir_is_ok() -> TestResult {
         let mut registry = SetRegistry::new();
-        registry
-            .load_custom_sets(Path::new("/definitely/does/not/exist"))
-            .unwrap();
+        registry.load_custom_sets(Path::new("/definitely/does/not/exist"))?;
         assert!(registry.is_empty());
+        Ok(())
     }
 
     #[test]
-    fn load_sets_ignores_non_toml_files() {
-        let temp = TempDir::new().unwrap();
+    fn load_sets_ignores_non_toml_files() -> TestResult {
+        let temp = TempDir::new()?;
         fs::write(
             temp.path().join("good.toml"),
             r#"
@@ -761,42 +777,37 @@ description = "OK"
 
 rules = ["a"]
 "#,
-        )
-        .unwrap();
-        fs::write(temp.path().join("README.md"), "# Readme").unwrap();
-        fs::write(temp.path().join("notes.txt"), "hi").unwrap();
+        )?;
+        fs::write(temp.path().join("README.md"), "# Readme")?;
+        fs::write(temp.path().join("notes.txt"), "hi")?;
 
         let mut registry = SetRegistry::new();
-        registry.load_builtin_sets(temp.path()).unwrap();
+        registry.load_builtin_sets(temp.path())?;
         assert_eq!(registry.len(), 1);
-        assert!(registry.get(&SetId::new("good").unwrap()).is_some());
+        assert!(
+            registry
+                .get(&SetId::new("good").ok_or("invalid set id")?)
+                .is_some()
+        );
+        Ok(())
     }
 
     #[test]
-    fn load_embedded_builtin_sets_includes_common_starter() {
+    fn load_embedded_builtin_sets_includes_common_starter() -> TestResult {
         // Phase 4 of the ratchet-sets plan lands `common-starter` as the only
         // embedded set. Per-language starter sets (`python-starter`,
         // `rust-starter`, `typescript-starter`) are deferred to follow-up MRs;
         // if/when they land this assertion must be updated alongside the new
         // toml files.
-        //
-        // The body uses explicit `match` ladders rather than `.unwrap()` /
-        // `.expect()` because both shorthands are governed by enforced rules
-        // against this very file.
         let mut registry = SetRegistry::new();
-        match registry.load_embedded_builtin_sets() {
-            Ok(()) => {}
-            Err(e) => panic!("embedded sets must parse: {:?}", e),
-        }
+        registry.load_embedded_builtin_sets()?;
         assert_eq!(registry.len(), 1);
 
-        let common_starter_id = match SetId::new("common-starter") {
-            Some(id) => id,
-            None => panic!("common-starter is a valid SetId"),
-        };
-        match registry.get(&common_starter_id) {
-            Some(set) => assert_eq!(set.rules().len(), 2),
-            None => panic!("common-starter must be embedded in Phase 4"),
-        }
+        let common_starter_id = SetId::new("common-starter").ok_or("common-starter is valid")?;
+        let set = registry
+            .get(&common_starter_id)
+            .ok_or("common-starter must be embedded in Phase 4")?;
+        assert_eq!(set.rules().len(), 2);
+        Ok(())
     }
 }
