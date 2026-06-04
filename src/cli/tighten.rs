@@ -306,16 +306,20 @@ mod tests {
     }
 
     #[test]
-    fn test_valid_rule_id() {
+    fn test_valid_rule_id() -> Result<(), Box<dyn std::error::Error>> {
         let result = RuleId::new("no-unwrap");
         assert!(result.is_some());
-        assert_eq!(result.unwrap().as_str(), "no-unwrap");
+        assert_eq!(
+            result.ok_or("expected valid rule id")?.as_str(),
+            "no-unwrap"
+        );
+        Ok(())
     }
 
     #[test]
-    fn test_exceeded_violation_construction() {
+    fn test_exceeded_violation_construction() -> Result<(), Box<dyn std::error::Error>> {
         let violation = ExceededViolation {
-            rule_id: RuleId::new("no-unwrap").unwrap(),
+            rule_id: RuleId::new("no-unwrap").ok_or("invalid rule id")?,
             region: RegionPath::new("src"),
             actual_count: 5,
             budget: 3,
@@ -325,20 +329,21 @@ mod tests {
         assert_eq!(violation.region.as_str(), "src");
         assert_eq!(violation.actual_count, 5);
         assert_eq!(violation.budget, 3);
+        Ok(())
     }
 
     #[test]
-    fn test_tighten_result_variants() {
+    fn test_tighten_result_variants() -> Result<(), Box<dyn std::error::Error>> {
         // Test Success variant
         let success = TightenResult::Success(5);
         match success {
             TightenResult::Success(count) => assert_eq!(count, 5),
-            _ => panic!("Expected Success variant"),
+            _ => return Err("Expected Success variant".into()),
         }
 
         // Test ExceededBudget variant
         let exceeded = TightenResult::ExceededBudget(vec![ExceededViolation {
-            rule_id: RuleId::new("test-rule").unwrap(),
+            rule_id: RuleId::new("test-rule").ok_or("invalid rule id")?,
             region: RegionPath::new("src"),
             actual_count: 10,
             budget: 5,
@@ -348,8 +353,9 @@ mod tests {
                 assert_eq!(violations.len(), 1);
                 assert_eq!(violations[0].actual_count, 10);
             }
-            _ => panic!("Expected ExceededBudget variant"),
+            _ => return Err("Expected ExceededBudget variant".into()),
         }
+        Ok(())
     }
 
     /// Helpers shared by the orphan-detection tests. Keeping the test fixture
