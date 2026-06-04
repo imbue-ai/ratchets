@@ -100,12 +100,12 @@ Mitigation when authoring bead descriptions from a plan:
 - When Judge surfaces a gap that matches a "may be deferred" marker, the Coordinator files a follow-up bead and closes the current one as PASS. This was the right call on `code-6ik` / `code-ury` and should be the standard pattern.
 - When Judge surfaces a gap with no marker, treat it as a real fail and retry.
 
-## Policy-on-policy friction: surface, don't silently route around
-If a subagent works around the repo's own policy rules to land a bead (e.g. moves a `src/` test to `tests/` to dodge `no-unwrap`, weakens prose to dodge `no-todo-comments`, bumps a counts budget to dodge a real violation), that is a signal the rule shape is wrong, not a successful workaround.
+## Policy rules are not negotiable — conform, never route around
+The repo's own ratchet rules (`no-unwrap`, `no-expect`, `no-panic`, `no-todo-comments`, `no-fixme-comments`, …) apply to ALL code in the repo, **including test code**. They are correct as written. A subagent must NEVER route around them — not by moving a `src/` test to `tests/`, not by carving `#[cfg(test)]` out of the rule, not by adding `exclude` globs, not by bumping a counts budget to absorb a fresh violation.
 
-- The subagent SHOULD land the workaround if it's the cheapest path to green checks, AND it MUST note the routing decision in the commit body (e.g. "Moved test to tests/ to avoid tripping no-expect on test scaffolding").
-- Tidy/Judge looking at recent commits MUST file a follow-up bead when they see such a note. The bead targets the rule, not the workaround site. (Example: `code-1z8` carving `#[cfg(test)] mod tests` out of `no-unwrap`/`no-expect`/`no-panic` AST rules.)
-- For regex rules (no AST context, e.g. `no-todo-comments`, `no-fixme-comments` in `builtin-ratchets/common/regex/`), the cfg(test) trick doesn't work. The structural alternative is a per-rule `exclude = ["**/tests/**", "**/benches/**", "**/*test*.rs"]` default in the TOML. When you file a tidy bead for one of these, propose the exclude default rather than asking for AST rewrites.
+- The unwrap/expect/panic rules in particular are absolute: zero occurrences in `src/` including unit tests, the only exception being a test that specifically asserts a panic. Tests use the Result idiom (`fn test() -> Result<(), Box<dyn std::error::Error>>`, `?`, `.ok_or("desc")?`). See `coding.md` "No unwrap / expect / panic" for the full idiom.
+- If you ever see a commit that routed around one of these rules (test moved to dodge a rule, budget bumped to absorb a new violation, prose weakened to dodge no-todo), that is a DEFECT to revert, not a pattern to bless. File a P1 to convert the offending code to conform, and reset the workaround.
+- A counts-budget increase is only ever justified for pre-existing violations being formally tracked — never to absorb a violation the current bead introduced. Watch the `ratchet-counts.toml` diff on every bead: if `no-unwrap`/`no-expect`/`no-panic` went UP, the bead added banned constructs and must be sent back.
 
 ## Commit-message escaping
 Apostrophes (e.g. `sculptor's`) in bash heredocs can break `git commit -m`. When a commit message contains single quotes, write the message to a temp file and use `-F`:

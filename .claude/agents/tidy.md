@@ -26,7 +26,7 @@ Before starting any work, you MUST read: README.md, STYLE_GUIDE.md, ARCHITECTURE
 - **Accreted code layers** - Multiple layers of additions that could be simplified
 - **Naming inconsistencies** - Similar concepts with different names
 - **Dead code** - Unused functions, types, or modules
-- **Policy-on-policy friction** - Commits whose bodies mention "moved test to `tests/` to avoid…", "bumped budget instead of fixing…", "weakened prose to dodge…", or similar workaround language. The fix-it bead targets the *rule shape*, not the workaround site. AST rules (e.g. `no-unwrap`) can usually be fixed via an ancestor predicate that ignores `#[cfg(test)]` blocks; regex rules (e.g. `no-todo-comments` under `builtin-ratchets/common/regex/`) lack AST context and want a per-rule `exclude = ["**/tests/**", "**/benches/**"]` default in the TOML instead.
+- **Routing around the repo's own ratchet rules** - Commits whose bodies mention "moved test to `tests/` to avoid…", "bumped budget instead of fixing…", "weakened prose to dodge…", or similar. These rules (`no-unwrap`/`no-expect`/`no-panic`/`no-todo-comments`/…) are correct as written and apply to test code too. The fix-it bead targets the *offending code*, not the rule: convert the workaround back and make the code conform (Result idiom for unwrap/expect/panic — see `coding.md`). Never propose carving `#[cfg(test)]` out of a rule or adding `exclude` globs to make a rule ignore tests. Also flag any `ratchet-counts.toml` diff where `no-unwrap`/`no-expect`/`no-panic` went UP — that means banned constructs were added and must be reverted to the idiom.
 
 ## Actions you may take
 - File beads to fix high-priority problems that you identify using `br create`
