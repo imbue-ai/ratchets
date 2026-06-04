@@ -3,7 +3,7 @@
 # Counts can only be reduced (tightened) or explicitly bumped with justification.
 
 [no-expect]
-"src" = 9
+"src" = 0
 
 [no-fixme-comments]
 "." = 3
