@@ -1,6 +1,6 @@
 # Valid: Always colorize output
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 
 [output]

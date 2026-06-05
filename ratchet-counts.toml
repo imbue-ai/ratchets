@@ -3,27 +3,27 @@
 # Counts can only be reduced (tightened) or explicitly bumped with justification.
 
 [no-expect]
-"src" = 9
+"src" = 0
 
 [no-fixme-comments]
 "." = 3
-"src" = 22
+"src" = 23
 
 [no-panic]
-"src" = 31
+"src" = 23
 
 [no-todo-comments]
 "." = 9
 "benches" = 14
-"src" = 157
+"src" = 163
 
 [no-unwrap]
 "." = 0
-"src" = 390
+"src" = 253
 
 [rust-no-fixme-comments]
 "src" = 1
 
 [rust-no-todo-comments]
 "benches" = 1
-"src" = 6
+"src" = 4

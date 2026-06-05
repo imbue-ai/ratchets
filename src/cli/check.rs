@@ -80,6 +80,19 @@ pub fn run_check(
             }
         }
         Err(e) => {
+            // Route schema version mismatches through the embedded upgrade
+            // notice before the generic error printer so the user always sees
+            // the migration pointer first.
+            if let CheckError::Config(ConfigError::UnsupportedVersion(_)) = &e {
+                super::upgrade_notice::print_to_stderr();
+            }
+            // Phase 3: render ratchet-set resolution errors with the prescribed
+            // wording before falling through to the generic printer (the
+            // generic prefix `Error:` still appears so callers grepping for it
+            // continue to work).
+            if let CheckError::Rule(crate::error::RuleError::SetResolve(ref resolve)) = e {
+                super::common::print_resolve_error(resolve);
+            }
             eprintln!("Error: {}", e);
             // Determine exit code based on error type
             match e {

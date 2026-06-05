@@ -40,13 +40,7 @@ impl RuleId {
     /// Returns None if the input is empty or contains invalid characters
     pub fn new(id: impl Into<String>) -> Option<Self> {
         let id = id.into();
-        if id.is_empty() {
-            return None;
-        }
-        if !id
-            .chars()
-            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
-        {
+        if !is_valid_identifier(&id) {
             return None;
         }
         Some(RuleId(id))
@@ -76,6 +70,67 @@ impl From<RuleId> for String {
     fn from(rule_id: RuleId) -> Self {
         rule_id.0
     }
+}
+
+/// A validated ratchet-set identifier
+///
+/// Set IDs share the validation rules of [`RuleId`]: non-empty, alphanumeric plus
+/// `-` / `_`. The `$` and `@` characters are explicitly rejected since they are
+/// reserved as reference sigils (`$set-name` for ratchet-sets, `@pattern-name`
+/// for the existing patterns mechanism).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct SetId(String);
+
+impl SetId {
+    /// Creates a new SetId, validating the input
+    ///
+    /// Returns None if the input is empty or contains invalid characters
+    pub fn new(id: impl Into<String>) -> Option<Self> {
+        let id = id.into();
+        if !is_valid_identifier(&id) {
+            return None;
+        }
+        Some(SetId(id))
+    }
+
+    /// Returns the set ID as a string slice
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for SetId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl TryFrom<String> for SetId {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        SetId::new(value).ok_or_else(|| "Invalid set ID".to_string())
+    }
+}
+
+impl From<SetId> for String {
+    fn from(set_id: SetId) -> Self {
+        set_id.0
+    }
+}
+
+/// Shared validation predicate for `RuleId` and `SetId`.
+///
+/// Identifiers must be non-empty and contain only ASCII-style alphanumerics,
+/// hyphens, and underscores. The reserved sigils `$` and `@` are rejected by
+/// virtue of failing the alphanumeric / `-` / `_` check.
+fn is_valid_identifier(id: &str) -> bool {
+    if id.is_empty() {
+        return false;
+    }
+    id.chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
 }
 
 /// A normalized file system path for region identification
@@ -366,6 +421,50 @@ mod tests {
 
         let result = serde_json::from_str::<RuleId>("\"invalid rule\"");
         assert!(result.is_err());
+    }
+
+    // SetId validation tests (mirror RuleId)
+    #[test]
+    fn test_set_id_validation_valid() {
+        assert!(SetId::new("common-starter").is_some());
+        assert!(SetId::new("rust_starter").is_some());
+        assert!(SetId::new("a").is_some());
+        assert!(SetId::new("Set-123").is_some());
+    }
+
+    #[test]
+    fn test_set_id_validation_invalid() {
+        assert!(SetId::new("").is_none());
+        assert!(SetId::new("invalid set").is_none());
+        // Reserved sigils must be rejected.
+        assert!(SetId::new("$with-dollar").is_none());
+        assert!(SetId::new("@with-at").is_none());
+        assert!(SetId::new("dot.in.id").is_none());
+    }
+
+    #[test]
+    fn test_set_id_display() {
+        let id = SetId::new("common-starter").unwrap();
+        assert_eq!(id.to_string(), "common-starter");
+    }
+
+    #[test]
+    fn test_set_id_try_from() {
+        assert!(SetId::try_from("ok-id".to_string()).is_ok());
+        assert!(SetId::try_from("bad id".to_string()).is_err());
+    }
+
+    #[test]
+    fn test_set_id_serde() {
+        let id = SetId::new("common-starter").unwrap();
+        let json = serde_json::to_string(&id).unwrap();
+        assert_eq!(json, "\"common-starter\"");
+
+        let parsed: SetId = serde_json::from_str("\"common-starter\"").unwrap();
+        assert_eq!(parsed.as_str(), "common-starter");
+
+        // Reserved-sigil-prefixed strings must not deserialize as SetId.
+        assert!(serde_json::from_str::<SetId>("\"$bad\"").is_err());
     }
 
     // RegionPath normalization tests

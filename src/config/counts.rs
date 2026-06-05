@@ -384,6 +384,17 @@ impl CountsManager {
             .set_count(region, count);
     }
 
+    /// Iterate over every rule ID that has at least one count entry.
+    ///
+    /// Used by `ratchets tighten` to detect orphaned counts.toml entries —
+    /// rules that previously had budgets but are no longer in the resolved
+    /// enabled set. Per Phase 5 of the ratchet-sets plan, orphans stay dormant
+    /// (no cleanup); the tighten command warns about them so users notice
+    /// stale entries without losing the count if they re-enable the rule.
+    pub fn iter_rule_ids(&self) -> impl Iterator<Item = &RuleId> {
+        self.counts.keys()
+    }
+
     /// Serializes the CountsManager back to TOML format
     ///
     /// Output format matches the input format:

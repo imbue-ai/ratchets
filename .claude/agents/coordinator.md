@@ -83,6 +83,29 @@ Coding/Judge/Tidy subagents already read `AGENTS.md` and their own `.claude/agen
 ## Editor diagnostics vs cargo
 - After each commit, the harness may surface stale rust-analyzer diagnostics that look like real compile errors. **Verify any suspicious diagnostic against `cargo check --all-targets` before failing a bead.** If cargo is clean, treat the editor diagnostic as noise and pass to Judge.
 - Benign inactive-code hints (`#[cfg(not(...))]` blocks) are expected for multi-config modules; ignore them and tell Judge to ignore them too.
+- **Known-staleness patterns.** The following editor diagnostic shapes have been false positives every time they appeared in this repo and should be verified against cargo with low confidence of a real bug:
+  - `E0063` "missing field(s) in initializer" after a struct grew a new field in the same commit.
+  - `E0425` "cannot find function/value/variant in this scope" after a module added a new pub item or a new enum variant.
+  - "pattern does not mention field X" after a struct gained or renamed a field.
+  - "unresolved import" pointing at a module that exists on disk and is declared in `mod.rs` / `lib.rs`.
+  When you see one of these immediately after a coding subagent's commit, run `cargo check --all-targets` once. If it is clean, pass to Judge without a second round; do not re-prompt the subagent.
+
+## Plan-to-bead translation: mark deferrable scope explicitly
+When translating a blueprint plan into beads, the plan often promises behavior at a phase boundary (e.g. "Phase 3 applies severity/regions onto surviving rules") that turns out to be pre-existing-unwired. Two failure modes follow:
+1. The subagent doesn't deliver it because the wiring was already absent and the test surface didn't force it.
+2. Judge correctly flags the gap, but the result is ambiguous: pass-with-followup, or fail-and-retry?
+
+Mitigation when authoring bead descriptions from a plan:
+- For each promised behavior, mark it explicitly as **must-land in this bead** or **may be deferred (file follow-up)**. Default is must-land; deferral requires a one-line justification (e.g. "pre-existing gap; out of plan's stated scope for this phase").
+- When Judge surfaces a gap that matches a "may be deferred" marker, the Coordinator files a follow-up bead and closes the current one as PASS. This was the right call on `code-6ik` / `code-ury` and should be the standard pattern.
+- When Judge surfaces a gap with no marker, treat it as a real fail and retry.
+
+## Policy rules are not negotiable — conform, never route around
+The repo's own ratchet rules (`no-unwrap`, `no-expect`, `no-panic`, `no-todo-comments`, `no-fixme-comments`, …) apply to ALL code in the repo, **including test code**. They are correct as written. A subagent must NEVER route around them — not by moving a `src/` test to `tests/`, not by carving `#[cfg(test)]` out of the rule, not by adding `exclude` globs, not by bumping a counts budget to absorb a fresh violation.
+
+- The unwrap/expect/panic rules in particular are absolute: zero occurrences in `src/` including unit tests, the only exception being a test that specifically asserts a panic. Tests use the Result idiom (`fn test() -> Result<(), Box<dyn std::error::Error>>`, `?`, `.ok_or("desc")?`). See `coding.md` "No unwrap / expect / panic" for the full idiom.
+- If you ever see a commit that routed around one of these rules (test moved to dodge a rule, budget bumped to absorb a new violation, prose weakened to dodge no-todo), that is a DEFECT to revert, not a pattern to bless. File a P1 to convert the offending code to conform, and reset the workaround.
+- A counts-budget increase is only ever justified for pre-existing violations being formally tracked — never to absorb a violation the current bead introduced. Watch the `ratchet-counts.toml` diff on every bead: if `no-unwrap`/`no-expect`/`no-panic` went UP, the bead added banned constructs and must be sent back.
 
 ## Commit-message escaping
 Apostrophes (e.g. `sculptor's`) in bash heredocs can break `git commit -m`. When a commit message contains single quotes, write the message to a temp file and use `-F`:

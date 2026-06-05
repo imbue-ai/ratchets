@@ -32,6 +32,17 @@ pub enum ConfigError {
     /// Invalid configuration
     #[error("Invalid configuration: {0}")]
     Validation(String),
+
+    /// Unsupported configuration schema version
+    ///
+    /// Phase 1 of the ratchet-sets plan bumps the expected
+    /// `[ratchets].version` to `"2"`. Any other version (including the
+    /// previously valid `"1"`) is rejected here. The CLI layer is expected to
+    /// match on this variant and render the embedded upgrade notice to stderr.
+    #[error(
+        "Unsupported configuration version '{0}'. Expected '2'. See the upgrade notice (`ratchets help upgrade`) for details."
+    )]
+    UnsupportedVersion(String),
 }
 
 /// Rule-related errors
@@ -52,6 +63,17 @@ pub enum RuleError {
     /// Invalid tree-sitter query
     #[error("Invalid tree-sitter query: {0}")]
     InvalidQuery(String),
+
+    /// Failed to resolve `enabled_ratchets` / `disabled_ratchets` against
+    /// the [`crate::config::SetRegistry`].
+    ///
+    /// Phase 3 of the ratchet-sets plan wires [`crate::config::SetRegistry::resolve`]
+    /// into [`crate::rules::RuleRegistry::build_from_config`]. A `Cycle` or
+    /// `UnknownSet` reported by the resolver surfaces here so each CLI
+    /// subcommand can match on it and emit the plan's prescribed stderr
+    /// message before exiting non-zero.
+    #[error("Ratchet-set resolution failed: {0}")]
+    SetResolve(#[from] crate::config::sets::ResolveError),
 }
 
 /// Top-level error type for Ratchets
@@ -103,6 +125,14 @@ mod tests {
             err.to_string(),
             "Invalid value for max_retries: must be positive"
         );
+    }
+
+    #[test]
+    fn test_config_error_display_unsupported_version() {
+        let err = ConfigError::UnsupportedVersion("1".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Unsupported configuration version '1'"));
+        assert!(msg.contains("Expected '2'"));
     }
 
     #[test]

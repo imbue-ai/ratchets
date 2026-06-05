@@ -1,18 +1,17 @@
 # Full valid ratchet configuration with all options
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust", "typescript", "python"]
 include = ["src/**", "tests/**"]
 exclude = ["**/generated/**", "**/vendor/**"]
 
+# Per-rule settings live under [rules]. Enable / disable lives in
+# enabled_ratchets / disabled_ratchets (parsed in Phase 1, load-bearing in
+# Phase 3 of the ratchet-sets plan).
 [rules]
-no-unwrap = true
-no-expect = true
 no-todo-comments = { severity = "warning" }
-no-fixme-comments = false
 
 [rules.custom]
-my-company-rule = true
 legacy-api-usage = { regions = ["src/legacy/**"] }
 
 [output]

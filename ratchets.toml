@@ -1,5 +1,21 @@
+# The ratchet-sets model makes rule enablement explicitly opt-in: every rule
+# this repo enforces must be reachable from `enabled_ratchets`, either as a
+# bare `rule-id` or via a `$set-name` reference. `$common-starter` covers
+# the language-agnostic baseline (no-todo-comments, no-fixme-comments); the
+# Rust-specific rules below are listed individually until per-language
+# starter sets (`$rust-starter`) land in a follow-up MR. `disabled_ratchets`
+# stays empty here — we have nothing to subtract from the union today.
+enabled_ratchets = [
+    "$common-starter",
+    "no-unwrap",
+    "no-panic",
+    "no-expect",
+    "rust-no-todo-comments",
+    "rust-no-fixme-comments",
+]
+
 [ratchets]
-version = "1"
+version = "2"
 
 # Languages to enable (uncomment as needed)
 languages = ["rust"]
@@ -10,10 +26,9 @@ languages = ["rust"]
 # File patterns to exclude
 exclude = ["**/tests/**"]
 
+# Per-rule severity / region settings live under [rules]. Enable / disable
+# moved to enabled_ratchets / disabled_ratchets (ratchet-sets plan, Phase 1).
 [rules]
-# Built-in rules are enabled by default
-# Disable a rule: rule-name = false
-# Configure a rule: rule-name = { severity = "warning" }
 
 [output]
 format = "human"

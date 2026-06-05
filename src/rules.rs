@@ -10,7 +10,7 @@ mod rule;
 
 // Re-export core types
 pub use ast::{AstRule, ParserCache};
-pub use builtin::{load_builtin_ast_rules, load_builtin_regex_rules};
+pub use builtin::{load_builtin_ast_rules, load_builtin_regex_rules, load_builtin_sets};
 pub use regex_rule::RegexRule;
 pub use registry::RuleRegistry;
 pub use rule::{AstPlaceholder, ExecutionContext, RegionResolver, Rule, RuleContext, Violation};

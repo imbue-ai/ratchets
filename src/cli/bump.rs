@@ -60,6 +60,16 @@ pub fn run_bump(rule_id: Option<&str>, region: &str, count: Option<u64>, all: bo
     match run_bump_inner(rule_id, region, count, all) {
         Ok(()) => EXIT_SUCCESS,
         Err(e) => {
+            // Print the embedded upgrade notice for schema version mismatches
+            // before the generic error printer.
+            if let BumpError::Config(ConfigError::UnsupportedVersion(_)) = &e {
+                super::upgrade_notice::print_to_stderr();
+            }
+            // Phase 3: surface the ratchet-set resolver error in the
+            // plan-prescribed wording before the generic printer.
+            if let BumpError::Rule(crate::error::RuleError::SetResolve(ref resolve)) = e {
+                super::common::print_resolve_error(resolve);
+            }
             eprintln!("Error: {}", e);
             EXIT_ERROR
         }

@@ -20,6 +20,42 @@ use tempfile::TempDir;
 // Global mutex to ensure tests that change directory don't interfere with each other
 static TEST_MUTEX: Mutex<()> = Mutex::new(());
 
+/// Generous budgets for embedded builtin rules. Each test focuses on one
+/// rule and would otherwise be tripped up by violations against the other
+/// embedded rules; granting large budgets here keeps the per-test inline
+/// counts focused on the rule under test. (In production code these
+/// budgets would either come from `tighten` or be silenced via
+/// `disabled_ratchets`; tests sidestep that for clarity.)
+const BUILTIN_RULE_BUDGETS: &str = r#"
+[no-fixme-comments]
+"." = 1000
+
+[no-unwrap]
+"." = 1000
+
+[no-panic]
+"." = 1000
+
+[no-expect]
+"." = 1000
+
+[rust-no-todo-comments]
+"." = 1000
+
+[rust-no-fixme-comments]
+"." = 1000
+"#;
+
+/// Write `ratchet-counts.toml` from a per-test fragment plus the generous
+/// builtin-rule budgets defined above. Centralising the concatenation keeps
+/// individual tests focused on the rule(s) under test.
+fn write_counts_with_builtin_budgets(per_test_fragment: &str) {
+    let mut content = String::with_capacity(per_test_fragment.len() + BUILTIN_RULE_BUDGETS.len());
+    content.push_str(per_test_fragment);
+    content.push_str(BUILTIN_RULE_BUDGETS);
+    fs::write("ratchet-counts.toml", content).unwrap();
+}
+
 /// Helper to run a test in an isolated temporary directory
 fn with_temp_dir<F>(f: F)
 where
@@ -205,20 +241,14 @@ fn test_e2e_full_workflow_init_add_check_tighten() {
 
         // Update config to enable rust and include patterns
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-# Disable other embedded rules that we don't want to test here
-no-fixme-comments = false
-no-unwrap = false
-no-panic = false
-no-expect = false
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write("ratchets.toml", config).unwrap();
 
@@ -233,7 +263,7 @@ rust-no-fixme-comments = false
 [no-todo-comments]
 "." = 100
 "#;
-        fs::write("ratchet-counts.toml", counts).unwrap();
+        write_counts_with_builtin_budgets(counts);
 
         // Step 5: Check should now pass
         let check_exit =
@@ -275,20 +305,14 @@ fn test_e2e_multi_file_project_with_regions() {
         create_multi_file_rust_project(temp_dir.path());
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-# Disable other embedded rules that we don't want to test here
-no-fixme-comments = false
-no-unwrap = false
-no-panic = false
-no-expect = false
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write("ratchets.toml", config).unwrap();
 
@@ -300,7 +324,7 @@ rust-no-fixme-comments = false
 "src/legacy" = 5
 "tests" = 2
 "#;
-        fs::write("ratchet-counts.toml", counts).unwrap();
+        write_counts_with_builtin_budgets(counts);
 
         // Check should pass (within all region budgets)
         let exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false, None);
@@ -314,7 +338,7 @@ rust-no-fixme-comments = false
 "src/legacy" = 0
 "tests" = 2
 "#;
-        fs::write("ratchet-counts.toml", counts).unwrap();
+        write_counts_with_builtin_budgets(counts);
 
         // Check should fail (src/legacy exceeds budget)
         let exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false, None);
@@ -353,16 +377,14 @@ fn main() {
         .unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-no-unwrap = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write("ratchets.toml", config).unwrap();
 
@@ -370,13 +392,31 @@ rust-no-fixme-comments = false
         let exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false, None);
         assert_eq!(exit, cli::common::EXIT_EXCEEDED);
 
-        // Set budgets for both rules
+        // Set budgets for both rules. This test sets its own `no-unwrap`
+        // budget so we can't compose via `write_counts_with_builtin_budgets`
+        // (which would create a duplicate key); spell out the other Phase 1
+        // budgets inline.
         let counts = r#"
 [no-todo-comments]
 "." = 1
 
 [no-unwrap]
 "." = 1
+
+[no-fixme-comments]
+"." = 1000
+
+[no-panic]
+"." = 1000
+
+[no-expect]
+"." = 1000
+
+[rust-no-todo-comments]
+"." = 1000
+
+[rust-no-fixme-comments]
+"." = 1000
 "#;
         fs::write("ratchet-counts.toml", counts).unwrap();
 
@@ -428,15 +468,14 @@ fn test_e2e_region_inheritance() {
         fs::write(utils.join("helpers.rs"), "// TODO: 3\n").unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write("ratchets.toml", config).unwrap();
 
@@ -445,7 +484,7 @@ rust-no-fixme-comments = false
 [no-todo-comments]
 "." = 3
 "#;
-        fs::write("ratchet-counts.toml", counts).unwrap();
+        write_counts_with_builtin_budgets(counts);
 
         // Check should pass (3 TODOs, budget 3)
         let exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false, None);
@@ -457,7 +496,7 @@ rust-no-fixme-comments = false
 "." = 10
 "src/core" = 1
 "#;
-        fs::write("ratchet-counts.toml", counts).unwrap();
+        write_counts_with_builtin_budgets(counts);
 
         // Check should pass (core has 1 TODO, budget 1)
         let exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false, None);
@@ -512,15 +551,14 @@ fn test_e2e_gitignore_respected() {
         fs::write(src.join("main.rs"), "// TODO: this counts\n").unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write("ratchets.toml", config).unwrap();
 
@@ -528,7 +566,7 @@ rust-no-fixme-comments = false
 [no-todo-comments]
 "." = 1
 "#;
-        fs::write("ratchet-counts.toml", counts).unwrap();
+        write_counts_with_builtin_budgets(counts);
 
         // Check should pass (only 1 TODO counted, gitignored files excluded)
         let exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false, None);
@@ -557,15 +595,14 @@ fn test_e2e_all_exit_codes() {
         fs::write(temp_dir.path().join("test.rs"), "// TODO: test\n").unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write("ratchets.toml", config).unwrap();
 
@@ -573,7 +610,7 @@ rust-no-fixme-comments = false
 [no-todo-comments]
 "." = 1
 "#;
-        fs::write("ratchet-counts.toml", counts).unwrap();
+        write_counts_with_builtin_budgets(counts);
 
         let exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false, None);
         assert_eq!(exit, cli::common::EXIT_SUCCESS);
@@ -583,7 +620,7 @@ rust-no-fixme-comments = false
 [no-todo-comments]
 "." = 0
 "#;
-        fs::write("ratchet-counts.toml", counts).unwrap();
+        write_counts_with_builtin_budgets(counts);
 
         let exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false, None);
         assert_eq!(exit, cli::common::EXIT_EXCEEDED);
@@ -597,7 +634,7 @@ rust-no-fixme-comments = false
         // EXIT_PARSE_ERROR (3): Invalid TOML syntax
         let invalid_config = r#"
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"
 # Missing closing bracket - invalid TOML
 "#;
@@ -668,21 +705,21 @@ fn main() {
         .unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-no-fixme-comments = true
-no-unwrap = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write("ratchets.toml", config).unwrap();
 
-        // Set different budgets per rule per region
+        // Set different budgets per rule per region. This test already sets
+        // budgets for no-fixme-comments and no-unwrap explicitly, so we bypass
+        // the BUILTIN_RULE_BUDGETS helper (which would duplicate those keys)
+        // and write the file directly with rust-specific budgets appended.
         let counts = r#"
 [no-todo-comments]
 "." = 2
@@ -696,6 +733,18 @@ rust-no-fixme-comments = false
 "." = 2
 "src/core" = 0
 "src/legacy" = 1
+
+[no-panic]
+"." = 1000
+
+[no-expect]
+"." = 1000
+
+[rust-no-todo-comments]
+"." = 1000
+
+[rust-no-fixme-comments]
+"." = 1000
 "#;
         fs::write("ratchet-counts.toml", counts).unwrap();
 
@@ -743,15 +792,14 @@ fn test_e2e_gradual_cleanup_workflow() {
         }
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write("ratchets.toml", config).unwrap();
 
@@ -760,7 +808,7 @@ rust-no-fixme-comments = false
 [no-todo-comments]
 "." = 10
 "#;
-        fs::write("ratchet-counts.toml", counts).unwrap();
+        write_counts_with_builtin_budgets(counts);
 
         let exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false, None);
         assert_eq!(exit, cli::common::EXIT_SUCCESS);
@@ -810,15 +858,14 @@ fn test_e2e_multiple_paths_check() {
         fs::write(tests.join("test.rs"), "// TODO: test todo\n").unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write("ratchets.toml", config).unwrap();
 
@@ -826,7 +873,7 @@ rust-no-fixme-comments = false
 [no-todo-comments]
 "." = 2
 "#;
-        fs::write("ratchet-counts.toml", counts).unwrap();
+        write_counts_with_builtin_budgets(counts);
 
         // Check specific paths
         let exit = cli::check::run_check(
@@ -856,15 +903,14 @@ fn test_e2e_jsonl_output_format() {
         fs::write(src.join("main.rs"), "// TODO: test\n").unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write("ratchets.toml", config).unwrap();
 
@@ -872,7 +918,7 @@ rust-no-fixme-comments = false
 [no-todo-comments]
 "." = 1
 "#;
-        fs::write("ratchet-counts.toml", counts).unwrap();
+        write_counts_with_builtin_budgets(counts);
 
         // Check with JSONL format - should succeed
         let exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Jsonl, false, None);
@@ -894,15 +940,14 @@ fn test_e2e_tighten_with_violations_fails() {
         fs::write(temp_dir.path().join("test.rs"), "// TODO: test\n").unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write("ratchets.toml", config).unwrap();
 
@@ -911,7 +956,7 @@ rust-no-fixme-comments = false
 [no-todo-comments]
 "." = 0
 "#;
-        fs::write("ratchet-counts.toml", counts).unwrap();
+        write_counts_with_builtin_budgets(counts);
 
         // Tighten should fail (violations exceed budget)
         let exit = cli::tighten::run_tighten(None, None);
@@ -930,8 +975,10 @@ fn test_e2e_empty_project() {
         cli::init::run_init(false).expect("init should succeed");
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
@@ -958,15 +1005,14 @@ fn test_e2e_no_violations_found() {
         fs::write(src.join("main.rs"), "fn main() {}\n").unwrap();
 
         let config = r#"
+enabled_ratchets = ["no-todo-comments", "no-fixme-comments", "no-unwrap", "no-panic", "no-expect", "rust-no-todo-comments", "rust-no-fixme-comments"]
+
 [ratchets]
-version = "1"
+version = "2"
 languages = ["rust"]
 include = ["**/*.rs"]
 
 [rules]
-no-todo-comments = true
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
 "#;
         fs::write("ratchets.toml", config).unwrap();
 
@@ -980,38 +1026,12 @@ rust-no-fixme-comments = false
     });
 }
 
-#[test]
-fn test_e2e_rule_disabled_in_config() {
-    with_temp_dir(|temp_dir| {
-        // Initialize
-        cli::init::run_init(false).expect("init should succeed");
-        create_todo_rule(temp_dir.path());
-
-        fs::write(
-            temp_dir.path().join("test.rs"),
-            "// TODO: this should be ignored\n",
-        )
-        .unwrap();
-
-        // Disable the rule
-        let config = r#"
-[ratchets]
-version = "1"
-languages = ["rust"]
-include = ["**/*.rs"]
-
-[rules]
-no-todo-comments = false
-rust-no-todo-comments = false
-rust-no-fixme-comments = false
-"#;
-        fs::write("ratchets.toml", config).unwrap();
-
-        // Check should succeed (rule disabled)
-        let exit = cli::check::run_check(&[".".to_string()], cli::OutputFormat::Human, false, None);
-        assert_eq!(exit, cli::common::EXIT_SUCCESS);
-    });
-}
+// `test_e2e_rule_disabled_in_config` was removed when the v2 schema
+// dropped the `[rules].rule-id = false` shorthand. The equivalent v2
+// behaviour ("rule listed in `disabled_ratchets` produces no violations")
+// is covered by integration coverage of `disabled_ratchets` in
+// `tests/cli_integration_tests.rs` and the resolver-level coverage in
+// `src/config/sets.rs`'s tests; no e2e replacement is needed here.
 
 #[test]
 fn test_e2e_init_force_overwrites() {

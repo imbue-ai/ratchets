@@ -28,7 +28,9 @@ fn test_config_load_valid_minimal() {
     let path = fixture_path("valid_minimal.toml");
     let config = Config::load(&path).unwrap();
 
-    assert_eq!(config.ratchets.version, "1");
+    // Phase 1 of the ratchet-sets plan bumped the only supported schema
+    // version to "2".
+    assert_eq!(config.ratchets.version, "2");
     assert_eq!(config.ratchets.languages.len(), 1);
 }
 
@@ -37,14 +39,17 @@ fn test_config_load_valid_full() {
     let path = fixture_path("valid_full.toml");
     let config = Config::load(&path).unwrap();
 
-    assert_eq!(config.ratchets.version, "1");
+    // Phase 1 of the ratchet-sets plan bumps the only supported schema
+    // version to "2"; the rules table now only carries settings entries.
+    assert_eq!(config.ratchets.version, "2");
     assert_eq!(config.ratchets.languages.len(), 3);
     assert_eq!(config.ratchets.include.len(), 2);
     assert_eq!(config.ratchets.exclude.len(), 2);
 
-    // Verify rules are parsed
-    assert!(config.rules.builtin.len() >= 4);
-    assert_eq!(config.rules.custom.len(), 2);
+    // Verify rules are parsed. Settings-only fixtures now hold one builtin
+    // and one custom rule (the boolean enable/disable shorthand was removed).
+    assert_eq!(config.rules.builtin.len(), 1);
+    assert_eq!(config.rules.custom.len(), 1);
 }
 
 #[test]

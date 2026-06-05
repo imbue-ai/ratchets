@@ -1,4 +1,5 @@
-# Invalid: unsupported version
+# Invalid: unsupported version. v1 is the canonical
+# "previous schema" used to exercise UnsupportedVersion.
 [ratchets]
-version = "2"
+version = "1"
 languages = ["rust"]

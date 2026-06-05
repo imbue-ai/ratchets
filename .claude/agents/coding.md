@@ -47,6 +47,19 @@ If your task is blocked by a large refactor that you are not cleared to do:
   - specify the required refactor
   - request the Coordinator to create/assign a bead for it first
 
+## No unwrap / expect / panic — including in test code
+There must be NO `.unwrap()`, `.expect(...)`, or `panic!(...)` anywhere in this repo, **including test code**. The single exception is a test that is specifically asserting that a panic occurs (e.g. `#[should_panic]`). These rules (`no-unwrap` / `no-expect` / `no-panic`) are correct as written — do NOT route around them by moving tests to `tests/`, carving out `#[cfg(test)]`, adding `exclude` globs, or bumping the counts budget. Make your test code conform.
+
+The idiom (canonical example: `src/config/counts.rs`):
+- Test fn signature → `fn test_x() -> Result<(), Box<dyn std::error::Error>>`, ending in `Ok(())`.
+- `.unwrap()` on a `Result` → `?`.
+- `.unwrap()` / `.expect("..")` on an `Option` → `.ok_or("description")?`.
+- `panic!("msg")` in a match/if assertion arm → `return Err("msg".into())`.
+- `assert!`, `assert_eq!`, `assert_ne!`, `matches!`, `.unwrap_err()`, `.expect_err()` are ALLOWED — they are not ratcheted. Use them freely.
+- Do NOT use `assert_ok!` / `assert_some!` from `tests/common.rs` in `src/` unit tests — they expand to `panic!`.
+
+If a task would otherwise force you to add one of these constructs, that is never the cheapest path to green — converting to the Result idiom is. The same applies to `no-todo-comments` / `no-fixme-comments`: don't weaken prose to dodge them; don't write TODO/FIXME into committed code.
+
 ## Definition of Done
 Before declaring your task complete:
 - `cargo fmt --check` passes

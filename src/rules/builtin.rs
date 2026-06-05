@@ -6,12 +6,24 @@
 //! using `include_str!`. This ensures the binary is self-contained and can run
 //! without external rule files.
 
+use crate::config::sets::RatchetSet;
 use crate::error::RuleError;
 use crate::rules::{AstRule, RegexRule, Rule};
 use crate::types::RuleId;
 
 /// Type alias for a list of rules with their IDs
 type RuleList = Vec<(RuleId, Box<dyn Rule>)>;
+
+/// Embedded built-in ratchet-set files.
+///
+/// Phase 4 of `blueprint/ratchet-sets/plan-ratchet-sets.md` ships
+/// `common-starter` — the language-agnostic curated starter set. Per-language
+/// starter sets (`python-starter`, `rust-starter`, `typescript-starter`) are
+/// deferred to follow-up MRs so review can focus on rule curation separately.
+const BUILTIN_SETS: &[(&str, &str)] = &[(
+    "common-starter",
+    include_str!("../../builtin-ratchets/sets/common-starter.toml"),
+)];
 
 /// Embedded built-in regex rule files
 const BUILTIN_REGEX_RULES: &[(&str, &str)] = &[
@@ -466,6 +478,41 @@ pub fn load_builtin_ast_rules() -> Result<RuleList, RuleError> {
     )?;
 
     Ok(rules)
+}
+
+/// Parse `source` as embedded ratchet-sets and append them to `sets`. `label`
+/// is interpolated into the parse-error message verbatim, mirroring the rule
+/// extension helpers above.
+fn extend_sets(
+    sets: &mut Vec<RatchetSet>,
+    source: &[(&str, &str)],
+    label: &str,
+) -> Result<(), RuleError> {
+    for (set_name, toml_content) in source {
+        let set = RatchetSet::from_toml(toml_content).map_err(|e| {
+            RuleError::InvalidDefinition(format!(
+                "Failed to parse built-in {} set '{}': {}",
+                label, set_name, e
+            ))
+        })?;
+        sets.push(set);
+    }
+    Ok(())
+}
+
+/// Load all built-in ratchet-sets from embedded resources.
+///
+/// Phase 4 of the ratchet-sets plan ships `common-starter` (cross-language
+/// curated default). Per-language starter sets are deferred to follow-up
+/// MRs.
+///
+/// # Errors
+///
+/// Returns [`RuleError`] if any embedded set TOML fails to parse.
+pub fn load_builtin_sets() -> Result<Vec<RatchetSet>, RuleError> {
+    let mut sets = Vec::new();
+    extend_sets(&mut sets, BUILTIN_SETS, "embedded")?;
+    Ok(sets)
 }
 
 #[cfg(test)]

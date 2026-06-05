@@ -6,8 +6,32 @@ use std::fs;
 use std::path::Path;
 
 /// Default content for ratchets.toml
-const DEFAULT_RATCHET_TOML: &str = r#"[ratchets]
-version = "1"
+///
+/// Phase 1 scaffold for the ratchet-sets feature:
+///   - `[ratchets].version = "2"` is the only schema the library accepts.
+///   - `enabled_ratchets = []` is the new opt-in list; entries are either
+///     `"$set-name"` references (ratchet-sets) or bare `"rule-id"` strings
+///     (single rules). Resolution arrives in bead `code-rs-p2`; the one
+///     starter set, `$common-starter`, ships in bead `code-rs-p4`.
+///   - `[rules]` now only carries per-rule severity / regions settings;
+///     enable / disable lives entirely in `enabled_ratchets` /
+///     `disabled_ratchets`.
+const DEFAULT_RATCHET_TOML: &str = r#"# Ratchets v2 configuration scaffold.
+#
+# enabled_ratchets / disabled_ratchets accept two reference shapes:
+#   - "$set-name" — a ratchet-set (group of rules) reference.
+#   - "rule-id"   — a single rule reference.
+#
+# The only set that ships with this binary today is `$common-starter`
+# (lands in bead code-rs-p4). Per-language starter sets are deferred to
+# follow-up MRs. To opt in to the common cross-language rules write:
+#   enabled_ratchets = ["$common-starter"]
+enabled_ratchets = []
+# disabled_ratchets always wins over enabled_ratchets at resolution time.
+disabled_ratchets = []
+
+[ratchets]
+version = "2"
 
 # Languages to enable (uncomment as needed)
 # languages = ["rust", "typescript", "javascript", "python", "go"]
@@ -18,10 +42,9 @@ version = "1"
 # File patterns to exclude
 # exclude = ["**/generated/**"]
 
+# Per-rule settings (severity / regions) live in [rules]. Enable / disable
+# moved out of [rules] — use enabled_ratchets / disabled_ratchets above.
 [rules]
-# Built-in rules are enabled by default
-# Disable a rule: rule-name = false
-# Configure a rule: rule-name = { severity = "warning" }
 
 [output]
 format = "human"
@@ -48,6 +71,16 @@ pub enum InitError {
     /// Path error
     #[error("Path error: {0}")]
     Path(String),
+
+    /// An existing `ratchets.toml` declares the v1 schema. Without `--force`
+    /// the bead-spec'd Phase 5 behaviour is to print the embedded upgrade
+    /// notice and exit with the standard error code rather than silently
+    /// skipping the file. The CLI dispatcher (`main.rs`) renders the notice
+    /// when it sees this variant.
+    #[error(
+        "ratchets.toml already exists with version = \"1\". Migrate to v2 (see the upgrade notice above) or re-run with --force to overwrite."
+    )]
+    ExistingV1Config,
 }
 
 /// Result of init command
@@ -87,6 +120,16 @@ impl InitResult {
 /// * `Ok(InitResult)` - Summary of created/skipped/overwritten files
 /// * `Err(InitError)` - If an I/O error occurred
 pub fn run_init(force: bool) -> Result<InitResult, InitError> {
+    // Phase 5 of the ratchet-sets plan: without `--force`, an existing v1
+    // `ratchets.toml` is no longer silently skipped. We surface
+    // `InitError::ExistingV1Config` so the CLI dispatcher can print the
+    // embedded upgrade notice and exit with `EXIT_ERROR`. `--force` keeps the
+    // previous overwrite-the-file behaviour so users on a half-migrated repo
+    // can still re-scaffold.
+    if !force && existing_ratchets_toml_is_v1(Path::new("ratchets.toml"))? {
+        return Err(InitError::ExistingV1Config);
+    }
+
     let mut result = InitResult::new();
 
     // Create ratchets.toml
@@ -171,6 +214,32 @@ fn path_to_string(path: &Path) -> Result<String, InitError> {
         .ok_or_else(|| InitError::Path(format!("Invalid UTF-8 in path: {:?}", path)))
 }
 
+/// Returns `true` if `path` exists and its `[ratchets].version` is `"1"`.
+///
+/// Used by [`run_init`] to special-case the "existing v1 config + no
+/// `--force`" path: rather than silently skipping the file as we used to,
+/// the dispatcher prints the embedded upgrade notice.
+///
+/// A malformed `ratchets.toml` (or any version other than `"1"`) returns
+/// `false` so the regular skip / overwrite flow handles those cases. We do
+/// not want a parse-error from a half-migrated file to prevent users from
+/// running `init --force`.
+fn existing_ratchets_toml_is_v1(path: &Path) -> Result<bool, InitError> {
+    if !path.exists() {
+        return Ok(false);
+    }
+    let content = fs::read_to_string(path)?;
+    let parsed: toml::Value = match toml::from_str(&content) {
+        Ok(value) => value,
+        Err(_) => return Ok(false),
+    };
+    let version = parsed
+        .get("ratchets")
+        .and_then(|table| table.get("version"))
+        .and_then(|value| value.as_str());
+    Ok(version == Some("1"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,7 +292,9 @@ mod tests {
             assert!(ratchet_toml.exists());
             let content = fs::read_to_string(&ratchet_toml)?;
             assert!(content.contains("[ratchets]"));
-            assert!(content.contains("version = \"1\""));
+            assert!(content.contains("version = \"2\""));
+            // Phase 1 scaffold ships an explicit empty opt-in list.
+            assert!(content.contains("enabled_ratchets = []"));
 
             let counts_toml = temp_dir.path().join("ratchet-counts.toml");
             assert!(counts_toml.exists());
@@ -367,10 +438,16 @@ mod tests {
     #[test]
     fn test_default_ratchet_toml_content() {
         assert!(DEFAULT_RATCHET_TOML.contains("[ratchets]"));
-        assert!(DEFAULT_RATCHET_TOML.contains("version = \"1\""));
+        assert!(DEFAULT_RATCHET_TOML.contains("version = \"2\""));
         assert!(DEFAULT_RATCHET_TOML.contains("[rules]"));
         assert!(DEFAULT_RATCHET_TOML.contains("[output]"));
         assert!(DEFAULT_RATCHET_TOML.contains("format = \"human\""));
+        // Phase 1 scaffold introduces the opt-in ratchet-set arrays.
+        assert!(DEFAULT_RATCHET_TOML.contains("enabled_ratchets = []"));
+        assert!(DEFAULT_RATCHET_TOML.contains("disabled_ratchets = []"));
+        // Mention `$common-starter` so users discover the one shipped set
+        // from the scaffold without reading external docs.
+        assert!(DEFAULT_RATCHET_TOML.contains("$common-starter"));
     }
 
     #[test]
@@ -394,5 +471,111 @@ mod tests {
         let result = path_to_string(path);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "test/path");
+    }
+
+    #[test]
+    fn test_existing_ratchets_toml_is_v1_returns_false_when_missing()
+    -> Result<(), Box<dyn std::error::Error>> {
+        with_temp_dir(|temp_dir| {
+            let path = temp_dir.path().join("ratchets.toml");
+            assert!(!existing_ratchets_toml_is_v1(&path)?);
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_existing_ratchets_toml_is_v1_detects_v1_version()
+    -> Result<(), Box<dyn std::error::Error>> {
+        with_temp_dir(|_temp_dir| {
+            fs::write(
+                "ratchets.toml",
+                r#"[ratchets]
+version = "1"
+languages = ["rust"]
+"#,
+            )?;
+            assert!(existing_ratchets_toml_is_v1(Path::new("ratchets.toml"))?);
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_existing_ratchets_toml_is_v1_rejects_v2_version()
+    -> Result<(), Box<dyn std::error::Error>> {
+        with_temp_dir(|_temp_dir| {
+            fs::write(
+                "ratchets.toml",
+                r#"[ratchets]
+version = "2"
+languages = ["rust"]
+"#,
+            )?;
+            assert!(!existing_ratchets_toml_is_v1(Path::new("ratchets.toml"))?);
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_existing_ratchets_toml_is_v1_rejects_malformed_toml()
+    -> Result<(), Box<dyn std::error::Error>> {
+        // Malformed TOML must not be classified as v1 — the regular skip path
+        // handles those files.
+        with_temp_dir(|_temp_dir| {
+            fs::write("ratchets.toml", "= = =")?;
+            assert!(!existing_ratchets_toml_is_v1(Path::new("ratchets.toml"))?);
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_existing_ratchets_toml_is_v1_rejects_missing_version_field()
+    -> Result<(), Box<dyn std::error::Error>> {
+        with_temp_dir(|_temp_dir| {
+            fs::write(
+                "ratchets.toml",
+                r#"[ratchets]
+languages = ["rust"]
+"#,
+            )?;
+            assert!(!existing_ratchets_toml_is_v1(Path::new("ratchets.toml"))?);
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_run_init_errors_for_existing_v1_without_force() -> Result<(), Box<dyn std::error::Error>>
+    {
+        with_temp_dir(|_temp_dir| {
+            fs::write(
+                "ratchets.toml",
+                r#"[ratchets]
+version = "1"
+languages = ["rust"]
+"#,
+            )?;
+            let result = run_init(false);
+            assert!(matches!(result, Err(InitError::ExistingV1Config)));
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_run_init_force_overwrites_existing_v1() -> Result<(), Box<dyn std::error::Error>> {
+        with_temp_dir(|_temp_dir| {
+            fs::write(
+                "ratchets.toml",
+                r#"[ratchets]
+version = "1"
+languages = ["rust"]
+"#,
+            )?;
+            let result = run_init(true)?;
+            assert!(result.overwritten.contains(&"ratchets.toml".to_string()));
+
+            // Confirm the v2 scaffold replaced the v1 content.
+            let content = fs::read_to_string("ratchets.toml")?;
+            assert!(content.contains("version = \"2\""));
+            Ok(())
+        })
     }
 }
