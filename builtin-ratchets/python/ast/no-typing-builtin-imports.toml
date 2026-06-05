@@ -1,0 +1,37 @@
+[rule]
+id = "no-typing-builtin-imports"
+description = "Do not import Dict, List, Set, Tuple, Optional from typing. Use lowercase builtins or T | None instead"
+severity = "warning"
+
+[match]
+language = "python"
+# Flag `from typing import (Dict|List|Set|Tuple|Optional)` for any of the five
+# banned names. The replaced regex
+# (`\bfrom\s+typing\s+import\s+.*\b(Dict|List|Set|Tuple|Optional)\b`) was
+# single-line, so it missed the multiline parenthesized form:
+#
+#     from typing import (
+#         Optional,
+#     )
+#
+# Tree-sitter parses both the same-line and multiline parenthesized forms into a
+# single `import_from_statement` whose `module_name` is `(dotted_name "typing")`
+# and whose `name:` children are `(dotted_name (identifier))` or, for the aliased
+# shape `... import Optional as Opt`, `(aliased_import name: (dotted_name ...))`.
+# Matching those `name:` children structurally handles both layouts uniformly.
+query = """
+(import_from_statement
+  module_name: (dotted_name) @mod
+  name: (dotted_name
+    . (identifier) @violation)
+  (#eq? @mod "typing")
+  (#match? @violation "^(Dict|List|Set|Tuple|Optional)$"))
+
+(import_from_statement
+  module_name: (dotted_name) @mod
+  name: (aliased_import
+    name: (dotted_name
+      . (identifier) @violation))
+  (#eq? @mod "typing")
+  (#match? @violation "^(Dict|List|Set|Tuple|Optional)$"))
+"""

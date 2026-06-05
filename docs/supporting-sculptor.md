@@ -41,7 +41,7 @@ corresponding rule here.
 | `import_underscore` | `python/ast/no-underscore-imports.toml` |
 | `inline_functions` | `python/ast/no-inline-functions.toml` |
 | `inline_imports` | `python/regex/no-inline-imports.toml` |
-| `no_unnecessary_typing_imports` | `python/regex/no-typing-builtin-imports.toml` |
+| `no_unnecessary_typing_imports` | `python/ast/no-typing-builtin-imports.toml` |
 
 ### What's left (42 rules)
 
