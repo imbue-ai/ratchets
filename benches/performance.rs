@@ -59,10 +59,6 @@ use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
 /// Create a temporary directory with test Rust files
 fn create_test_files(count: usize, size: usize) -> TempDir {
     let temp_dir = TempDir::new().unwrap();
@@ -113,10 +109,6 @@ language = "rust"
 "#;
     AstRule::from_toml(toml).unwrap()
 }
-
-// ============================================================================
-// File Walking Benchmarks
-// ============================================================================
 
 /// Benchmark file walking performance
 ///
@@ -176,10 +168,6 @@ fn bench_file_walking(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
-// Regex Rule Benchmarks
-// ============================================================================
-
 /// Benchmark regex rule execution
 ///
 /// This measures the performance of pattern matching using regex rules.
@@ -214,10 +202,6 @@ fn bench_regex_execution(c: &mut Criterion) {
 
     group.finish();
 }
-
-// ============================================================================
-// AST Rule Benchmarks
-// ============================================================================
 
 /// Benchmark AST rule execution with parser caching
 ///
@@ -307,10 +291,6 @@ fn bench_parser_cache(c: &mut Criterion) {
 
     group.finish();
 }
-
-// ============================================================================
-// End-to-End Workflow Benchmarks
-// ============================================================================
 
 /// Benchmark the complete check workflow
 ///
@@ -414,10 +394,6 @@ pattern = "TODO"
 
     group.finish();
 }
-
-// ============================================================================
-// Benchmark Registration
-// ============================================================================
 
 criterion_group!(file_benches, bench_file_walking,);
 

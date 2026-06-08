@@ -80,10 +80,6 @@ pattern = "TODO"
     fs::write(temp_dir.join("test.rs"), "// TODO: test\nfn main() {}\n").unwrap();
 }
 
-// ============================================================================
-// INIT COMMAND TESTS
-// ============================================================================
-
 #[test]
 fn test_init_creates_all_files() {
     with_temp_dir(|temp_dir| {
@@ -252,10 +248,6 @@ fn test_init_with_malformed_existing_config_still_skips_without_force() {
     });
 }
 
-// ============================================================================
-// CHECK COMMAND TESTS
-// ============================================================================
-
 #[test]
 fn test_check_returns_success_when_within_budget() {
     with_temp_dir(|temp_dir| {
@@ -363,10 +355,6 @@ include = ["**/*.rs"]
         assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
     });
 }
-
-// ============================================================================
-// BUMP COMMAND TESTS
-// ============================================================================
 
 #[test]
 fn test_bump_with_explicit_count() {
@@ -575,10 +563,6 @@ fn test_bump_succeeds_for_explicitly_configured_region() {
     });
 }
 
-// ============================================================================
-// TIGHTEN COMMAND TESTS
-// ============================================================================
-
 #[test]
 fn test_tighten_reduces_budget_to_current() {
     with_temp_dir(|temp_dir| {
@@ -724,10 +708,6 @@ fn test_tighten_warns_on_orphan_count_and_tightens_surviving_rule() {
     });
 }
 
-// ============================================================================
-// LIST COMMAND TESTS
-// ============================================================================
-
 #[test]
 fn test_list_human_format() {
     with_temp_dir(|temp_dir| {
@@ -781,10 +761,6 @@ fn test_list_missing_config() {
         assert_eq!(exit_code, cli::common::EXIT_ERROR);
     });
 }
-
-// ============================================================================
-// MERGE-DRIVER COMMAND TESTS
-// ============================================================================
 
 #[test]
 fn test_merge_driver_minimum_wins() {
@@ -1009,10 +985,6 @@ fn test_merge_driver_invalid_toml() {
     });
 }
 
-// ============================================================================
-// EXIT CODE VERIFICATION TESTS
-// ============================================================================
-
 #[test]
 fn test_exit_codes_are_correct() {
     // Verify the exit codes match the specification
@@ -1021,10 +993,6 @@ fn test_exit_codes_are_correct() {
     assert_eq!(cli::common::EXIT_ERROR, 2);
     assert_eq!(cli::common::EXIT_PARSE_ERROR, 3);
 }
-
-// ============================================================================
-// EDGE CASE TESTS
-// ============================================================================
 
 #[test]
 fn test_check_with_empty_counts_file() {
@@ -1145,10 +1113,6 @@ pattern = "TODO"
         assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
     });
 }
-
-// ============================================================================
-// BUMP --ALL COMMAND TESTS
-// ============================================================================
 
 #[test]
 fn test_bump_all_with_empty_initial_counts() {
@@ -1488,10 +1452,6 @@ fn test_bump_all_missing_config() {
         assert_eq!(exit_code, cli::common::EXIT_ERROR);
     });
 }
-
-// ============================================================================
-// TIGHTEN REGION BEHAVIOR TESTS
-// ============================================================================
 
 #[test]
 fn test_tighten_only_updates_configured_regions() {

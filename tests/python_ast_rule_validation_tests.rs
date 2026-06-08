@@ -13,9 +13,6 @@ use ast_test_helpers::{
     expect_match, expect_no_match, load_rule, load_rule_with_python_tests, matches,
 };
 
-// --------------------------------------------------------------------------
-// no-bare-exit
-// --------------------------------------------------------------------------
 #[test]
 fn no_bare_exit_matches() {
     let rule = load_rule("no-bare-exit");
@@ -32,9 +29,6 @@ fn no_bare_exit_non_matches() {
     expect_no_match(&rule, "sys.exit(255)\n", "sys.exit(255)");
 }
 
-// --------------------------------------------------------------------------
-// no-typing-cast
-// --------------------------------------------------------------------------
 #[test]
 fn no_typing_cast_matches() {
     let rule = load_rule("no-typing-cast");
@@ -65,9 +59,6 @@ fn no_typing_cast_non_matches() {
     );
 }
 
-// --------------------------------------------------------------------------
-// no-typing-builtin-imports
-// --------------------------------------------------------------------------
 #[test]
 fn no_typing_builtin_imports_matches() {
     let rule = load_rule("no-typing-builtin-imports");
@@ -114,9 +105,6 @@ fn no_typing_builtin_imports_non_matches() {
     );
 }
 
-// --------------------------------------------------------------------------
-// no-unnumbered-pyre-ignore
-// --------------------------------------------------------------------------
 #[test]
 fn pyre_ignore_unnumbered_matches() {
     let rule = load_rule("no-unnumbered-pyre-ignore");
@@ -142,9 +130,6 @@ fn pyre_ignore_unnumbered_non_matches() {
     expect_no_match(&rule, "# pyre-ignore[7, 19]\nx = 1\n", "multi-numbered");
 }
 
-// --------------------------------------------------------------------------
-// no-unnumbered-pyre-fixme
-// --------------------------------------------------------------------------
 #[test]
 fn pyre_fixme_unnumbered_matches() {
     let rule = load_rule("no-unnumbered-pyre-fixme");
@@ -164,9 +149,6 @@ fn pyre_fixme_unnumbered_non_matches() {
     expect_no_match(&rule, "# pyre-fixme[7, 19]\nx = 1\n", "multi");
 }
 
-// --------------------------------------------------------------------------
-// no-unlabeled-type-ignore
-// --------------------------------------------------------------------------
 #[test]
 fn type_ignore_unlabeled_matches() {
     let rule = load_rule("no-unlabeled-type-ignore");
@@ -193,9 +175,6 @@ fn type_ignore_unlabeled_non_matches() {
     expect_no_match(&rule, "x = 1  # something type: ignore\n", "embedded");
 }
 
-// --------------------------------------------------------------------------
-// no-untyped-args-kwargs
-// --------------------------------------------------------------------------
 #[test]
 fn no_untyped_args_kwargs_matches() {
     let rule = load_rule("no-untyped-args-kwargs");
@@ -292,9 +271,6 @@ fn no_untyped_args_kwargs_catches_multiline_signature() {
     );
 }
 
-// --------------------------------------------------------------------------
-// classmethod-builder-naming
-// --------------------------------------------------------------------------
 #[test]
 fn classmethod_builder_matches() {
     let rule = load_rule("classmethod-builder-naming");
@@ -361,9 +337,6 @@ fn classmethod_builder_matches_with_extra_decorator() {
     );
 }
 
-// --------------------------------------------------------------------------
-// staticmethod-private-only
-// --------------------------------------------------------------------------
 #[test]
 fn staticmethod_private_matches() {
     let rule = load_rule("staticmethod-private-only");
@@ -394,9 +367,6 @@ fn staticmethod_private_non_matches() {
     );
 }
 
-// --------------------------------------------------------------------------
-// attrs-decorator
-// --------------------------------------------------------------------------
 #[test]
 fn attrs_matches() {
     let rule = load_rule("attrs-decorator");
@@ -448,9 +418,6 @@ fn attrs_non_matches() {
     );
 }
 
-// --------------------------------------------------------------------------
-// no-mutable-attr-in-frozen-dataclass
-// --------------------------------------------------------------------------
 #[test]
 fn mutable_attr_frozen_matches() {
     let rule = load_rule("no-mutable-attr-in-frozen-dataclass");
@@ -496,9 +463,6 @@ fn mutable_attr_frozen_non_matches() {
     );
 }
 
-// --------------------------------------------------------------------------
-// no-inline-functions
-// --------------------------------------------------------------------------
 // A heuristic that relies on indentation + "first arg is not cls/self" to
 // approximate "inline function" misses several real shapes:
 //   - `async def` (a regex starting with `def`, not `(?:async\s+)?def`)
@@ -700,9 +664,6 @@ fn no_bare_exit_no_args_does_not_match() {
     expect_no_match(&rule, "exit()\n", "no args");
 }
 
-// --------------------------------------------------------------------------
-// no-underscore-imports
-// --------------------------------------------------------------------------
 // A regex like `^(from [\w.]+ )?import __?\w+` matches when the IMPORTED
 // name (the token right after `import `) starts with one or two underscores.
 // The module path in `from MODULE import NAME` is unconstrained, so
@@ -897,9 +858,6 @@ fn no_underscore_imports_relative_imports_handled() {
     );
 }
 
-// --------------------------------------------------------------------------
-// match-must-assert-never
-// --------------------------------------------------------------------------
 // This rule enforces that every Python `match` block ends with
 // `case _ as <var>: assert_never(<var>)`. With tree-sitter the rule collapses
 // to a query on `match_statement` plus a `#not-match?` predicate.
