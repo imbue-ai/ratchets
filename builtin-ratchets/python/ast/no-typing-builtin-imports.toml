@@ -1,0 +1,28 @@
+[rule]
+id = "no-typing-builtin-imports"
+description = "Do not import Dict, List, Set, Tuple, Optional from typing. Use lowercase builtins or T | None instead"
+severity = "warning"
+
+[match]
+language = "python"
+# Flag `from typing import ...` for any of the five banned names. An
+# `import_from_statement` carries each imported name as a `name:` child:
+# `(dotted_name (identifier))` for a plain import, or `(aliased_import name:
+# (dotted_name ...))` for `... import Optional as Opt`. The two query patterns
+# below match those two shapes.
+query = """
+(import_from_statement
+  module_name: (dotted_name) @mod
+  name: (dotted_name
+    . (identifier) @violation)
+  (#eq? @mod "typing")
+  (#match? @violation "^(Dict|List|Set|Tuple|Optional)$"))
+
+(import_from_statement
+  module_name: (dotted_name) @mod
+  name: (aliased_import
+    name: (dotted_name
+      . (identifier) @violation))
+  (#eq? @mod "typing")
+  (#match? @violation "^(Dict|List|Set|Tuple|Optional)$"))
+"""

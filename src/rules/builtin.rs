@@ -85,10 +85,6 @@ const BUILTIN_PYTHON_REGEX_RULES: &[(&str, &str)] = &[
         include_str!("../../builtin-ratchets/python/regex/no-bare-generic-types.toml"),
     ),
     (
-        "no-typing-builtin-imports",
-        include_str!("../../builtin-ratchets/python/regex/no-typing-builtin-imports.toml"),
-    ),
-    (
         "no-literal-multi-options",
         include_str!("../../builtin-ratchets/python/regex/no-literal-multi-options.toml"),
     ),
@@ -339,6 +335,10 @@ const BUILTIN_AST_PYTHON_RULES: &[(&str, &str)] = &[
     (
         "match-must-assert-never",
         include_str!("../../builtin-ratchets/python/ast/match-must-assert-never.toml"),
+    ),
+    (
+        "no-typing-builtin-imports",
+        include_str!("../../builtin-ratchets/python/ast/no-typing-builtin-imports.toml"),
     ),
 ];
 

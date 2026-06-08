@@ -66,6 +66,55 @@ fn no_typing_cast_non_matches() {
 }
 
 // --------------------------------------------------------------------------
+// no-typing-builtin-imports
+// --------------------------------------------------------------------------
+#[test]
+fn no_typing_builtin_imports_matches() {
+    let rule = load_rule("no-typing-builtin-imports");
+    expect_match(
+        &rule,
+        "from typing import Optional\n",
+        "single-line Optional",
+    );
+    expect_match(
+        &rule,
+        "from typing import (\n    Optional,\n)\n",
+        "multiline Optional",
+    );
+    expect_match(&rule, "from typing import Dict\n", "Dict");
+    expect_match(&rule, "from typing import List\n", "List");
+    expect_match(&rule, "from typing import Set\n", "Set");
+    expect_match(&rule, "from typing import Tuple\n", "Tuple");
+    expect_match(
+        &rule,
+        "from typing import Optional as Opt\n",
+        "aliased Optional",
+    );
+    expect_match(
+        &rule,
+        "from typing import Any, List\n",
+        "banned name among others",
+    );
+}
+
+#[test]
+fn no_typing_builtin_imports_non_matches() {
+    let rule = load_rule("no-typing-builtin-imports");
+    expect_no_match(&rule, "from typing import Any\n", "non-banned name Any");
+    expect_no_match(&rule, "import typing\n", "bare import typing");
+    expect_no_match(
+        &rule,
+        "from collections import Dict\n",
+        "Dict from other module",
+    );
+    expect_no_match(
+        &rule,
+        "from typing import (\n    Any,\n    Callable,\n)\n",
+        "multiline non-banned names",
+    );
+}
+
+// --------------------------------------------------------------------------
 // no-unnumbered-pyre-ignore
 // --------------------------------------------------------------------------
 #[test]
