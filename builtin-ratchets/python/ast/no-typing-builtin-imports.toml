@@ -5,20 +5,11 @@ severity = "warning"
 
 [match]
 language = "python"
-# Flag `from typing import (Dict|List|Set|Tuple|Optional)` for any of the five
-# banned names. The replaced regex
-# (`\bfrom\s+typing\s+import\s+.*\b(Dict|List|Set|Tuple|Optional)\b`) was
-# single-line, so it missed the multiline parenthesized form:
-#
-#     from typing import (
-#         Optional,
-#     )
-#
-# Tree-sitter parses both the same-line and multiline parenthesized forms into a
-# single `import_from_statement` whose `module_name` is `(dotted_name "typing")`
-# and whose `name:` children are `(dotted_name (identifier))` or, for the aliased
-# shape `... import Optional as Opt`, `(aliased_import name: (dotted_name ...))`.
-# Matching those `name:` children structurally handles both layouts uniformly.
+# Flag `from typing import ...` for any of the five banned names. An
+# `import_from_statement` carries each imported name as a `name:` child:
+# `(dotted_name (identifier))` for a plain import, or `(aliased_import name:
+# (dotted_name ...))` for `... import Optional as Opt`. The two query patterns
+# below match those two shapes.
 query = """
 (import_from_statement
   module_name: (dotted_name) @mod

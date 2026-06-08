@@ -68,11 +68,6 @@ fn no_typing_cast_non_matches() {
 // --------------------------------------------------------------------------
 // no-typing-builtin-imports
 // --------------------------------------------------------------------------
-// The regex form `\bfrom\s+typing\s+import\s+.*\b(Dict|List|Set|Tuple|Optional)\b`
-// is single-line, so a multiline parenthesized `from typing import (\n  Optional,\n)`
-// slips through. The AST query matches the imported `name` children of an
-// `import_from_statement` whose `module_name` is "typing", which handles both the
-// same-line and multiline forms uniformly.
 #[test]
 fn no_typing_builtin_imports_matches() {
     let rule = load_rule("no-typing-builtin-imports");
