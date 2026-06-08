@@ -219,10 +219,6 @@ message = "Avoid using .unwrap(), use proper error handling"
     .unwrap();
 }
 
-// ============================================================================
-// FULL WORKFLOW TESTS
-// ============================================================================
-
 #[test]
 fn test_e2e_full_workflow_init_add_check_tighten() {
     with_temp_dir(|temp_dir| {
@@ -346,10 +342,6 @@ include = ["**/*.rs"]
     });
 }
 
-// ============================================================================
-// MIXED REGEX AND AST RULES TESTS
-// ============================================================================
-
 #[test]
 fn test_e2e_mixed_regex_and_ast_rules() {
     with_temp_dir(|temp_dir| {
@@ -443,10 +435,6 @@ fn process() {
     });
 }
 
-// ============================================================================
-// REGION INHERITANCE TESTS
-// ============================================================================
-
 #[test]
 fn test_e2e_region_inheritance() {
     with_temp_dir(|temp_dir| {
@@ -510,10 +498,6 @@ include = ["**/*.rs"]
         assert_eq!(exit, cli::common::EXIT_EXCEEDED);
     });
 }
-
-// ============================================================================
-// GITIGNORE INTERACTION TESTS
-// ============================================================================
 
 #[test]
 fn test_e2e_gitignore_respected() {
@@ -581,10 +565,6 @@ include = ["**/*.rs"]
     });
 }
 
-// ============================================================================
-// EXIT CODE TESTS
-// ============================================================================
-
 #[test]
 fn test_e2e_all_exit_codes() {
     with_temp_dir(|temp_dir| {
@@ -644,10 +624,6 @@ languages = ["rust"
         assert_eq!(exit, cli::common::EXIT_PARSE_ERROR);
     });
 }
-
-// ============================================================================
-// COMPLEX MULTI-RULE MULTI-REGION TESTS
-// ============================================================================
 
 #[test]
 fn test_e2e_complex_multi_rule_multi_region() {
@@ -765,10 +741,6 @@ include = ["**/*.rs"]
         assert_eq!(exit, cli::common::EXIT_SUCCESS);
     });
 }
-
-// ============================================================================
-// REAL-WORLD SCENARIO TESTS
-// ============================================================================
 
 #[test]
 fn test_e2e_gradual_cleanup_workflow() {
@@ -963,10 +935,6 @@ include = ["**/*.rs"]
         assert_eq!(exit, cli::common::EXIT_EXCEEDED);
     });
 }
-
-// ============================================================================
-// EDGE CASE TESTS
-// ============================================================================
 
 #[test]
 fn test_e2e_empty_project() {

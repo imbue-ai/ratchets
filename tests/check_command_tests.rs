@@ -518,10 +518,6 @@ pattern = "TODO"
     std::env::set_current_dir(original_dir).unwrap();
 }
 
-// ============================================================================
-// --since <ref> tests
-// ============================================================================
-
 /// Runs `git` with the given args in `dir` and asserts it succeeds.
 fn git(dir: &Path, args: &[&str]) {
     let output = Command::new("git")
@@ -674,7 +670,6 @@ fn test_check_since_bad_ref_returns_error() {
     std::env::set_current_dir(original_dir).unwrap();
 }
 
-// ============================================================================
 // Regression: bead code-owl
 //
 // When `ratchets check` is invoked with no path arg (or `.`), the file walker
@@ -683,7 +678,6 @@ fn test_check_since_bad_ref_returns_error() {
 // because globsets compared the literal `./` prefix. The rule helper
 // `normalize_for_glob_match` strips the prefix at the comparison site so
 // anchored includes match regardless of how the walker spelled the path.
-// ============================================================================
 
 #[test]
 #[serial]
@@ -806,9 +800,6 @@ fn test_check_since_outside_git_repo_returns_error() {
     std::env::set_current_dir(original_dir).unwrap();
 }
 
-// ============================================================================
-// PHASE 3 (`code-6ik`): resolver-driven enablement via SetRegistry
-// ============================================================================
 //
 // Phase 3 of `blueprint/ratchet-sets/plan-ratchet-sets.md` wires
 // `SetRegistry::resolve` into `RuleRegistry::build_from_config`. These tests
@@ -1052,7 +1043,6 @@ rules = ["$phase3-a"]
     assert_eq!(exit_code, ratchets::cli::common::EXIT_ERROR);
 }
 
-// ============================================================================
 // Phase 4: end-to-end `$common-starter` coverage
 //
 // The embedded `common-starter` set ships `no-todo-comments` and
@@ -1063,7 +1053,6 @@ rules = ["$phase3-a"]
 //     violation on a file containing a `TODO` and exits EXCEEDED.
 //   - Adding `disabled_ratchets = ["no-todo-comments"]` flips the result to
 //     SUCCESS because `no-fixme-comments` does not fire on the fixtures.
-// ============================================================================
 
 /// Build a project that opts in to `$common-starter` and nothing else.
 /// `extra_config_body` is interpolated above `[ratchets]`, letting callers add

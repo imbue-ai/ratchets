@@ -19,10 +19,6 @@ fn fixture_path(filename: &str) -> PathBuf {
         .join(filename)
 }
 
-// ============================================================================
-// Config (ratchets.toml) Integration Tests
-// ============================================================================
-
 #[test]
 fn test_config_load_valid_minimal() {
     let path = fixture_path("valid_minimal.toml");
@@ -163,10 +159,6 @@ fn test_config_load_nonexistent_file() {
         other => panic!("Expected IO error, got: {:?}", other),
     }
 }
-
-// ============================================================================
-// CountsManager (ratchet-counts.toml) Integration Tests
-// ============================================================================
 
 #[test]
 fn test_counts_load_valid_empty() {
@@ -329,10 +321,6 @@ fn test_counts_load_nonexistent_file() {
         other => panic!("Expected IO error, got: {:?}", other),
     }
 }
-
-// ============================================================================
-// Edge Case Tests
-// ============================================================================
 
 #[test]
 fn test_counts_region_path_normalization() {
