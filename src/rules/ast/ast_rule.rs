@@ -152,7 +152,7 @@ impl AstRule {
         // Store query source for later compilation
         let query_source = def.match_section.query;
 
-        // Validate the query can be compiled (we'll compile it fresh each time we need it)
+        // The query is compiled fresh on each execution; validate it here.
         validate_query(&query_source, def.match_section.language)?;
 
         // Build include GlobSet if specified
@@ -550,8 +550,7 @@ impl Rule for AstRule {
             return vec![];
         }
 
-        // For now, we need to parse the file ourselves since ExecutionContext.ast
-        // uses AstPlaceholder. When AST integration is complete, we'll use ctx.ast.
+        // Parse the file here; ExecutionContext.ast is not yet a usable tree.
         let parser_cache = ParserCache::new();
         let mut parser = match parser_cache.get_parser(self.language) {
             Ok(p) => p,
@@ -1001,9 +1000,8 @@ language = "rust"
     #[cfg(feature = "lang-rust")]
     #[test]
     fn test_include_matches_dot_slash_prefixed_path() -> Result<(), Box<dyn std::error::Error>> {
-        // Regression test for bead code-owl: when invoked with no PATH (or `.`),
-        // the file walker emits paths like `./src/foo.rs`, and anchored include
-        // globs must still match.
+        // When invoked with no PATH (or `.`), the file walker emits paths like
+        // `./src/foo.rs`, and anchored include globs must still match.
         let toml = r#"
 [rule]
 id = "find-unwrap-in-src"
