@@ -207,23 +207,17 @@ impl ExecutionEngine {
 
     /// Check if a rule is an AST rule
     ///
-    /// This is a heuristic based on the rule's type. We check if we can downcast to AstRule.
+    /// Heuristic: AST rules are language-specific, so they declare exactly one language.
     fn is_ast_rule(&self, rule: &dyn Rule) -> bool {
-        // Try to get the concrete type - this is a bit of a hack but works
-        // We try to downcast to AstRule via Any trait
-        // Since we don't have access to Any here, we use a simple heuristic:
-        // AST rules have exactly one language (they're language-specific)
         let languages = rule.languages();
         languages.len() == 1
     }
 
-    /// Try to downcast a rule to AstRule
+    /// Try to downcast a rule to AstRule, returning None if it is not one.
     ///
-    /// This uses unsafe pointer casting to downcast the trait object.
-    /// Returns None if the rule is not an AstRule.
+    /// Always returns None: AST rules fall back to `Rule::execute`, which parses
+    /// internally, so no downcast is performed here.
     fn try_downcast_ast_rule<'a>(&self, _rule: &'a dyn Rule) -> Option<&'a AstRule> {
-        // We need a better way to do this - for now, we'll just use the execute method
-        // and not try to downcast. The AstRule.execute() will handle parsing internally.
         None
     }
 
