@@ -51,7 +51,6 @@ impl HumanFormatter {
                     let total_violations: u64 =
                         rule_violations.iter().map(|s| s.actual_count).sum();
 
-                    // Rule header: no-unwrap (error) [2 violations]
                     output.push_str(&format!(
                         "{} [{}]\n\n",
                         status.rule_id.as_str(),
@@ -161,15 +160,11 @@ impl HumanFormatter {
                     let total_violations: u64 =
                         rule_violations.iter().map(|s| s.actual_count).sum();
 
-                    // Rule header: no-unwrap (error) [2 violations]
                     stdout.set_color(ColorSpec::new().set_bold(true))?;
                     write!(stdout, "{}", status.rule_id.as_str())?;
                     stdout.reset()?;
 
                     write!(stdout, " ")?;
-
-                    // Note: Severity information could be displayed here if available
-                    // Currently, Violation doesn't have a severity field
 
                     stdout.set_color(ColorSpec::new().set_bold(true))?;
                     write!(
@@ -552,7 +547,6 @@ mod tests {
 
     #[test]
     fn test_formatter_with_different_color_choices() {
-        // Test that formatters can be created with different color choices
         let _never = HumanFormatter::new(ColorChoice::Never);
         let _always = HumanFormatter::new(ColorChoice::Always);
         let _auto = HumanFormatter::new(ColorChoice::Auto);
