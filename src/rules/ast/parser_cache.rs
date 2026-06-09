@@ -257,7 +257,7 @@ mod tests {
 
     #[cfg(feature = "lang-rust")]
     #[test]
-    fn test_parser_caching() {
+    fn test_parser_caching() -> Result<(), Box<dyn std::error::Error>> {
         let cache = ParserCache::new();
 
         // Get parser twice - should succeed both times
@@ -271,11 +271,12 @@ mod tests {
         );
 
         // Verify the cache was populated by checking the internal state
-        let parsers = cache.parsers.read().unwrap();
+        let parsers = cache.parsers.read().map_err(|_| "lock poisoned")?;
         assert!(
             parsers.contains_key(&Language::Rust),
             "Parser should be cached"
         );
+        Ok(())
     }
 
     #[cfg(not(feature = "lang-rust"))]
