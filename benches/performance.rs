@@ -5,51 +5,6 @@
 //! - Regex rule execution on different file sizes
 //! - AST rule execution with parser caching
 //! - Full check workflow end-to-end
-//!
-//! ## Running Benchmarks
-//!
-//! To run all benchmarks:
-//! ```bash
-//! cargo bench
-//! ```
-//!
-//! To run specific benchmarks:
-//! ```bash
-//! cargo bench file_walking
-//! cargo bench regex_execution
-//! cargo bench ast_execution
-//! ```
-//!
-//! ## Performance Profiling
-//!
-//! For detailed profiling, you can use tools like:
-//! - `cargo flamegraph --bench performance` (requires flamegraph package)
-//! - `perf record -g cargo bench`
-//!
-//! ## Expected Performance Characteristics
-//!
-//! Based on the implementation:
-//!
-//! ### File Walking
-//! - Should scale linearly with number of files
-//! - Gitignore filtering is efficient (uses ignore crate)
-//! - Glob filtering adds minimal overhead
-//!
-//! ### Regex Execution
-//! - Regex compilation is cached (done once per rule)
-//! - Execution time scales with file size and pattern complexity
-//! - Parallel execution provides near-linear speedup
-//!
-//! ### AST Execution
-//! - Parser initialization is cached per language
-//! - AST parsing is the dominant cost
-//! - Query execution is fast relative to parsing
-//! - Caching is effective - subsequent uses avoid parser creation
-//!
-//! ### Parallel Execution
-//! - Uses rayon for parallelism
-//! - File I/O and parsing happen in parallel
-//! - Should scale well up to number of CPU cores
 
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use ratchets::engine::file_walker::{FileEntry, FileWalker};
