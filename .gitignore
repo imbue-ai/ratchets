@@ -1,3 +1,7 @@
 /target
 .beads/.br_history/
 .beads/.write.lock
+
+# beads_rust (managed by rust-bucket)
+.beads/beads.db
+.beads/beads.db-wal
