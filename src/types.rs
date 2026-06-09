@@ -155,25 +155,20 @@ impl RegionPath {
     /// - Empty path or "." becomes "."
     /// - Remove "./" prefix
     fn normalize(mut path: String) -> String {
-        // Convert backslashes to forward slashes
         path = path.replace('\\', "/");
 
-        // Remove trailing slashes
         while path.ends_with('/') && path.len() > 1 {
             path.pop();
         }
 
-        // Handle empty or root paths
         if path.is_empty() || path == "/" {
             return ".".to_string();
         }
 
-        // Remove leading "./"
         if path.starts_with("./") {
             path = path[2..].to_string();
         }
 
-        // If we removed everything, return "."
         if path.is_empty() {
             return ".".to_string();
         }
@@ -314,7 +309,6 @@ mod tests {
 
     #[test]
     fn test_language_all_variants_exist() {
-        // Ensure all 5 variants can be constructed
         let _rust = Language::Rust;
         let _typescript = Language::TypeScript;
         let _javascript = Language::JavaScript;
@@ -420,7 +414,7 @@ mod tests {
         Ok(())
     }
 
-    // SetId validation tests (mirror RuleId)
+    // SetId validation tests
     #[test]
     fn test_set_id_validation_valid() {
         assert!(SetId::new("common-starter").is_some());
@@ -612,10 +606,10 @@ mod tests {
     #[test]
     fn test_type_derives_clone() -> Result<(), Box<dyn std::error::Error>> {
         let lang = Language::Rust;
-        let _lang_clone = lang; // Copy types don't need clone
+        let _lang_clone = lang;
 
         let severity = Severity::Error;
-        let _severity_clone = severity; // Copy types don't need clone
+        let _severity_clone = severity;
 
         let rule_id = RuleId::new("test").ok_or("invalid rule id")?;
         let _rule_id_clone = rule_id.clone();
