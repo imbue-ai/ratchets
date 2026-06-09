@@ -36,9 +36,7 @@ impl JsonlFormatter {
     pub fn format(&self, result: &AggregationResult, verbose: bool) -> String {
         let mut output = String::new();
 
-        // Only output violation records if verbose is true
         if verbose {
-            // Collect all violations from all statuses
             let mut all_violations: Vec<ViolationRecord> = Vec::new();
             for status in &result.statuses {
                 for violation in &status.violations {
@@ -65,7 +63,6 @@ impl JsonlFormatter {
                     .then_with(|| a.line.cmp(&b.line))
             });
 
-            // Output all violation records
             for violation in all_violations {
                 if let Ok(json) = serde_json::to_string(&violation) {
                     output.push_str(&json);
@@ -74,7 +71,6 @@ impl JsonlFormatter {
             }
         }
 
-        // Collect all summary records
         let mut summaries: Vec<SummaryRecord> = Vec::new();
         for status in &result.statuses {
             summaries.push(SummaryRecord {
@@ -90,7 +86,6 @@ impl JsonlFormatter {
         // Sort summaries by rule, then region
         summaries.sort_by(|a, b| a.rule.cmp(&b.rule).then_with(|| a.region.cmp(&b.region)));
 
-        // Output all summary records
         for summary in summaries {
             if let Ok(json) = serde_json::to_string(&summary) {
                 output.push_str(&json);
@@ -98,7 +93,6 @@ impl JsonlFormatter {
             }
         }
 
-        // Output status record
         let rules_exceeded = result.statuses.iter().filter(|s| !s.passed).count() as u64;
         let status = StatusRecord {
             record_type: "status".to_string(),
