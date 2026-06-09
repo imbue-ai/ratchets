@@ -4,5 +4,5 @@ description = "Do not use click.echo. Use logger.info() instead"
 severity = "warning"
 
 [match]
-pattern = "\\bclick\\.echo\\b|\\bfrom\\s+click\\s+import\\s+.*\\becho\\b"
+pattern = "\\bclick\\.echo\\b|\\bfrom\\s+click\\s+import\\s+(.*\\W)?echo\\b"
 languages = ["python"]
