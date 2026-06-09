@@ -83,8 +83,7 @@ pub fn run_tighten(rule_id: Option<&str>, region: Option<&str>) -> i32 {
             if let TightenError::Config(ConfigError::UnsupportedVersion(_)) = &e {
                 super::upgrade_notice::print_to_stderr();
             }
-            // Phase 3: render ratchet-set resolution errors in the wording
-            // prescribed by the plan before the generic printer.
+            // Render ratchet-set resolution errors before the generic printer.
             if let TightenError::Rule(crate::error::RuleError::SetResolve(ref resolve)) = e {
                 super::common::print_resolve_error(resolve);
             }
@@ -228,10 +227,9 @@ fn run_full_check(
         ));
     }
 
-    // Phase 5 of the ratchet-sets plan: warn about orphaned counts.toml
-    // entries — rules that previously had budgets but are no longer in the
-    // resolved enabled set. The entries stay dormant (no cleanup) so the user
-    // can re-enable the rule later without losing the count.
+    // Warn about orphaned counts.toml entries — rules that previously had
+    // budgets but are no longer in the resolved enabled set. The entries stay
+    // dormant (no cleanup) so re-enabling the rule preserves its count.
     warn_orphaned_counts(&counts, &registry);
 
     // Discover files
@@ -358,12 +356,8 @@ mod tests {
         Ok(())
     }
 
-    /// Helpers shared by the orphan-detection tests. Keeping the test fixture
-    /// builders in their own module lets us avoid scattering `.unwrap()` calls
-    /// across every assertion — `unwrap_or_else(|| unreachable!())` would be
-    /// the same shape from `no-unwrap`'s perspective, so we use `match` with
-    /// `unreachable!` to surface programmer errors loudly without a `.unwrap`
-    /// call site per test.
+    /// Build a [`RuleId`] from a test literal, treating an invalid id as a
+    /// programmer error in the test data.
     fn mk_rule_id(id: &str) -> RuleId {
         match RuleId::new(id) {
             Some(rule_id) => rule_id,

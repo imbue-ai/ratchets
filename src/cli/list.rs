@@ -61,8 +61,7 @@ pub fn run_list(format: OutputFormat) -> i32 {
             if let ListError::Config(crate::error::ConfigError::UnsupportedVersion(_)) = &e {
                 super::upgrade_notice::print_to_stderr();
             }
-            // Phase 3: render ratchet-set resolution errors in the wording
-            // prescribed by the plan before the generic printer.
+            // Render ratchet-set resolution errors before the generic printer.
             if let ListError::Rule(crate::error::RuleError::SetResolve(ref resolve)) = e {
                 super::common::print_resolve_error(resolve);
             }
@@ -206,11 +205,10 @@ fn build_rule_statuses(
     statuses
 }
 
-/// Determine if a rule is builtin or custom based on naming convention
-/// This is a heuristic - in practice, we'd want to track this in the registry
+/// Determine whether a rule is builtin or custom.
+///
+/// All rules are reported as builtin until the registry tracks rule source.
 fn determine_rule_source(_rule_id: &RuleId) -> RuleSource {
-    // For now, we'll assume all rules are builtin
-    // In a full implementation, the registry would track this
     RuleSource::Builtin
 }
 
