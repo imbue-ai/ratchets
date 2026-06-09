@@ -959,9 +959,9 @@ languages = ["rust"]
 
     #[test]
     fn test_include_matches_dot_slash_prefixed_path() -> Result<(), Box<dyn std::error::Error>> {
-        // Regression test for bead code-owl: when invoked with no PATH (or `.`),
-        // the file walker emits paths like `./example_app/frontend/App.tsx`,
-        // and anchored include globs must still match.
+        // When invoked with no PATH (or `.`), the file walker emits paths like
+        // `./example_app/frontend/App.tsx`, and anchored include globs must
+        // still match.
         let toml = r#"
 [rule]
 id = "no-raw-html-button"
@@ -1016,7 +1016,7 @@ include = ["example_app/frontend/**/*.tsx"]
 
     #[test]
     fn test_exclude_matches_dot_slash_prefixed_path() -> Result<(), Box<dyn std::error::Error>> {
-        // Companion regression: exclude globs must also be normalized.
+        // Exclude globs must also be normalized.
         let toml = r#"
 [rule]
 id = "test-rule"
