@@ -14,11 +14,9 @@ fn main() {
                 0
             }
             Err(ratchets::cli::init::InitError::ExistingV1Config) => {
-                // Phase 5 of the ratchet-sets plan: existing v1 configs are no
-                // longer silently skipped. Render the embedded upgrade notice
-                // (the same one `check` / `bump` / `tighten` / `list` emit)
-                // before the generic error line so users see the migration
-                // guide rather than a one-liner.
+                // Render the embedded upgrade notice (the same one `check` /
+                // `bump` / `tighten` / `list` emit) before the generic error
+                // line so users see the migration guide rather than a one-liner.
                 ratchets::cli::upgrade_notice::print_to_stderr();
                 eprintln!(
                     "Error: ratchets.toml already exists with version = \"1\". Migrate to v2 (see the upgrade notice above) or re-run with --force to overwrite."
