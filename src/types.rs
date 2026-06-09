@@ -275,45 +275,41 @@ mod tests {
 
     // Language enum tests
     #[test]
-    fn test_language_serde_serialization() {
-        assert_eq!(serde_json::to_string(&Language::Rust).unwrap(), "\"rust\"");
+    fn test_language_serde_serialization() -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(serde_json::to_string(&Language::Rust)?, "\"rust\"");
         assert_eq!(
-            serde_json::to_string(&Language::TypeScript).unwrap(),
+            serde_json::to_string(&Language::TypeScript)?,
             "\"typescript\""
         );
         assert_eq!(
-            serde_json::to_string(&Language::JavaScript).unwrap(),
+            serde_json::to_string(&Language::JavaScript)?,
             "\"javascript\""
         );
-        assert_eq!(
-            serde_json::to_string(&Language::Python).unwrap(),
-            "\"python\""
-        );
-        assert_eq!(serde_json::to_string(&Language::Go).unwrap(), "\"go\"");
+        assert_eq!(serde_json::to_string(&Language::Python)?, "\"python\"");
+        assert_eq!(serde_json::to_string(&Language::Go)?, "\"go\"");
+        Ok(())
     }
 
     #[test]
-    fn test_language_serde_deserialization() {
+    fn test_language_serde_deserialization() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(
-            serde_json::from_str::<Language>("\"rust\"").unwrap(),
+            serde_json::from_str::<Language>("\"rust\"")?,
             Language::Rust
         );
         assert_eq!(
-            serde_json::from_str::<Language>("\"typescript\"").unwrap(),
+            serde_json::from_str::<Language>("\"typescript\"")?,
             Language::TypeScript
         );
         assert_eq!(
-            serde_json::from_str::<Language>("\"javascript\"").unwrap(),
+            serde_json::from_str::<Language>("\"javascript\"")?,
             Language::JavaScript
         );
         assert_eq!(
-            serde_json::from_str::<Language>("\"python\"").unwrap(),
+            serde_json::from_str::<Language>("\"python\"")?,
             Language::Python
         );
-        assert_eq!(
-            serde_json::from_str::<Language>("\"go\"").unwrap(),
-            Language::Go
-        );
+        assert_eq!(serde_json::from_str::<Language>("\"go\"")?, Language::Go);
+        Ok(())
     }
 
     #[test]
@@ -328,32 +324,28 @@ mod tests {
 
     // Severity enum tests
     #[test]
-    fn test_severity_serde_serialization() {
-        assert_eq!(
-            serde_json::to_string(&Severity::Error).unwrap(),
-            "\"error\""
-        );
-        assert_eq!(
-            serde_json::to_string(&Severity::Warning).unwrap(),
-            "\"warning\""
-        );
-        assert_eq!(serde_json::to_string(&Severity::Info).unwrap(), "\"info\"");
+    fn test_severity_serde_serialization() -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(serde_json::to_string(&Severity::Error)?, "\"error\"");
+        assert_eq!(serde_json::to_string(&Severity::Warning)?, "\"warning\"");
+        assert_eq!(serde_json::to_string(&Severity::Info)?, "\"info\"");
+        Ok(())
     }
 
     #[test]
-    fn test_severity_serde_deserialization() {
+    fn test_severity_serde_deserialization() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(
-            serde_json::from_str::<Severity>("\"error\"").unwrap(),
+            serde_json::from_str::<Severity>("\"error\"")?,
             Severity::Error
         );
         assert_eq!(
-            serde_json::from_str::<Severity>("\"warning\"").unwrap(),
+            serde_json::from_str::<Severity>("\"warning\"")?,
             Severity::Warning
         );
         assert_eq!(
-            serde_json::from_str::<Severity>("\"info\"").unwrap(),
+            serde_json::from_str::<Severity>("\"info\"")?,
             Severity::Info
         );
+        Ok(())
     }
 
     // RuleId validation tests
@@ -379,16 +371,18 @@ mod tests {
     }
 
     #[test]
-    fn test_rule_id_display() {
-        let rule_id = RuleId::new("test-rule").unwrap();
+    fn test_rule_id_display() -> Result<(), Box<dyn std::error::Error>> {
+        let rule_id = RuleId::new("test-rule").ok_or("invalid rule id")?;
         assert_eq!(rule_id.to_string(), "test-rule");
         assert_eq!(format!("{}", rule_id), "test-rule");
+        Ok(())
     }
 
     #[test]
-    fn test_rule_id_as_str() {
-        let rule_id = RuleId::new("my-rule").unwrap();
+    fn test_rule_id_as_str() -> Result<(), Box<dyn std::error::Error>> {
+        let rule_id = RuleId::new("my-rule").ok_or("invalid rule id")?;
         assert_eq!(rule_id.as_str(), "my-rule");
+        Ok(())
     }
 
     #[test]
@@ -401,26 +395,29 @@ mod tests {
     }
 
     #[test]
-    fn test_rule_id_into_string() {
-        let rule_id = RuleId::new("test-id").unwrap();
+    fn test_rule_id_into_string() -> Result<(), Box<dyn std::error::Error>> {
+        let rule_id = RuleId::new("test-id").ok_or("invalid rule id")?;
         let s: String = rule_id.into();
         assert_eq!(s, "test-id");
+        Ok(())
     }
 
     #[test]
-    fn test_rule_id_serde_serialization() {
-        let rule_id = RuleId::new("my-rule").unwrap();
-        let json = serde_json::to_string(&rule_id).unwrap();
+    fn test_rule_id_serde_serialization() -> Result<(), Box<dyn std::error::Error>> {
+        let rule_id = RuleId::new("my-rule").ok_or("invalid rule id")?;
+        let json = serde_json::to_string(&rule_id)?;
         assert_eq!(json, "\"my-rule\"");
+        Ok(())
     }
 
     #[test]
-    fn test_rule_id_serde_deserialization() {
-        let rule_id: RuleId = serde_json::from_str("\"my-rule\"").unwrap();
+    fn test_rule_id_serde_deserialization() -> Result<(), Box<dyn std::error::Error>> {
+        let rule_id: RuleId = serde_json::from_str("\"my-rule\"")?;
         assert_eq!(rule_id.as_str(), "my-rule");
 
         let result = serde_json::from_str::<RuleId>("\"invalid rule\"");
         assert!(result.is_err());
+        Ok(())
     }
 
     // SetId validation tests (mirror RuleId)
@@ -443,9 +440,10 @@ mod tests {
     }
 
     #[test]
-    fn test_set_id_display() {
-        let id = SetId::new("common-starter").unwrap();
+    fn test_set_id_display() -> Result<(), Box<dyn std::error::Error>> {
+        let id = SetId::new("common-starter").ok_or("invalid set id")?;
         assert_eq!(id.to_string(), "common-starter");
+        Ok(())
     }
 
     #[test]
@@ -455,16 +453,17 @@ mod tests {
     }
 
     #[test]
-    fn test_set_id_serde() {
-        let id = SetId::new("common-starter").unwrap();
-        let json = serde_json::to_string(&id).unwrap();
+    fn test_set_id_serde() -> Result<(), Box<dyn std::error::Error>> {
+        let id = SetId::new("common-starter").ok_or("invalid set id")?;
+        let json = serde_json::to_string(&id)?;
         assert_eq!(json, "\"common-starter\"");
 
-        let parsed: SetId = serde_json::from_str("\"common-starter\"").unwrap();
+        let parsed: SetId = serde_json::from_str("\"common-starter\"")?;
         assert_eq!(parsed.as_str(), "common-starter");
 
         // Reserved-sigil-prefixed strings must not deserialize as SetId.
         assert!(serde_json::from_str::<SetId>("\"$bad\"").is_err());
+        Ok(())
     }
 
     // RegionPath normalization tests
@@ -525,10 +524,11 @@ mod tests {
     }
 
     #[test]
-    fn test_region_path_try_from() {
+    fn test_region_path_try_from() -> Result<(), Box<dyn std::error::Error>> {
         let result = RegionPath::try_from("src/parser".to_string());
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().as_str(), "src/parser");
+        assert_eq!(result?.as_str(), "src/parser");
+        Ok(())
     }
 
     #[test]
@@ -539,20 +539,22 @@ mod tests {
     }
 
     #[test]
-    fn test_region_path_serde_serialization() {
+    fn test_region_path_serde_serialization() -> Result<(), Box<dyn std::error::Error>> {
         let path = RegionPath::new("src/parser");
-        let json = serde_json::to_string(&path).unwrap();
+        let json = serde_json::to_string(&path)?;
         assert_eq!(json, "\"src/parser\"");
+        Ok(())
     }
 
     #[test]
-    fn test_region_path_serde_deserialization() {
-        let path: RegionPath = serde_json::from_str("\"src/parser\"").unwrap();
+    fn test_region_path_serde_deserialization() -> Result<(), Box<dyn std::error::Error>> {
+        let path: RegionPath = serde_json::from_str("\"src/parser\"")?;
         assert_eq!(path.as_str(), "src/parser");
 
-        // Test that normalization happens during deserialization
-        let path: RegionPath = serde_json::from_str("\"src\\\\parser\"").unwrap();
+        // Normalization is applied during deserialization.
+        let path: RegionPath = serde_json::from_str("\"src\\\\parser\"")?;
         assert_eq!(path.as_str(), "src/parser");
+        Ok(())
     }
 
     // GlobPattern tests
@@ -582,7 +584,7 @@ mod tests {
 
     // Type derives tests
     #[test]
-    fn test_type_derives_hash() {
+    fn test_type_derives_hash() -> Result<(), Box<dyn std::error::Error>> {
         use std::collections::HashSet;
 
         let mut languages = HashSet::new();
@@ -594,8 +596,8 @@ mod tests {
         severities.insert(Severity::Warning);
 
         let mut rule_ids = HashSet::new();
-        rule_ids.insert(RuleId::new("rule1").unwrap());
-        rule_ids.insert(RuleId::new("rule2").unwrap());
+        rule_ids.insert(RuleId::new("rule1").ok_or("invalid rule id")?);
+        rule_ids.insert(RuleId::new("rule2").ok_or("invalid rule id")?);
 
         let mut region_paths = HashSet::new();
         region_paths.insert(RegionPath::new("src"));
@@ -604,17 +606,18 @@ mod tests {
         let mut glob_patterns = HashSet::new();
         glob_patterns.insert(GlobPattern::new("*.rs"));
         glob_patterns.insert(GlobPattern::new("*.toml"));
+        Ok(())
     }
 
     #[test]
-    fn test_type_derives_clone() {
+    fn test_type_derives_clone() -> Result<(), Box<dyn std::error::Error>> {
         let lang = Language::Rust;
         let _lang_clone = lang; // Copy types don't need clone
 
         let severity = Severity::Error;
         let _severity_clone = severity; // Copy types don't need clone
 
-        let rule_id = RuleId::new("test").unwrap();
+        let rule_id = RuleId::new("test").ok_or("invalid rule id")?;
         let _rule_id_clone = rule_id.clone();
 
         let path = RegionPath::new("src");
@@ -622,24 +625,32 @@ mod tests {
 
         let pattern = GlobPattern::new("*.rs");
         let _pattern_clone = pattern.clone();
+        Ok(())
     }
 
     #[test]
-    fn test_type_derives_partial_eq() {
+    fn test_type_derives_partial_eq() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(Language::Rust, Language::Rust);
         assert_ne!(Language::Rust, Language::Python);
 
         assert_eq!(Severity::Error, Severity::Error);
         assert_ne!(Severity::Error, Severity::Warning);
 
-        assert_eq!(RuleId::new("test").unwrap(), RuleId::new("test").unwrap());
-        assert_ne!(RuleId::new("test1").unwrap(), RuleId::new("test2").unwrap());
+        assert_eq!(
+            RuleId::new("test").ok_or("invalid rule id")?,
+            RuleId::new("test").ok_or("invalid rule id")?
+        );
+        assert_ne!(
+            RuleId::new("test1").ok_or("invalid rule id")?,
+            RuleId::new("test2").ok_or("invalid rule id")?
+        );
 
         assert_eq!(RegionPath::new("src"), RegionPath::new("src"));
         assert_ne!(RegionPath::new("src"), RegionPath::new("tests"));
 
         assert_eq!(GlobPattern::new("*.rs"), GlobPattern::new("*.rs"));
         assert_ne!(GlobPattern::new("*.rs"), GlobPattern::new("*.toml"));
+        Ok(())
     }
 
     #[test]
