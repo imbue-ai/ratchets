@@ -334,20 +334,6 @@ impl CountsManager {
     ///
     /// * `rule_id` - The rule to query
     /// * `region` - The region path to query (e.g., ".", "src", "src/legacy")
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use ratchets::config::counts::CountsManager;
-    /// # use ratchets::types::{RuleId, RegionPath};
-    /// let mut counts = CountsManager::new();
-    /// let rule_id = RuleId::new("no-unwrap").unwrap();
-    /// counts.set_count(&rule_id, &RegionPath::new("."), 0);
-    /// counts.set_count(&rule_id, &RegionPath::new("src/legacy"), 15);
-    ///
-    /// assert_eq!(counts.get_budget_by_region(&rule_id, &RegionPath::new(".")), 0);
-    /// assert_eq!(counts.get_budget_by_region(&rule_id, &RegionPath::new("src/legacy")), 15);
-    /// ```
     pub fn get_budget_by_region(&self, rule_id: &RuleId, region: &RegionPath) -> u64 {
         self.counts
             .get(rule_id)
@@ -386,11 +372,10 @@ impl CountsManager {
 
     /// Iterate over every rule ID that has at least one count entry.
     ///
-    /// Used by `ratchets tighten` to detect orphaned counts.toml entries —
-    /// rules that previously had budgets but are no longer in the resolved
-    /// enabled set. Per Phase 5 of the ratchet-sets plan, orphans stay dormant
-    /// (no cleanup); the tighten command warns about them so users notice
-    /// stale entries without losing the count if they re-enable the rule.
+    /// Used by `ratchets tighten` to detect orphaned counts.toml entries: rules
+    /// that previously had budgets but are no longer in the resolved enabled set.
+    /// Orphans stay dormant (no cleanup); tighten only warns about them so the
+    /// count is retained if the rule is re-enabled.
     pub fn iter_rule_ids(&self) -> impl Iterator<Item = &RuleId> {
         self.counts.keys()
     }
