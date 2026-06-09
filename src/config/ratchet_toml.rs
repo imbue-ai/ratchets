@@ -11,9 +11,8 @@ use std::path::Path;
 
 /// Expected `[ratchets].version` value for the current schema.
 ///
-/// Phase 1 of the ratchet-sets plan bumps this from `"1"` to `"2"`. The library
-/// only parses configs that match this exact string; everything else is
-/// rejected via [`ConfigError::UnsupportedVersion`].
+/// The library only parses configs that match this exact string; everything
+/// else is rejected via [`ConfigError::UnsupportedVersion`].
 const EXPECTED_CONFIG_VERSION: &str = "2";
 
 /// Main configuration struct for ratchets.toml
@@ -36,15 +35,14 @@ pub struct Config {
 
     /// Enabled ratchets — a mix of single rule IDs and `$set-name` references.
     ///
-    /// Parsed in Phase 1 but **not yet load-bearing**; resolution is added in
-    /// Phase 2. Each entry is a single TOML string: a leading `$` strips and
-    /// parses the remainder as a [`SetId`], otherwise the bare string parses as
-    /// a [`RuleId`].
+    /// Each entry is a single TOML string: a leading `$` strips and parses the
+    /// remainder as a [`SetId`], otherwise the bare string parses as a
+    /// [`RuleId`].
     #[serde(default)]
     pub enabled_ratchets: Vec<RatchetRef>,
 
     /// Disabled ratchets — same shape as `enabled_ratchets`. Disabled wins over
-    /// enabled at resolution time (Phase 2).
+    /// enabled at resolution time.
     #[serde(default)]
     pub disabled_ratchets: Vec<RatchetRef>,
 }
@@ -181,9 +179,8 @@ fn default_include() -> Vec<GlobPattern> {
 
 /// Rules configuration section
 ///
-/// Each entry maps a rule ID to a settings table. The v1 shorthand
-/// `[rules].rule-id = true | false` is removed in v2 — enable / disable now
-/// lives in [`Config::enabled_ratchets`] / [`Config::disabled_ratchets`].
+/// Each entry maps a rule ID to a settings table. Enable / disable lives in
+/// [`Config::enabled_ratchets`] / [`Config::disabled_ratchets`], not here.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct RulesConfig {
     /// Built-in rules (flattened from `[rules]` table, excluding `[rules.custom]`)
@@ -213,9 +210,6 @@ pub struct RuleSettings {
 /// as a [`SetId`]; otherwise the bare string parses as a [`RuleId`]. The
 /// `@`-prefix remains reserved for the existing `[patterns]` glob-reference
 /// mechanism and is rejected here by the underlying `RuleId` validator.
-///
-/// Phase 1 only validates these references — full resolution (including
-/// `SetRegistry` and DFS expansion) arrives in Phase 2.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum RatchetRef {
     /// A ratchet-set reference (written as `"$set-name"` in TOML).
@@ -348,8 +342,8 @@ color = "auto"
         assert_eq!(config.ratchets.include.len(), 2);
         assert_eq!(config.ratchets.exclude.len(), 2);
 
-        // Only settings tables remain under [rules]; the boolean shorthand was
-        // removed when `RuleValue::Enabled(bool)` was deleted in Phase 1.
+        // Only settings tables remain under [rules]; the boolean shorthand is
+        // not accepted.
         assert_eq!(config.rules.builtin.len(), 1);
         let no_todo_settings = config
             .rules
@@ -1012,7 +1006,6 @@ languages = ["rust"]
 
     #[test]
     fn test_enabled_and_disabled_ratchets_parsed() -> Result<(), Box<dyn std::error::Error>> {
-        // Phase 1 only parses these arrays — resolution is added in Phase 2.
         // The deserializer accepts bare rule IDs and `$set-name` references.
         // Both arrays live at the root of `ratchets.toml`, not inside the
         // `[ratchets]` table, so they appear before the first table header.

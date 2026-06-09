@@ -2,26 +2,22 @@
 
 //! Ratchet-set definitions, registry, and resolver.
 //!
-//! Phase 2 of `blueprint/ratchet-sets/plan-ratchet-sets.md` introduces named
-//! collections of rule IDs ("ratchet-sets"). A [`RatchetSet`] is a TOML file
-//! that lists [`RatchetRef`]s — either bare rule IDs or `$other-set` references
-//! to compose with another set. A [`SetRegistry`] holds the loaded sets and
-//! exposes [`SetRegistry::resolve`] which performs DFS-based expansion with
-//! cycle detection.
+//! A ratchet-set is a named collection of rule IDs. A [`RatchetSet`] is a TOML
+//! file that lists [`RatchetRef`]s — either bare rule IDs or `$other-set`
+//! references to compose with another set. A [`SetRegistry`] holds the loaded
+//! sets and exposes [`SetRegistry::resolve`] which performs DFS-based expansion
+//! with cycle detection.
 //!
 //! Loading layers mirror the existing rule loaders in [`crate::rules::registry`]:
 //!
 //! 1. Embedded starter sets baked into the binary (via
-//!    [`crate::rules::load_builtin_sets`]). Phase 4 ships the
-//!    `common-starter` content; per-language starter sets are deferred to
-//!    follow-up MRs.
+//!    [`crate::rules::load_builtin_sets`]).
 //! 2. Filesystem builtin sets under `builtin-ratchets/sets/*.toml` (overrides
 //!    embedded).
 //! 3. User-defined sets under `ratchets/sets/*.toml` (overrides filesystem
 //!    builtin).
 //!
-//! Phase 3 wires the resolver into [`crate::rules::RuleRegistry`]; the
-//! resolver remains decoupled from rule definitions.
+//! The resolver is decoupled from rule definitions: it works purely on IDs.
 
 use crate::config::ratchet_toml::RatchetRef;
 use crate::error::RuleError;
@@ -39,7 +35,7 @@ use std::path::Path;
 /// [set]
 /// id = "common-starter"
 /// description = "Language-agnostic curated set"
-/// languages = ["rust", "python"]  # optional, advisory only in Phase 2
+/// languages = ["rust", "python"]  # optional, advisory only
 /// rules = ["some-rule", "$other-set"]
 /// ```
 ///
@@ -62,9 +58,9 @@ struct SetSection {
 
 /// A named collection of rule IDs and/or other set references.
 ///
-/// `languages` is advisory only in Phase 2 of the ratchet-sets plan; consumers
-/// may use it to inform composition decisions but the resolver does not
-/// filter by it. `rules` may mix bare rule references and `$other-set`
+/// `languages` is advisory only; consumers may use it to inform composition
+/// decisions but the resolver does not filter by it. `rules` may mix bare rule
+/// references and `$other-set`
 /// composition references; [`SetRegistry::resolve`] flattens these via DFS.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RatchetSet {
@@ -140,7 +136,7 @@ impl RatchetSet {
         &self.description
     }
 
-    /// Advisory language list (not load-bearing in Phase 2).
+    /// Advisory language list (not load-bearing).
     pub fn languages(&self) -> &[Language] {
         &self.languages
     }
@@ -215,9 +211,6 @@ impl SetRegistry {
     }
 
     /// Load embedded builtin sets via [`crate::rules::load_builtin_sets`].
-    ///
-    /// Phase 4 of the ratchet-sets plan ships `common-starter`; per-language
-    /// starter sets land in follow-up MRs.
     ///
     /// # Errors
     ///
@@ -316,7 +309,7 @@ impl SetRegistry {
     /// `disabled` is removed. Unknown set IDs (in either input) yield
     /// [`ResolveError::UnknownSet`]; unknown *rule* IDs are not an error here
     /// — the resolver works purely on IDs, leaving definition lookup to the
-    /// rule registry in Phase 3.
+    /// rule registry.
     pub fn resolve(
         &self,
         enabled: &[RatchetRef],
@@ -662,8 +655,8 @@ rules = ["rule-alpha"]
 
     #[test]
     fn resolve_unknown_rule_id_in_enabled_is_returned_not_an_error() -> TestResult {
-        // The resolver works purely on IDs. The rule registry (Phase 3) is
-        // responsible for filtering out unknown rule IDs at lookup time.
+        // The resolver works purely on IDs. The rule registry is responsible
+        // for filtering out unknown rule IDs at lookup time.
         let registry = SetRegistry::new();
         let resolved = registry.resolve(&[rule_ref("typo-rule")?], &[])?;
         let expected: HashSet<RuleId> = [rule_id("typo-rule")?].into_iter().collect();
@@ -673,8 +666,7 @@ rules = ["rule-alpha"]
 
     #[test]
     fn load_builtin_sets_overrides_embedded() -> TestResult {
-        // Embedded sets are empty in Phase 2 (Phase 4 populates them), so we
-        // simulate the override by pre-inserting an "embedded" set and then
+        // Simulate the override by pre-inserting an "embedded" set and then
         // loading a filesystem-builtin set with the same ID.
         let mut registry = SetRegistry::new();
         registry.insert(make_set("starter", vec![rule_ref("a")?])?);
@@ -794,11 +786,10 @@ rules = ["a"]
 
     #[test]
     fn load_embedded_builtin_sets_includes_common_starter() -> TestResult {
-        // Phase 4 of the ratchet-sets plan lands `common-starter` as the only
-        // embedded set. Per-language starter sets (`python-starter`,
-        // `rust-starter`, `typescript-starter`) are deferred to follow-up MRs;
-        // if/when they land this assertion must be updated alongside the new
-        // toml files.
+        // `common-starter` is currently the only embedded set. If per-language
+        // starter sets (`python-starter`, `rust-starter`, `typescript-starter`)
+        // are added, this assertion must be updated alongside the new toml
+        // files.
         let mut registry = SetRegistry::new();
         registry.load_embedded_builtin_sets()?;
         assert_eq!(registry.len(), 1);
@@ -806,7 +797,7 @@ rules = ["a"]
         let common_starter_id = SetId::new("common-starter").ok_or("common-starter is valid")?;
         let set = registry
             .get(&common_starter_id)
-            .ok_or("common-starter must be embedded in Phase 4")?;
+            .ok_or("common-starter must be embedded")?;
         assert_eq!(set.rules().len(), 2);
         Ok(())
     }
