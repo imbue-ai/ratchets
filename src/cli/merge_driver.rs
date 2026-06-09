@@ -1,11 +1,8 @@
-//! Git merge driver for ratchet-counts.toml
+//! Git merge driver for ratchet-counts.toml.
 //!
-//! This module implements the merge driver that enables conflict-free merging
-//! of ratchet-counts.toml files using a "minimum wins" strategy.
-//!
-//! The merge strategy is based on the principle that ratchets can only tighten,
-//! never loosen. When two branches both reduce a count, both reductions are
-//! preserved by taking the minimum value.
+//! Merges ratchet-counts.toml files using a "minimum wins" strategy: because
+//! ratchets only tighten, when two branches both reduce a count the smaller
+//! value is kept so neither reduction is lost.
 
 use crate::config::counts::CountsManager;
 use crate::types::{RegionPath, RuleId};
@@ -103,11 +100,9 @@ fn merge_counts(
 ) -> CountsManager {
     let mut merged = CountsManager::new();
 
-    // Extract all counts into maps for easy lookup
     let ours_counts = extract_all_counts(ours);
     let theirs_counts = extract_all_counts(theirs);
 
-    // Build a map for fast lookup
     let mut ours_map: HashMap<(String, String), u64> = HashMap::new();
     for (rule_id, region, count) in &ours_counts {
         ours_map.insert(
@@ -124,12 +119,11 @@ fn merge_counts(
         );
     }
 
-    // Collect all unique keys
     let mut all_keys: HashSet<(String, String)> = HashSet::new();
     all_keys.extend(ours_map.keys().cloned());
     all_keys.extend(theirs_map.keys().cloned());
 
-    // For each key, take the minimum of the two values (or the only value if present in one)
+    // Take the minimum of the two values, or the only value if present in one side.
     for (rule_id_str, region_str) in all_keys {
         let ours_count = ours_map.get(&(rule_id_str.clone(), region_str.clone()));
         let theirs_count = theirs_map.get(&(rule_id_str.clone(), region_str.clone()));
@@ -150,18 +144,15 @@ fn merge_counts(
     merged
 }
 
-/// Extract all (rule_id, region, count) tuples from a CountsManager
+/// Extract all (rule_id, region, count) tuples from a CountsManager.
 ///
-/// This is a helper function that extracts the internal structure of a
-/// CountsManager for processing during merge.
+/// CountsManager has no public iterator, so we round-trip through TOML to read
+/// back its rule/region/count entries.
 fn extract_all_counts(counts: &CountsManager) -> Vec<(RuleId, RegionPath, u64)> {
     let mut result = Vec::new();
 
-    // We need to access the internal structure of CountsManager
-    // For now, we'll use a workaround: serialize to TOML and parse back
     let toml_str = counts.to_toml_string();
 
-    // Parse the TOML manually to extract keys
     if let Ok(parsed) = toml::from_str::<toml::Value>(&toml_str)
         && let toml::Value::Table(table) = parsed
     {
