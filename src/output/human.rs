@@ -305,9 +305,9 @@ mod tests {
         region: &str,
         line: u32,
         snippet: &str,
-    ) -> Violation {
-        Violation {
-            rule_id: RuleId::new(rule_id).unwrap(),
+    ) -> Result<Violation, Box<dyn std::error::Error>> {
+        Ok(Violation {
+            rule_id: RuleId::new(rule_id).ok_or("invalid rule id")?,
             file: PathBuf::from(file_path),
             line,
             column: 5,
@@ -316,7 +316,7 @@ mod tests {
             snippet: snippet.to_string(),
             message: "Test violation".to_string(),
             region: RegionPath::new(region),
-        }
+        })
     }
 
     fn create_test_status(
@@ -325,15 +325,15 @@ mod tests {
         actual_count: u64,
         budget: u64,
         violations: Vec<Violation>,
-    ) -> RuleRegionStatus {
-        RuleRegionStatus {
-            rule_id: RuleId::new(rule_id).unwrap(),
+    ) -> Result<RuleRegionStatus, Box<dyn std::error::Error>> {
+        Ok(RuleRegionStatus {
+            rule_id: RuleId::new(rule_id).ok_or("invalid rule id")?,
             region: RegionPath::new(region),
             actual_count,
             budget,
             passed: actual_count <= budget,
             violations,
-        }
+        })
     }
 
     #[test]
@@ -351,7 +351,7 @@ mod tests {
     }
 
     #[test]
-    fn test_format_single_violation_within_budget() {
+    fn test_format_single_violation_within_budget() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Never);
         let violations = vec![create_test_violation(
             "no-unwrap",
@@ -359,8 +359,8 @@ mod tests {
             "src",
             10,
             ".unwrap()",
-        )];
-        let status = create_test_status("no-unwrap", "src", 1, 5, violations);
+        )?];
+        let status = create_test_status("no-unwrap", "src", 1, 5, violations)?;
         let result = AggregationResult {
             statuses: vec![status],
             passed: true,
@@ -377,16 +377,17 @@ mod tests {
         assert!(output.contains("1 violations (budget: 5)"));
         assert!(output.contains("no-unwrap [src]:"));
         assert!(output.contains("Check PASSED"));
+        Ok(())
     }
 
     #[test]
-    fn test_format_multiple_violations_same_rule() {
+    fn test_format_multiple_violations_same_rule() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Never);
         let violations = vec![
-            create_test_violation("no-unwrap", "src/main.rs", "src", 10, ".unwrap()"),
-            create_test_violation("no-unwrap", "src/lib.rs", "src", 20, "result.unwrap()"),
+            create_test_violation("no-unwrap", "src/main.rs", "src", 10, ".unwrap()")?,
+            create_test_violation("no-unwrap", "src/lib.rs", "src", 20, "result.unwrap()")?,
         ];
-        let status = create_test_status("no-unwrap", "src", 2, 5, violations);
+        let status = create_test_status("no-unwrap", "src", 2, 5, violations)?;
         let result = AggregationResult {
             statuses: vec![status],
             passed: true,
@@ -402,16 +403,17 @@ mod tests {
         assert!(output.contains(".unwrap()"));
         assert!(output.contains("result.unwrap()"));
         assert!(output.contains("Check PASSED"));
+        Ok(())
     }
 
     #[test]
-    fn test_format_violation_over_budget() {
+    fn test_format_violation_over_budget() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Never);
         let violations = vec![
-            create_test_violation("no-unwrap", "src/main.rs", "src", 10, ".unwrap()"),
-            create_test_violation("no-unwrap", "src/lib.rs", "src", 20, "result.unwrap()"),
+            create_test_violation("no-unwrap", "src/main.rs", "src", 10, ".unwrap()")?,
+            create_test_violation("no-unwrap", "src/lib.rs", "src", 20, "result.unwrap()")?,
         ];
-        let status = create_test_status("no-unwrap", "src", 2, 1, violations);
+        let status = create_test_status("no-unwrap", "src", 2, 1, violations)?;
         let result = AggregationResult {
             statuses: vec![status],
             passed: false,
@@ -426,10 +428,11 @@ mod tests {
         assert!(output.contains("2 violations (budget: 1) exceeded by 1"));
         assert!(output.contains("no-unwrap [src]:"));
         assert!(output.contains("Check FAILED: 1 rule exceeded budget"));
+        Ok(())
     }
 
     #[test]
-    fn test_format_multiple_rules() {
+    fn test_format_multiple_rules() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Never);
         let violations1 = vec![create_test_violation(
             "no-unwrap",
@@ -437,16 +440,16 @@ mod tests {
             "src",
             10,
             ".unwrap()",
-        )];
+        )?];
         let violations2 = vec![create_test_violation(
             "no-todo",
             "src/lib.rs",
             "src",
             20,
             "// TODO: fix",
-        )];
-        let status1 = create_test_status("no-unwrap", "src", 1, 5, violations1);
-        let status2 = create_test_status("no-todo", "src", 1, 3, violations2);
+        )?];
+        let status1 = create_test_status("no-unwrap", "src", 1, 5, violations1)?;
+        let status2 = create_test_status("no-todo", "src", 1, 3, violations2)?;
         let result = AggregationResult {
             statuses: vec![status1, status2],
             passed: true,
@@ -461,10 +464,11 @@ mod tests {
         assert!(output.contains("src/main.rs:10:5"));
         assert!(output.contains("src/lib.rs:20:5"));
         assert!(output.contains("Check PASSED"));
+        Ok(())
     }
 
     #[test]
-    fn test_format_mixed_pass_fail() {
+    fn test_format_mixed_pass_fail() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Never);
         let violations1 = vec![create_test_violation(
             "no-unwrap",
@@ -472,15 +476,15 @@ mod tests {
             "src",
             10,
             ".unwrap()",
-        )];
+        )?];
         let violations2 = vec![
-            create_test_violation("no-todo", "src/lib.rs", "src", 20, "// TODO: fix"),
-            create_test_violation("no-todo", "src/util.rs", "src", 30, "// TODO: refactor"),
-            create_test_violation("no-todo", "src/test.rs", "src", 40, "// TODO: test"),
-            create_test_violation("no-todo", "src/other.rs", "src", 50, "// TODO: cleanup"),
+            create_test_violation("no-todo", "src/lib.rs", "src", 20, "// TODO: fix")?,
+            create_test_violation("no-todo", "src/util.rs", "src", 30, "// TODO: refactor")?,
+            create_test_violation("no-todo", "src/test.rs", "src", 40, "// TODO: test")?,
+            create_test_violation("no-todo", "src/other.rs", "src", 50, "// TODO: cleanup")?,
         ];
-        let status1 = create_test_status("no-unwrap", "src", 1, 5, violations1);
-        let status2 = create_test_status("no-todo", "src", 4, 3, violations2);
+        let status1 = create_test_status("no-unwrap", "src", 1, 5, violations1)?;
+        let status2 = create_test_status("no-todo", "src", 4, 3, violations2)?;
         let result = AggregationResult {
             statuses: vec![status1, status2],
             passed: false,
@@ -496,21 +500,22 @@ mod tests {
         assert!(output.contains("✓ no-unwrap [src]: 1 violations (budget: 5)"));
         assert!(output.contains("✗ no-todo [src]: 4 violations (budget: 3) exceeded by 1"));
         assert!(output.contains("Check FAILED: 1 rule exceeded budget"));
+        Ok(())
     }
 
     #[test]
-    fn test_format_multiple_rules_exceeded() {
+    fn test_format_multiple_rules_exceeded() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Never);
         let violations1 = vec![
-            create_test_violation("no-unwrap", "src/main.rs", "src", 10, ".unwrap()"),
-            create_test_violation("no-unwrap", "src/lib.rs", "src", 20, "result.unwrap()"),
+            create_test_violation("no-unwrap", "src/main.rs", "src", 10, ".unwrap()")?,
+            create_test_violation("no-unwrap", "src/lib.rs", "src", 20, "result.unwrap()")?,
         ];
         let violations2 = vec![
-            create_test_violation("no-todo", "src/test.rs", "src", 30, "// TODO: fix"),
-            create_test_violation("no-todo", "src/util.rs", "src", 40, "// TODO: refactor"),
+            create_test_violation("no-todo", "src/test.rs", "src", 30, "// TODO: fix")?,
+            create_test_violation("no-todo", "src/util.rs", "src", 40, "// TODO: refactor")?,
         ];
-        let status1 = create_test_status("no-unwrap", "src", 2, 1, violations1);
-        let status2 = create_test_status("no-todo", "src", 2, 0, violations2);
+        let status1 = create_test_status("no-unwrap", "src", 2, 1, violations1)?;
+        let status2 = create_test_status("no-todo", "src", 2, 0, violations2)?;
         let result = AggregationResult {
             statuses: vec![status1, status2],
             passed: false,
@@ -520,10 +525,11 @@ mod tests {
 
         let output = formatter.format(&result, true);
         assert!(output.contains("Check FAILED: 2 rules exceeded budget"));
+        Ok(())
     }
 
     #[test]
-    fn test_write_to_stdout_no_errors() {
+    fn test_write_to_stdout_no_errors() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Never);
         let violations = vec![create_test_violation(
             "no-unwrap",
@@ -531,8 +537,8 @@ mod tests {
             "src",
             10,
             ".unwrap()",
-        )];
-        let status = create_test_status("no-unwrap", "src", 1, 5, violations);
+        )?];
+        let status = create_test_status("no-unwrap", "src", 1, 5, violations)?;
         let result = AggregationResult {
             statuses: vec![status],
             passed: true,
@@ -540,9 +546,8 @@ mod tests {
             violations_over_budget: 0,
         };
 
-        // This should not panic
-        // We can't easily test stdout output in unit tests, but we can verify it doesn't error
         let _ = formatter.write_to_stdout(&result, true);
+        Ok(())
     }
 
     #[test]
@@ -554,29 +559,27 @@ mod tests {
     }
 
     #[test]
-    fn test_format_with_special_characters_in_paths() {
+    fn test_format_with_special_characters_in_paths() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Never);
 
-        // Test with spaces in path
         let violations1 = vec![create_test_violation(
             "no-unwrap",
             "src/my file.rs",
             "src",
             10,
             ".unwrap()",
-        )];
+        )?];
 
-        // Test with unicode in path
         let violations2 = vec![create_test_violation(
             "no-todo",
             "src/日本語.rs",
             "src",
             20,
             "// TODO: fix",
-        )];
+        )?];
 
-        let status1 = create_test_status("no-unwrap", "src", 1, 5, violations1);
-        let status2 = create_test_status("no-todo", "src", 1, 3, violations2);
+        let status1 = create_test_status("no-unwrap", "src", 1, 5, violations1)?;
+        let status2 = create_test_status("no-todo", "src", 1, 3, violations2)?;
 
         let result = AggregationResult {
             statuses: vec![status1, status2],
@@ -587,16 +590,15 @@ mod tests {
 
         let output = formatter.format(&result, true);
 
-        // Verify paths with special characters are handled correctly
         assert!(output.contains("src/my file.rs:10:5"));
         assert!(output.contains("src/日本語.rs:20:5"));
+        Ok(())
     }
 
     #[test]
-    fn test_format_with_special_characters_in_snippets() {
+    fn test_format_with_special_characters_in_snippets() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Never);
 
-        // Test with various special characters in snippets
         let violations = vec![
             create_test_violation(
                 "no-unwrap",
@@ -604,18 +606,18 @@ mod tests {
                 "src",
                 10,
                 "\"hello\\nworld\".unwrap()",
-            ),
-            create_test_violation("no-unwrap", "src/lib.rs", "src", 20, "emoji: 🦀.unwrap()"),
+            )?,
+            create_test_violation("no-unwrap", "src/lib.rs", "src", 20, "emoji: 🦀.unwrap()")?,
             create_test_violation(
                 "no-unwrap",
                 "src/util.rs",
                 "src",
                 30,
                 "json: {\"key\": \"value\"}.unwrap()",
-            ),
+            )?,
         ];
 
-        let status = create_test_status("no-unwrap", "src", 3, 5, violations);
+        let status = create_test_status("no-unwrap", "src", 3, 5, violations)?;
 
         let result = AggregationResult {
             statuses: vec![status],
@@ -626,26 +628,25 @@ mod tests {
 
         let output = formatter.format(&result, true);
 
-        // Verify special characters in snippets are preserved
         assert!(output.contains("\"hello\\nworld\".unwrap()"));
         assert!(output.contains("emoji: 🦀.unwrap()"));
         assert!(output.contains("json: {\"key\": \"value\"}.unwrap()"));
+        Ok(())
     }
 
     #[test]
-    fn test_format_with_leading_trailing_whitespace() {
+    fn test_format_with_leading_trailing_whitespace() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Never);
 
-        // Test snippet trimming behavior
         let violations = vec![create_test_violation(
             "no-unwrap",
             "src/main.rs",
             "src",
             10,
             "    .unwrap()    ",
-        )];
+        )?];
 
-        let status = create_test_status("no-unwrap", "src", 1, 5, violations);
+        let status = create_test_status("no-unwrap", "src", 1, 5, violations)?;
 
         let result = AggregationResult {
             statuses: vec![status],
@@ -656,26 +657,27 @@ mod tests {
 
         let output = formatter.format(&result, true);
 
-        // Verify whitespace is trimmed in output
         assert!(output.contains(".unwrap()"));
-        // Should not have leading/trailing spaces around the snippet
         let lines: Vec<&str> = output.lines().collect();
-        let snippet_line = lines.iter().find(|l| l.contains(".unwrap()")).unwrap();
+        let snippet_line = lines
+            .iter()
+            .find(|l| l.contains(".unwrap()"))
+            .ok_or("snippet line not found")?;
         assert_eq!(snippet_line.trim_end(), "      .unwrap()");
+        Ok(())
     }
 
     #[test]
-    fn test_format_deterministic_output() {
+    fn test_format_deterministic_output() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Never);
 
-        // Create the same result multiple times and verify output is identical
         let violations = [
-            create_test_violation("no-unwrap", "src/main.rs", "src", 10, ".unwrap()"),
-            create_test_violation("no-todo", "src/lib.rs", "src", 20, "// TODO: fix"),
+            create_test_violation("no-unwrap", "src/main.rs", "src", 10, ".unwrap()")?,
+            create_test_violation("no-todo", "src/lib.rs", "src", 20, "// TODO: fix")?,
         ];
 
-        let status1 = create_test_status("no-unwrap", "src", 1, 5, vec![violations[0].clone()]);
-        let status2 = create_test_status("no-todo", "src", 1, 3, vec![violations[1].clone()]);
+        let status1 = create_test_status("no-unwrap", "src", 1, 5, vec![violations[0].clone()])?;
+        let status2 = create_test_status("no-todo", "src", 1, 3, vec![violations[1].clone()])?;
 
         let result = AggregationResult {
             statuses: vec![status1, status2],
@@ -684,19 +686,17 @@ mod tests {
             violations_over_budget: 0,
         };
 
-        // Format multiple times
         let output1 = formatter.format(&result, true);
         let output2 = formatter.format(&result, true);
         let output3 = formatter.format(&result, true);
 
-        // All outputs should be identical
         assert_eq!(output1, output2);
         assert_eq!(output2, output3);
+        Ok(())
     }
 
     #[test]
-    fn test_format_color_choice_never() {
-        // Test with ColorChoice::Never explicitly
+    fn test_format_color_choice_never() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Never);
         let violations = vec![create_test_violation(
             "no-unwrap",
@@ -704,8 +704,8 @@ mod tests {
             "src",
             10,
             ".unwrap()",
-        )];
-        let status = create_test_status("no-unwrap", "src", 1, 5, violations);
+        )?];
+        let status = create_test_status("no-unwrap", "src", 1, 5, violations)?;
         let result = AggregationResult {
             statuses: vec![status],
             passed: true,
@@ -714,14 +714,12 @@ mod tests {
         };
 
         let output = formatter.format(&result, true);
-        // format() always returns plain text without ANSI codes regardless of color_choice
-        // This is just testing that it doesn't error
         assert!(output.contains("no-unwrap"));
+        Ok(())
     }
 
     #[test]
-    fn test_format_color_choice_always() {
-        // Test with ColorChoice::Always
+    fn test_format_color_choice_always() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Always);
         let violations = vec![create_test_violation(
             "no-unwrap",
@@ -729,8 +727,8 @@ mod tests {
             "src",
             10,
             ".unwrap()",
-        )];
-        let status = create_test_status("no-unwrap", "src", 1, 5, violations);
+        )?];
+        let status = create_test_status("no-unwrap", "src", 1, 5, violations)?;
         let result = AggregationResult {
             statuses: vec![status],
             passed: true,
@@ -739,14 +737,12 @@ mod tests {
         };
 
         let output = formatter.format(&result, true);
-        // format() always returns plain text without ANSI codes regardless of color_choice
-        // This is just testing that it doesn't error
         assert!(output.contains("no-unwrap"));
+        Ok(())
     }
 
     #[test]
-    fn test_format_color_choice_auto() {
-        // Test with ColorChoice::Auto
+    fn test_format_color_choice_auto() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Auto);
         let violations = vec![create_test_violation(
             "no-unwrap",
@@ -754,8 +750,8 @@ mod tests {
             "src",
             10,
             ".unwrap()",
-        )];
-        let status = create_test_status("no-unwrap", "src", 1, 5, violations);
+        )?];
+        let status = create_test_status("no-unwrap", "src", 1, 5, violations)?;
         let result = AggregationResult {
             statuses: vec![status],
             passed: true,
@@ -764,13 +760,12 @@ mod tests {
         };
 
         let output = formatter.format(&result, true);
-        // format() always returns plain text without ANSI codes regardless of color_choice
-        // This is just testing that it doesn't error
         assert!(output.contains("no-unwrap"));
+        Ok(())
     }
 
     #[test]
-    fn test_format_empty_snippet() {
+    fn test_format_empty_snippet() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Never);
 
         let violations = vec![create_test_violation(
@@ -779,9 +774,9 @@ mod tests {
             "src",
             10,
             "",
-        )];
+        )?];
 
-        let status = create_test_status("no-unwrap", "src", 1, 5, violations);
+        let status = create_test_status("no-unwrap", "src", 1, 5, violations)?;
 
         let result = AggregationResult {
             statuses: vec![status],
@@ -792,12 +787,12 @@ mod tests {
 
         let output = formatter.format(&result, true);
 
-        // Should handle empty snippets gracefully
         assert!(output.contains("src/main.rs:10:5"));
+        Ok(())
     }
 
     #[test]
-    fn test_format_long_snippet() {
+    fn test_format_long_snippet() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Never);
 
         let long_snippet = "a".repeat(500);
@@ -807,9 +802,9 @@ mod tests {
             "src",
             10,
             &long_snippet,
-        )];
+        )?];
 
-        let status = create_test_status("no-unwrap", "src", 1, 5, violations);
+        let status = create_test_status("no-unwrap", "src", 1, 5, violations)?;
 
         let result = AggregationResult {
             statuses: vec![status],
@@ -820,17 +815,16 @@ mod tests {
 
         let output = formatter.format(&result, true);
 
-        // Should handle long snippets without crashing
         assert!(output.contains("src/main.rs:10:5"));
         assert!(output.contains(&long_snippet));
+        Ok(())
     }
 
     #[test]
-    fn test_format_region_status_no_violations() {
+    fn test_format_region_status_no_violations() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Never);
 
-        // Create a status with 0 actual violations but positive budget
-        let status = create_test_status("no-unwrap", "src", 0, 5, vec![]);
+        let status = create_test_status("no-unwrap", "src", 0, 5, vec![])?;
 
         let result = AggregationResult {
             statuses: vec![status],
@@ -841,17 +835,16 @@ mod tests {
 
         let output = formatter.format(&result, true);
 
-        // Should still show the rule in summary even with no violations
         assert!(output.contains("no-unwrap"));
         assert!(output.contains("0 violations (budget: 5)"));
         assert!(output.contains("✓"));
         assert!(output.contains("no-unwrap [src]:"));
         assert!(output.contains("Check PASSED"));
+        Ok(())
     }
 
     #[test]
-    fn test_format_non_verbose_hides_violations() {
-        // Test that when verbose=false, violation details are hidden
+    fn test_format_non_verbose_hides_violations() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Never);
         let violations = vec![create_test_violation(
             "no-unwrap",
@@ -859,8 +852,8 @@ mod tests {
             "src",
             10,
             ".unwrap()",
-        )];
-        let status = create_test_status("no-unwrap", "src", 1, 5, violations);
+        )?];
+        let status = create_test_status("no-unwrap", "src", 1, 5, violations)?;
         let result = AggregationResult {
             statuses: vec![status],
             passed: true,
@@ -870,39 +863,33 @@ mod tests {
 
         let output = formatter.format(&result, false);
 
-        // Assert that output does NOT contain file:line:column
         assert!(!output.contains("src/main.rs:10:5"));
-        // Assert that output does NOT contain snippet
         assert!(!output.contains(".unwrap()"));
-        // Assert that output DOES contain "Summary:"
         assert!(output.contains("Summary:"));
-        // Assert that output DOES contain rule name
         assert!(output.contains("no-unwrap"));
-        // Assert that output DOES contain budget information
         assert!(output.contains("1 violations (budget: 5)"));
+        Ok(())
     }
 
     #[test]
-    fn test_format_non_verbose_shows_summary_only() {
-        // Test that summary section IS shown when verbose=false
+    fn test_format_non_verbose_shows_summary_only() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = HumanFormatter::new(ColorChoice::Never);
 
-        // Create result with multiple rules, some passing some failing
         let violations1 = vec![create_test_violation(
             "no-unwrap",
             "src/main.rs",
             "src",
             10,
             ".unwrap()",
-        )];
+        )?];
         let violations2 = vec![
-            create_test_violation("no-todo", "src/lib.rs", "src", 20, "// TODO: fix"),
-            create_test_violation("no-todo", "src/util.rs", "src", 30, "// TODO: refactor"),
-            create_test_violation("no-todo", "src/test.rs", "src", 40, "// TODO: test"),
-            create_test_violation("no-todo", "src/other.rs", "src", 50, "// TODO: cleanup"),
+            create_test_violation("no-todo", "src/lib.rs", "src", 20, "// TODO: fix")?,
+            create_test_violation("no-todo", "src/util.rs", "src", 30, "// TODO: refactor")?,
+            create_test_violation("no-todo", "src/test.rs", "src", 40, "// TODO: test")?,
+            create_test_violation("no-todo", "src/other.rs", "src", 50, "// TODO: cleanup")?,
         ];
-        let status1 = create_test_status("no-unwrap", "src", 1, 5, violations1);
-        let status2 = create_test_status("no-todo", "src", 4, 3, violations2);
+        let status1 = create_test_status("no-unwrap", "src", 1, 5, violations1)?;
+        let status2 = create_test_status("no-todo", "src", 4, 3, violations2)?;
         let result = AggregationResult {
             statuses: vec![status1, status2],
             passed: false,
@@ -912,16 +899,15 @@ mod tests {
 
         let output = formatter.format(&result, false);
 
-        // Assert summary includes all rules and their status
         assert!(output.contains("Summary:"));
         assert!(output.contains("✓ no-unwrap [src]: 1 violations (budget: 5)"));
         assert!(output.contains("✗ no-todo [src]: 4 violations (budget: 3) exceeded by 1"));
         assert!(output.contains("Check FAILED: 1 rule exceeded budget"));
 
-        // Assert that violation details are NOT shown
         assert!(!output.contains("src/main.rs:10:5"));
         assert!(!output.contains("src/lib.rs:20:5"));
         assert!(!output.contains(".unwrap()"));
         assert!(!output.contains("// TODO: fix"));
+        Ok(())
     }
 }

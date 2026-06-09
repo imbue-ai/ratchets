@@ -270,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn test_jsonl_formatter_single_rule() {
+    fn test_jsonl_formatter_single_rule() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = RuleStatusJsonlFormatter::new();
         let statuses = vec![create_test_status("no-unwrap", 5, 10, CheckStatus::Pass)];
         let output = formatter.format(&statuses);
@@ -278,7 +278,7 @@ mod tests {
         let lines: Vec<&str> = output.lines().collect();
         assert_eq!(lines.len(), 1);
 
-        let parsed: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(lines[0])?;
         assert_eq!(parsed["rule_id"], "no-unwrap");
         assert_eq!(parsed["source"], "builtin");
         assert_eq!(parsed["description"], "no-unwrap description");
@@ -287,10 +287,11 @@ mod tests {
         assert_eq!(parsed["violations"], 5);
         assert_eq!(parsed["budget"], 10);
         assert_eq!(parsed["status"], "pass");
+        Ok(())
     }
 
     #[test]
-    fn test_jsonl_formatter_multiple_rules() {
+    fn test_jsonl_formatter_multiple_rules() -> Result<(), Box<dyn std::error::Error>> {
         let formatter = RuleStatusJsonlFormatter::new();
         let statuses = vec![
             create_test_status("no-unwrap", 5, 10, CheckStatus::Pass),
@@ -301,13 +302,14 @@ mod tests {
         let lines: Vec<&str> = output.lines().collect();
         assert_eq!(lines.len(), 2);
 
-        let parsed1: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+        let parsed1: serde_json::Value = serde_json::from_str(lines[0])?;
         assert_eq!(parsed1["rule_id"], "no-unwrap");
         assert_eq!(parsed1["status"], "pass");
 
-        let parsed2: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        let parsed2: serde_json::Value = serde_json::from_str(lines[1])?;
         assert_eq!(parsed2["rule_id"], "no-todo");
         assert_eq!(parsed2["status"], "over_budget");
+        Ok(())
     }
 
     #[test]
@@ -347,7 +349,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multiple_languages() {
+    fn test_multiple_languages() -> Result<(), Box<dyn std::error::Error>> {
         let mut status = create_test_status("multi-lang", 2, 5, CheckStatus::Pass);
         status.languages = vec![
             "rust".to_string(),
@@ -361,9 +363,20 @@ mod tests {
 
         let jsonl_formatter = RuleStatusJsonlFormatter::new();
         let jsonl_output = jsonl_formatter.format(&[status]);
-        let parsed: serde_json::Value =
-            serde_json::from_str(jsonl_output.lines().next().unwrap()).unwrap();
-        assert_eq!(parsed["languages"].as_array().unwrap().len(), 3);
+        let parsed: serde_json::Value = serde_json::from_str(
+            jsonl_output
+                .lines()
+                .next()
+                .ok_or("expected at least one line")?,
+        )?;
+        assert_eq!(
+            parsed["languages"]
+                .as_array()
+                .ok_or("languages is not an array")?
+                .len(),
+            3
+        );
+        Ok(())
     }
 
     #[test]
