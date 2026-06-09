@@ -26,4 +26,4 @@
 
 [rust-no-todo-comments]
 "benches" = 1
-"src" = 4
+"src" = 3
