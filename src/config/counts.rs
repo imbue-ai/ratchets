@@ -380,6 +380,21 @@ impl CountsManager {
         self.counts.keys()
     }
 
+    /// Iterate over every explicitly configured `(rule, region)` pair.
+    ///
+    /// A region is configured when it was set via `set_count()` or parsed from
+    /// configuration; the root region "." is always configured for any rule
+    /// that has an entry. Used by `ratchets tighten` to visit budgets that have
+    /// zero current violations (and therefore no aggregator status), so they
+    /// can still be tightened to their actual count.
+    pub fn iter_configured(&self) -> impl Iterator<Item = (&RuleId, &RegionPath)> {
+        self.counts.iter().flat_map(|(rule_id, tree)| {
+            tree.configured_regions
+                .iter()
+                .map(move |region| (rule_id, region))
+        })
+    }
+
     /// Serializes the CountsManager back to TOML format
     ///
     /// Output format matches the input format:
@@ -1438,6 +1453,40 @@ no-unwrap = 5
         assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("src/legacy/parser")));
         assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("other")));
         Ok(())
+    }
+
+    #[test]
+    fn test_counts_manager_iter_configured() -> Result<(), Box<dyn std::error::Error>> {
+        let mut manager = CountsManager::new();
+        let no_unwrap = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
+        let no_panic = RuleId::new("no-panic").ok_or("invalid rule id")?;
+
+        manager.set_count(&no_unwrap, &RegionPath::new("."), 0);
+        manager.set_count(&no_unwrap, &RegionPath::new("src/legacy"), 15);
+        manager.set_count(&no_panic, &RegionPath::new("src"), 23);
+
+        // Collect into a sorted set of (rule, region) strings for stable assertion.
+        let mut pairs: Vec<(String, String)> = manager
+            .iter_configured()
+            .map(|(rule, region)| (rule.as_str().to_string(), region.as_str().to_string()))
+            .collect();
+        pairs.sort();
+
+        // no-panic: "." (always configured) + "src"; no-unwrap: "." + "src/legacy"
+        let expected = vec![
+            ("no-panic".to_string(), ".".to_string()),
+            ("no-panic".to_string(), "src".to_string()),
+            ("no-unwrap".to_string(), ".".to_string()),
+            ("no-unwrap".to_string(), "src/legacy".to_string()),
+        ];
+        assert_eq!(pairs, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_counts_manager_iter_configured_empty() {
+        let manager = CountsManager::new();
+        assert_eq!(manager.iter_configured().count(), 0);
     }
 
     #[test]
