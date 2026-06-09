@@ -520,11 +520,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_load_builtin_regex_rules() {
-        let result = load_builtin_regex_rules();
-        assert!(result.is_ok());
-
-        let rules = result.unwrap();
+    fn test_load_builtin_regex_rules() -> Result<(), Box<dyn std::error::Error>> {
+        let rules = load_builtin_regex_rules()?;
 
         // Derive the expected count from the same constants the loader iterates.
         // This keeps the assertion in sync as new TOMLs are registered, while
@@ -555,14 +552,12 @@ mod tests {
             assert!(!rule_ids.contains(&"no-eval-usage"));
             assert!(!rule_ids.contains(&"no-exec-usage"));
         }
+        Ok(())
     }
 
     #[test]
-    fn test_load_builtin_ast_rules() {
-        let result = load_builtin_ast_rules();
-        assert!(result.is_ok());
-
-        let rules = result.unwrap();
+    fn test_load_builtin_ast_rules() -> Result<(), Box<dyn std::error::Error>> {
+        let rules = load_builtin_ast_rules()?;
 
         // Derive the expected count from the same constants the loader iterates.
         // This keeps the assertion in sync as new TOMLs are registered, while
@@ -619,27 +614,30 @@ mod tests {
             let rule_ids: Vec<&str> = rules.iter().map(|(id, _)| id.as_str()).collect();
             assert!(rule_ids.contains(&"no-any"));
         }
+        Ok(())
     }
 
     #[test]
-    fn test_builtin_regex_rules_are_valid() {
-        let rules = load_builtin_regex_rules().unwrap();
+    fn test_builtin_regex_rules_are_valid() -> Result<(), Box<dyn std::error::Error>> {
+        let rules = load_builtin_regex_rules()?;
 
         // Verify each rule has a valid ID and can be accessed
         for (rule_id, rule) in rules {
             assert_eq!(rule.id(), &rule_id);
             assert!(!rule.description().is_empty());
         }
+        Ok(())
     }
 
     #[test]
-    fn test_builtin_ast_rules_are_valid() {
-        let rules = load_builtin_ast_rules().unwrap();
+    fn test_builtin_ast_rules_are_valid() -> Result<(), Box<dyn std::error::Error>> {
+        let rules = load_builtin_ast_rules()?;
 
         // Verify each rule has a valid ID and can be accessed
         for (rule_id, rule) in rules {
             assert_eq!(rule.id(), &rule_id);
             assert!(!rule.description().is_empty());
         }
+        Ok(())
     }
 }

@@ -187,8 +187,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_violation_construction() {
-        let rule_id = RuleId::new("test-rule").unwrap();
+    fn test_violation_construction() -> Result<(), Box<dyn std::error::Error>> {
+        let rule_id = RuleId::new("test-rule").ok_or("invalid rule id")?;
         let region = RegionPath::new("src");
 
         let violation = Violation {
@@ -207,11 +207,12 @@ mod tests {
         assert_eq!(violation.line, 10);
         assert_eq!(violation.column, 5);
         assert_eq!(violation.snippet, ".unwrap()");
+        Ok(())
     }
 
     #[test]
-    fn test_violation_clone() {
-        let rule_id = RuleId::new("test-rule").unwrap();
+    fn test_violation_clone() -> Result<(), Box<dyn std::error::Error>> {
+        let rule_id = RuleId::new("test-rule").ok_or("invalid rule id")?;
         let region = RegionPath::new("src");
 
         let violation = Violation {
@@ -228,6 +229,7 @@ mod tests {
 
         let cloned = violation.clone();
         assert_eq!(violation, cloned);
+        Ok(())
     }
 
     #[test]
@@ -267,7 +269,7 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_region_without_resolver() {
+    fn test_resolve_region_without_resolver() -> Result<(), Box<dyn std::error::Error>> {
         let path = Path::new("src/foo/bar.rs");
         let content = "fn main() {}";
 
@@ -278,15 +280,16 @@ mod tests {
             region_resolver: None,
         };
 
-        let rule_id = RuleId::new("test-rule").unwrap();
+        let rule_id = RuleId::new("test-rule").ok_or("invalid rule id")?;
         let region = ctx.resolve_region(&rule_id);
 
         // Without resolver, should fall back to parent directory
         assert_eq!(region.as_str(), "src/foo");
+        Ok(())
     }
 
     #[test]
-    fn test_resolve_region_with_resolver() {
+    fn test_resolve_region_with_resolver() -> Result<(), Box<dyn std::error::Error>> {
         let path = Path::new("src/foo/bar.rs");
         let content = "fn main() {}";
 
@@ -300,15 +303,17 @@ mod tests {
             region_resolver: Some(resolver),
         };
 
-        let rule_id = RuleId::new("test-rule").unwrap();
+        let rule_id = RuleId::new("test-rule").ok_or("invalid rule id")?;
         let region = ctx.resolve_region(&rule_id);
 
         // With resolver, should use the resolved region
         assert_eq!(region.as_str(), "custom/region");
+        Ok(())
     }
 
     #[test]
-    fn test_resolve_region_resolver_receives_correct_args() {
+    fn test_resolve_region_resolver_receives_correct_args() -> Result<(), Box<dyn std::error::Error>>
+    {
         use std::sync::atomic::{AtomicBool, Ordering};
 
         let path = Path::new("src/test.rs");
@@ -333,15 +338,16 @@ mod tests {
             region_resolver: Some(resolver),
         };
 
-        let rule_id = RuleId::new("my-rule").unwrap();
+        let rule_id = RuleId::new("my-rule").ok_or("invalid rule id")?;
         let region = ctx.resolve_region(&rule_id);
 
         assert!(called.load(Ordering::SeqCst));
         assert_eq!(region.as_str(), "resolved");
+        Ok(())
     }
 
     #[test]
-    fn test_resolve_region_root_file() {
+    fn test_resolve_region_root_file() -> Result<(), Box<dyn std::error::Error>> {
         let path = Path::new("main.rs");
         let content = "fn main() {}";
 
@@ -352,11 +358,12 @@ mod tests {
             region_resolver: None,
         };
 
-        let rule_id = RuleId::new("test-rule").unwrap();
+        let rule_id = RuleId::new("test-rule").ok_or("invalid rule id")?;
         let region = ctx.resolve_region(&rule_id);
 
         // Root file's parent is empty, should fall back to "."
         assert_eq!(region.as_str(), ".");
+        Ok(())
     }
 
     #[test]
@@ -428,9 +435,9 @@ mod tests {
     }
 
     #[test]
-    fn test_rule_trait_implementation() {
+    fn test_rule_trait_implementation() -> Result<(), Box<dyn std::error::Error>> {
         let rule = MockRule {
-            rule_id: RuleId::new("test-rule").unwrap(),
+            rule_id: RuleId::new("test-rule").ok_or("invalid rule id")?,
             description: "Test description".to_string(),
             languages: vec![Language::Rust, Language::Python],
             severity: Severity::Error,
@@ -450,6 +457,7 @@ mod tests {
 
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 0);
+        Ok(())
     }
 
     #[test]

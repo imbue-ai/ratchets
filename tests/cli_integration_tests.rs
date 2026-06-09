@@ -1807,19 +1807,18 @@ pattern = "TODO"
 }
 
 #[test]
-fn test_tighten_preserves_configured_regions_with_zero_violations() {
-    // Test that tighten preserves configured regions even when they have zero violations
+fn test_tighten_zero_violation_configured_regions_locked_to_zero() {
+    // Tighten visits the union of configured (rule, region) pairs and
+    // aggregator statuses, so configured regions with zero current violations
+    // are tightened to 0 rather than left at their old budget.
     // Setup:
     //   - Configure: ".", "src", "tests"
     //   - Create violations only in src/
     // Expected:
-    //   - src gets tightened to actual count
-    //   - tests budget is unchanged (no violations means no status to process)
-    //   - root budget is unchanged (no violations means no status to process)
+    //   - src gets tightened to its actual count
+    //   - tests (zero violations) is tightened to 0
+    //   - root (zero violations) is tightened to 0
     //   - No new regions created
-    //
-    // Note: Tighten only updates regions that have violations. Regions with zero
-    // violations are not touched because no status is generated for them.
     with_temp_dir(|temp_dir| {
         // Create config with rule enabled
         let config = r#"
@@ -1898,12 +1897,11 @@ pattern = "TODO"
         // src should be tightened to 2 (actual violations)
         assert_eq!(counts.get_budget(&rule_id, Path::new("src/file.rs")), 2);
 
-        // tests should remain unchanged at 50 (no violations, so no status created)
-        // Tighten only updates regions that have violations; zero-violation regions are not touched
-        assert_eq!(counts.get_budget(&rule_id, Path::new("tests/file.rs")), 50);
+        // tests has zero violations and is tightened from 50 to 0.
+        assert_eq!(counts.get_budget(&rule_id, Path::new("tests/file.rs")), 0);
 
-        // root should remain unchanged at 100 (no violations, so no status created)
-        assert_eq!(counts.get_budget(&rule_id, Path::new("other.rs")), 100);
+        // root has zero violations and is tightened from 100 to 0.
+        assert_eq!(counts.get_budget(&rule_id, Path::new("other.rs")), 0);
 
         // All configured regions should still be present
         assert!(
@@ -1921,5 +1919,111 @@ pattern = "TODO"
 
         // Importantly, no new regions were created
         // (this verifies the core tighten behavior)
+    });
+}
+
+/// Build a project whose `no-todo-comments` rule has a configured budget on
+/// `src` but zero matching violations, so tighten must lock it to 0.
+fn setup_zero_violation_budget_project(temp_dir: &Path) {
+    let config = r#"
+enabled_ratchets = ["no-todo-comments"]
+
+[ratchets]
+version = "2"
+languages = ["rust"]
+include = ["**/*.rs"]
+
+[rules]
+"#;
+    fs::write(temp_dir.join("ratchets.toml"), config).unwrap();
+
+    // Budget of 9 on src with no current violations.
+    let counts = r#"
+[no-todo-comments]
+"." = 0
+"src" = 9
+"#;
+    fs::write(temp_dir.join("ratchet-counts.toml"), counts).unwrap();
+
+    let builtin_regex_dir = temp_dir
+        .join("builtin-ratchets")
+        .join("common")
+        .join("regex");
+    fs::create_dir_all(&builtin_regex_dir).unwrap();
+    let rule_toml = r#"
+[rule]
+id = "no-todo-comments"
+description = "Disallow TODO comments"
+severity = "warning"
+
+[match]
+pattern = "TODO"
+"#;
+    fs::write(builtin_regex_dir.join("no-todo-comments.toml"), rule_toml).unwrap();
+
+    // A source file with no TODO comments => zero violations.
+    fs::create_dir_all(temp_dir.join("src")).unwrap();
+    fs::write(temp_dir.join("src/lib.rs"), "fn main() {}\n").unwrap();
+}
+
+#[test]
+fn test_tighten_locks_zero_violation_budget_to_zero() {
+    // Regression for code-s0r: a configured budget with zero current violations
+    // must be tightened to 0 rather than left at its old value.
+    with_temp_dir(|temp_dir| {
+        setup_zero_violation_budget_project(temp_dir.path());
+
+        let exit_code = cli::tighten::run_tighten(None, None);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
+
+        let counts_content =
+            fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
+        let counts = ratchets::config::counts::CountsManager::parse(&counts_content).unwrap();
+        let rule_id = ratchets::types::RuleId::new("no-todo-comments").unwrap();
+
+        // src budget of 9 with zero violations is tightened to 0.
+        assert_eq!(
+            counts.get_budget(&rule_id, Path::new("src/lib.rs")),
+            0,
+            "expected src budget tightened to 0, got:\n{}",
+            counts_content
+        );
+    });
+}
+
+#[test]
+fn test_tighten_locks_zero_violation_budget_with_rule_filter() {
+    // The --rule filter still tightens the zero-violation budget to 0.
+    with_temp_dir(|temp_dir| {
+        setup_zero_violation_budget_project(temp_dir.path());
+
+        let exit_code = cli::tighten::run_tighten(Some("no-todo-comments"), None);
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
+
+        let counts_content =
+            fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
+        let counts = ratchets::config::counts::CountsManager::parse(&counts_content).unwrap();
+        let rule_id = ratchets::types::RuleId::new("no-todo-comments").unwrap();
+        assert_eq!(counts.get_budget(&rule_id, Path::new("src/lib.rs")), 0);
+    });
+}
+
+#[test]
+fn test_tighten_locks_zero_violation_budget_with_region_filter() {
+    // The --region filter tightens only the targeted region's zero-violation
+    // budget; other configured regions are left untouched.
+    with_temp_dir(|temp_dir| {
+        setup_zero_violation_budget_project(temp_dir.path());
+
+        let exit_code = cli::tighten::run_tighten(None, Some("src"));
+        assert_eq!(exit_code, cli::common::EXIT_SUCCESS);
+
+        let counts_content =
+            fs::read_to_string(temp_dir.path().join("ratchet-counts.toml")).unwrap();
+        let counts = ratchets::config::counts::CountsManager::parse(&counts_content).unwrap();
+        let rule_id = ratchets::types::RuleId::new("no-todo-comments").unwrap();
+
+        // src (the filtered region) tightened to 0.
+        assert_eq!(counts.get_budget(&rule_id, Path::new("src/lib.rs")), 0);
     });
 }

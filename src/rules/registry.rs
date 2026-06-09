@@ -404,12 +404,10 @@ impl RuleRegistry {
 
     /// Filter rules to only those whose ID appears in `enabled`.
     ///
-    /// Phase 3 of the ratchet-sets plan replaces the legacy
-    /// `filter_by_config` (a no-op since Phase 1) with this resolver-driven
-    /// step. The `enabled` set is produced by
-    /// [`SetRegistry::resolve`] in [`Self::build_from_config`]; any rule whose
-    /// ID is not present is dropped from the registry, regardless of how it
-    /// arrived (embedded, filesystem builtin, or user-defined).
+    /// The `enabled` set is produced by [`SetRegistry::resolve`] in
+    /// [`Self::build_from_config`]; any rule whose ID is not present is dropped
+    /// from the registry, regardless of how it arrived (embedded, filesystem
+    /// builtin, or user-defined).
     ///
     /// # Arguments
     ///
@@ -631,12 +629,10 @@ impl Default for RuleRegistry {
 /// Emit a stderr warning for any `[rules]` entry whose ID is not present in
 /// the resolved registry.
 ///
-/// Phase 3 of the ratchet-sets plan: per-rule settings (severity / regions)
-/// are only meaningful for rules that survived the resolver filter. An entry
-/// referencing a rule that was never enabled (or was explicitly disabled)
-/// almost certainly indicates a typo or stale configuration; we tell the user
-/// without failing the run, mirroring the orphan-counts handling planned for
-/// Phase 5.
+/// Per-rule settings (severity / regions) are only meaningful for rules that
+/// survived the resolver filter. An entry referencing a rule that was never
+/// enabled (or was explicitly disabled) almost certainly indicates a typo or
+/// stale configuration; we warn the user without failing the run.
 fn warn_orphan_rule_settings(
     registry: &RuleRegistry,
     rules_config: &crate::config::ratchet_toml::RulesConfig,
@@ -869,8 +865,7 @@ pattern = "TODO"
 
     #[test]
     fn test_filter_by_enabled_set_empty_drops_all() -> Result<(), Box<dyn std::error::Error>> {
-        // Phase 3: an empty resolved set means "no rules enabled". Strict
-        // opt-in is the whole point of the schema bump.
+        // An empty resolved set means "no rules enabled".
         let temp_dir = TempDir::new()?;
         create_test_rule_file(temp_dir.path(), "rule1.toml", "rule-1")?;
         create_test_rule_file(temp_dir.path(), "rule2.toml", "rule-2")?;
@@ -1470,9 +1465,8 @@ query = "(unclosed_paren"
         use crate::types::GlobPattern;
         use std::collections::HashMap;
 
-        // Phase 3: rules must be explicitly listed in `enabled_ratchets` to
-        // survive the resolver filter. Bare rule IDs still work — Phase 4
-        // introduces the curated `$common-starter` set.
+        // Rules must be explicitly listed in `enabled_ratchets` to survive the
+        // resolver filter.
         let config = Config {
             ratchets: RatchetsMeta {
                 version: "2".to_string(),
@@ -1524,8 +1518,8 @@ query = "(unclosed_paren"
     #[test]
     fn test_build_from_config_empty_enabled_ratchets_yields_empty_registry()
     -> Result<(), Box<dyn std::error::Error>> {
-        // Phase 3: explicit opt-in. With no enabled refs, the registry
-        // resolves to zero rules even though embedded rules loaded.
+        // With no enabled refs, the registry resolves to zero rules even
+        // though embedded rules loaded.
         use crate::config::ratchet_toml::{Config, OutputConfig, RatchetsMeta, RulesConfig};
         use crate::types::GlobPattern;
         use std::collections::HashMap;
@@ -1555,7 +1549,7 @@ query = "(unclosed_paren"
     #[test]
     fn test_build_from_config_disabled_ratchets_removes_rule()
     -> Result<(), Box<dyn std::error::Error>> {
-        // Phase 3: disabled wins over enabled.
+        // Disabled wins over enabled.
         use crate::config::ratchet_toml::{
             Config, OutputConfig, RatchetRef, RatchetsMeta, RulesConfig,
         };
@@ -1601,9 +1595,9 @@ query = "(unclosed_paren"
     #[test]
     fn test_build_from_config_keeps_settings_record_for_enabled_rule()
     -> Result<(), Box<dyn std::error::Error>> {
-        // Phase 3: settings records under `[rules]` apply to enabled rules.
-        // A settings record without a matching enabled_ratchet entry is
-        // reported as a warning (see `warn_orphan_rule_settings`).
+        // Settings records under `[rules]` apply to enabled rules. A settings
+        // record without a matching enabled_ratchet entry is reported as a
+        // warning (see `warn_orphan_rule_settings`).
         use crate::config::ratchet_toml::{
             Config, OutputConfig, RatchetRef, RatchetsMeta, RuleSettings, RulesConfig,
         };
@@ -1673,9 +1667,9 @@ query = "(unclosed_paren"
         use crate::types::{GlobPattern, Language};
         use std::collections::HashMap;
 
-        // Phase 3: every rule we want to assert against must be enabled
-        // explicitly. Python and TypeScript rules are still loaded (for the
-        // negative assertions below) but get filtered out by language because
+        // Every rule we want to assert against must be enabled explicitly.
+        // Python and TypeScript rules are still loaded (for the negative
+        // assertions below) but get filtered out by language because
         // `enabled_ratchets` lists their IDs and `filter_by_languages`
         // subsequently removes anything not tagged Rust.
         let enabled_ratchets = vec![

@@ -121,9 +121,14 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    fn create_test_violation(rule_id: &str, file_path: &str, region: &str, line: u32) -> Violation {
-        Violation {
-            rule_id: RuleId::new(rule_id).unwrap(),
+    fn create_test_violation(
+        rule_id: &str,
+        file_path: &str,
+        region: &str,
+        line: u32,
+    ) -> Result<Violation, Box<dyn std::error::Error>> {
+        Ok(Violation {
+            rule_id: RuleId::new(rule_id).ok_or("invalid rule id")?,
             file: PathBuf::from(file_path),
             line,
             column: 1,
@@ -132,7 +137,7 @@ mod tests {
             snippet: "test".to_string(),
             message: "Test violation".to_string(),
             region: RegionPath::new(region),
-        }
+        })
     }
 
     #[test]
@@ -149,17 +154,22 @@ mod tests {
     }
 
     #[test]
-    fn test_aggregator_single_violation_within_budget() {
+    fn test_aggregator_single_violation_within_budget() -> Result<(), Box<dyn std::error::Error>> {
         let mut counts = CountsManager::new();
         counts.set_count(
-            &RuleId::new("no-unwrap").unwrap(),
+            &RuleId::new("no-unwrap").ok_or("invalid rule id")?,
             &RegionPath::new("src"),
             5,
         );
 
         let aggregator = ViolationAggregator::new(counts);
 
-        let violations = vec![create_test_violation("no-unwrap", "src/main.rs", "src", 10)];
+        let violations = vec![create_test_violation(
+            "no-unwrap",
+            "src/main.rs",
+            "src",
+            10,
+        )?];
 
         let result = aggregator.aggregate(violations);
 
@@ -174,20 +184,26 @@ mod tests {
         assert_eq!(status.actual_count, 1);
         assert_eq!(status.budget, 5);
         assert!(status.passed);
+        Ok(())
     }
 
     #[test]
-    fn test_aggregator_single_violation_over_budget() {
+    fn test_aggregator_single_violation_over_budget() -> Result<(), Box<dyn std::error::Error>> {
         let mut counts = CountsManager::new();
         counts.set_count(
-            &RuleId::new("no-unwrap").unwrap(),
+            &RuleId::new("no-unwrap").ok_or("invalid rule id")?,
             &RegionPath::new("src"),
             0,
         );
 
         let aggregator = ViolationAggregator::new(counts);
 
-        let violations = vec![create_test_violation("no-unwrap", "src/main.rs", "src", 10)];
+        let violations = vec![create_test_violation(
+            "no-unwrap",
+            "src/main.rs",
+            "src",
+            10,
+        )?];
 
         let result = aggregator.aggregate(violations);
 
@@ -198,13 +214,15 @@ mod tests {
 
         let status = &result.statuses[0];
         assert!(!status.passed);
+        Ok(())
     }
 
     #[test]
-    fn test_aggregator_multiple_violations_same_rule_region() {
+    fn test_aggregator_multiple_violations_same_rule_region()
+    -> Result<(), Box<dyn std::error::Error>> {
         let mut counts = CountsManager::new();
         counts.set_count(
-            &RuleId::new("no-unwrap").unwrap(),
+            &RuleId::new("no-unwrap").ok_or("invalid rule id")?,
             &RegionPath::new("src"),
             2,
         );
@@ -212,8 +230,8 @@ mod tests {
         let aggregator = ViolationAggregator::new(counts);
 
         let violations = vec![
-            create_test_violation("no-unwrap", "src/main.rs", "src", 10),
-            create_test_violation("no-unwrap", "src/lib.rs", "src", 20),
+            create_test_violation("no-unwrap", "src/main.rs", "src", 10)?,
+            create_test_violation("no-unwrap", "src/lib.rs", "src", 20)?,
         ];
 
         let result = aggregator.aggregate(violations);
@@ -228,13 +246,15 @@ mod tests {
         assert_eq!(status.budget, 2);
         assert!(status.passed);
         assert_eq!(status.violations.len(), 2);
+        Ok(())
     }
 
     #[test]
-    fn test_aggregator_multiple_violations_same_rule_region_over_budget() {
+    fn test_aggregator_multiple_violations_same_rule_region_over_budget()
+    -> Result<(), Box<dyn std::error::Error>> {
         let mut counts = CountsManager::new();
         counts.set_count(
-            &RuleId::new("no-unwrap").unwrap(),
+            &RuleId::new("no-unwrap").ok_or("invalid rule id")?,
             &RegionPath::new("src"),
             1,
         );
@@ -242,9 +262,9 @@ mod tests {
         let aggregator = ViolationAggregator::new(counts);
 
         let violations = vec![
-            create_test_violation("no-unwrap", "src/main.rs", "src", 10),
-            create_test_violation("no-unwrap", "src/lib.rs", "src", 20),
-            create_test_violation("no-unwrap", "src/util.rs", "src", 30),
+            create_test_violation("no-unwrap", "src/main.rs", "src", 10)?,
+            create_test_violation("no-unwrap", "src/lib.rs", "src", 20)?,
+            create_test_violation("no-unwrap", "src/util.rs", "src", 30)?,
         ];
 
         let result = aggregator.aggregate(violations);
@@ -258,23 +278,28 @@ mod tests {
         assert_eq!(status.actual_count, 3);
         assert_eq!(status.budget, 1);
         assert!(!status.passed);
+        Ok(())
     }
 
     #[test]
-    fn test_aggregator_multiple_rules_same_region() {
+    fn test_aggregator_multiple_rules_same_region() -> Result<(), Box<dyn std::error::Error>> {
         let mut counts = CountsManager::new();
         counts.set_count(
-            &RuleId::new("no-unwrap").unwrap(),
+            &RuleId::new("no-unwrap").ok_or("invalid rule id")?,
             &RegionPath::new("src"),
             5,
         );
-        counts.set_count(&RuleId::new("no-todo").unwrap(), &RegionPath::new("src"), 3);
+        counts.set_count(
+            &RuleId::new("no-todo").ok_or("invalid rule id")?,
+            &RegionPath::new("src"),
+            3,
+        );
 
         let aggregator = ViolationAggregator::new(counts);
 
         let violations = vec![
-            create_test_violation("no-unwrap", "src/main.rs", "src", 10),
-            create_test_violation("no-todo", "src/main.rs", "src", 20),
+            create_test_violation("no-unwrap", "src/main.rs", "src", 10)?,
+            create_test_violation("no-todo", "src/main.rs", "src", 20)?,
         ];
 
         let result = aggregator.aggregate(violations);
@@ -287,18 +312,19 @@ mod tests {
         // Statuses should be sorted by rule_id
         assert_eq!(result.statuses[0].rule_id.as_str(), "no-todo");
         assert_eq!(result.statuses[1].rule_id.as_str(), "no-unwrap");
+        Ok(())
     }
 
     #[test]
-    fn test_aggregator_multiple_regions_same_rule() {
+    fn test_aggregator_multiple_regions_same_rule() -> Result<(), Box<dyn std::error::Error>> {
         let mut counts = CountsManager::new();
         counts.set_count(
-            &RuleId::new("no-unwrap").unwrap(),
+            &RuleId::new("no-unwrap").ok_or("invalid rule id")?,
             &RegionPath::new("src"),
             5,
         );
         counts.set_count(
-            &RuleId::new("no-unwrap").unwrap(),
+            &RuleId::new("no-unwrap").ok_or("invalid rule id")?,
             &RegionPath::new("tests"),
             10,
         );
@@ -306,8 +332,8 @@ mod tests {
         let aggregator = ViolationAggregator::new(counts);
 
         let violations = vec![
-            create_test_violation("no-unwrap", "src/main.rs", "src", 10),
-            create_test_violation("no-unwrap", "tests/test.rs", "tests", 20),
+            create_test_violation("no-unwrap", "src/main.rs", "src", 10)?,
+            create_test_violation("no-unwrap", "tests/test.rs", "tests", 20)?,
         ];
 
         let result = aggregator.aggregate(violations);
@@ -320,34 +346,46 @@ mod tests {
         // Statuses should be sorted by region within same rule
         assert_eq!(result.statuses[0].region.as_str(), "src");
         assert_eq!(result.statuses[1].region.as_str(), "tests");
+        Ok(())
     }
 
     #[test]
-    fn test_aggregator_zero_budget_strict_enforcement() {
+    fn test_aggregator_zero_budget_strict_enforcement() -> Result<(), Box<dyn std::error::Error>> {
         let mut counts = CountsManager::new();
         counts.set_count(
-            &RuleId::new("no-unwrap").unwrap(),
+            &RuleId::new("no-unwrap").ok_or("invalid rule id")?,
             &RegionPath::new("src"),
             0,
         );
 
         let aggregator = ViolationAggregator::new(counts);
 
-        let violations = vec![create_test_violation("no-unwrap", "src/main.rs", "src", 10)];
+        let violations = vec![create_test_violation(
+            "no-unwrap",
+            "src/main.rs",
+            "src",
+            10,
+        )?];
 
         let result = aggregator.aggregate(violations);
 
         assert!(!result.passed);
         assert_eq!(result.total_violations, 1);
         assert_eq!(result.violations_over_budget, 1);
+        Ok(())
     }
 
     #[test]
-    fn test_aggregator_missing_rule_defaults_to_zero() {
+    fn test_aggregator_missing_rule_defaults_to_zero() -> Result<(), Box<dyn std::error::Error>> {
         let counts = CountsManager::new(); // Empty counts, no rules configured
         let aggregator = ViolationAggregator::new(counts);
 
-        let violations = vec![create_test_violation("no-unwrap", "src/main.rs", "src", 10)];
+        let violations = vec![create_test_violation(
+            "no-unwrap",
+            "src/main.rs",
+            "src",
+            10,
+        )?];
 
         let result = aggregator.aggregate(violations);
 
@@ -359,20 +397,29 @@ mod tests {
         let status = &result.statuses[0];
         assert_eq!(status.budget, 0);
         assert!(!status.passed);
+        Ok(())
     }
 
     #[test]
-    fn test_aggregator_complex_scenario() {
+    fn test_aggregator_complex_scenario() -> Result<(), Box<dyn std::error::Error>> {
         let mut counts = CountsManager::new();
-        counts.set_count(&RuleId::new("no-unwrap").unwrap(), &RegionPath::new("."), 0);
         counts.set_count(
-            &RuleId::new("no-unwrap").unwrap(),
+            &RuleId::new("no-unwrap").ok_or("invalid rule id")?,
+            &RegionPath::new("."),
+            0,
+        );
+        counts.set_count(
+            &RuleId::new("no-unwrap").ok_or("invalid rule id")?,
             &RegionPath::new("src/legacy"),
             15,
         );
-        counts.set_count(&RuleId::new("no-todo").unwrap(), &RegionPath::new("."), 0);
         counts.set_count(
-            &RuleId::new("no-todo").unwrap(),
+            &RuleId::new("no-todo").ok_or("invalid rule id")?,
+            &RegionPath::new("."),
+            0,
+        );
+        counts.set_count(
+            &RuleId::new("no-todo").ok_or("invalid rule id")?,
             &RegionPath::new("src"),
             10,
         );
@@ -381,14 +428,14 @@ mod tests {
 
         let violations = vec![
             // 2 violations in src/legacy for no-unwrap (budget: 15) - PASS
-            create_test_violation("no-unwrap", "src/legacy/old.rs", "src/legacy", 10),
-            create_test_violation("no-unwrap", "src/legacy/old.rs", "src/legacy", 20),
+            create_test_violation("no-unwrap", "src/legacy/old.rs", "src/legacy", 10)?,
+            create_test_violation("no-unwrap", "src/legacy/old.rs", "src/legacy", 20)?,
             // 1 violation in src for no-unwrap (inherits root budget: 0) - FAIL
-            create_test_violation("no-unwrap", "src/main.rs", "src", 30),
+            create_test_violation("no-unwrap", "src/main.rs", "src", 30)?,
             // 3 violations in src for no-todo (budget: 10) - PASS
-            create_test_violation("no-todo", "src/main.rs", "src", 40),
-            create_test_violation("no-todo", "src/lib.rs", "src", 50),
-            create_test_violation("no-todo", "src/util.rs", "src", 60),
+            create_test_violation("no-todo", "src/main.rs", "src", 40)?,
+            create_test_violation("no-todo", "src/lib.rs", "src", 50)?,
+            create_test_violation("no-todo", "src/util.rs", "src", 60)?,
         ];
 
         let result = aggregator.aggregate(violations);
@@ -405,7 +452,7 @@ mod tests {
             .statuses
             .iter()
             .find(|s| s.rule_id.as_str() == "no-todo" && s.region.as_str() == "src")
-            .unwrap();
+            .ok_or("missing no-todo src status")?;
         assert_eq!(no_todo_src.actual_count, 3);
         assert_eq!(no_todo_src.budget, 10);
         assert!(no_todo_src.passed);
@@ -414,7 +461,7 @@ mod tests {
             .statuses
             .iter()
             .find(|s| s.rule_id.as_str() == "no-unwrap" && s.region.as_str() == "src/legacy")
-            .unwrap();
+            .ok_or("missing no-unwrap src/legacy status")?;
         assert_eq!(no_unwrap_legacy.actual_count, 2);
         assert_eq!(no_unwrap_legacy.budget, 15);
         assert!(no_unwrap_legacy.passed);
@@ -423,17 +470,18 @@ mod tests {
             .statuses
             .iter()
             .find(|s| s.rule_id.as_str() == "no-unwrap" && s.region.as_str() == "src")
-            .unwrap();
+            .ok_or("missing no-unwrap src status")?;
         assert_eq!(no_unwrap_src.actual_count, 1);
         assert_eq!(no_unwrap_src.budget, 0);
         assert!(!no_unwrap_src.passed);
+        Ok(())
     }
 
     #[test]
-    fn test_aggregator_exact_budget_match() {
+    fn test_aggregator_exact_budget_match() -> Result<(), Box<dyn std::error::Error>> {
         let mut counts = CountsManager::new();
         counts.set_count(
-            &RuleId::new("no-unwrap").unwrap(),
+            &RuleId::new("no-unwrap").ok_or("invalid rule id")?,
             &RegionPath::new("src"),
             3,
         );
@@ -441,9 +489,9 @@ mod tests {
         let aggregator = ViolationAggregator::new(counts);
 
         let violations = vec![
-            create_test_violation("no-unwrap", "src/a.rs", "src", 10),
-            create_test_violation("no-unwrap", "src/b.rs", "src", 20),
-            create_test_violation("no-unwrap", "src/c.rs", "src", 30),
+            create_test_violation("no-unwrap", "src/a.rs", "src", 10)?,
+            create_test_violation("no-unwrap", "src/b.rs", "src", 20)?,
+            create_test_violation("no-unwrap", "src/c.rs", "src", 30)?,
         ];
 
         let result = aggregator.aggregate(violations);
@@ -457,23 +505,24 @@ mod tests {
         assert_eq!(status.actual_count, 3);
         assert_eq!(status.budget, 3);
         assert!(status.passed);
+        Ok(())
     }
 
     #[test]
-    fn test_aggregator_sorted_output() {
+    fn test_aggregator_sorted_output() -> Result<(), Box<dyn std::error::Error>> {
         let mut counts = CountsManager::new();
         counts.set_count(
-            &RuleId::new("rule-a").unwrap(),
+            &RuleId::new("rule-a").ok_or("invalid rule id")?,
             &RegionPath::new("z-region"),
             10,
         );
         counts.set_count(
-            &RuleId::new("rule-b").unwrap(),
+            &RuleId::new("rule-b").ok_or("invalid rule id")?,
             &RegionPath::new("a-region"),
             10,
         );
         counts.set_count(
-            &RuleId::new("rule-a").unwrap(),
+            &RuleId::new("rule-a").ok_or("invalid rule id")?,
             &RegionPath::new("a-region"),
             10,
         );
@@ -481,9 +530,9 @@ mod tests {
         let aggregator = ViolationAggregator::new(counts);
 
         let violations = vec![
-            create_test_violation("rule-b", "a-region/file.rs", "a-region", 10),
-            create_test_violation("rule-a", "z-region/file.rs", "z-region", 20),
-            create_test_violation("rule-a", "a-region/file.rs", "a-region", 30),
+            create_test_violation("rule-b", "a-region/file.rs", "a-region", 10)?,
+            create_test_violation("rule-a", "z-region/file.rs", "z-region", 20)?,
+            create_test_violation("rule-a", "a-region/file.rs", "a-region", 30)?,
         ];
 
         let result = aggregator.aggregate(violations);
@@ -496,13 +545,14 @@ mod tests {
         assert_eq!(result.statuses[1].region.as_str(), "z-region");
         assert_eq!(result.statuses[2].rule_id.as_str(), "rule-b");
         assert_eq!(result.statuses[2].region.as_str(), "a-region");
+        Ok(())
     }
 
     #[test]
-    fn test_aggregator_preserves_violation_details() {
+    fn test_aggregator_preserves_violation_details() -> Result<(), Box<dyn std::error::Error>> {
         let mut counts = CountsManager::new();
         counts.set_count(
-            &RuleId::new("no-unwrap").unwrap(),
+            &RuleId::new("no-unwrap").ok_or("invalid rule id")?,
             &RegionPath::new("src"),
             5,
         );
@@ -510,8 +560,8 @@ mod tests {
         let aggregator = ViolationAggregator::new(counts);
 
         let violations = vec![
-            create_test_violation("no-unwrap", "src/main.rs", "src", 10),
-            create_test_violation("no-unwrap", "src/lib.rs", "src", 20),
+            create_test_violation("no-unwrap", "src/main.rs", "src", 10)?,
+            create_test_violation("no-unwrap", "src/lib.rs", "src", 20)?,
         ];
 
         let result = aggregator.aggregate(violations);
@@ -522,6 +572,7 @@ mod tests {
         assert_eq!(status.violations[0].line, 10);
         assert_eq!(status.violations[1].file, PathBuf::from("src/lib.rs"));
         assert_eq!(status.violations[1].line, 20);
+        Ok(())
     }
 
     #[test]
@@ -543,9 +594,9 @@ mod tests {
     }
 
     #[test]
-    fn test_rule_region_status_derives() {
+    fn test_rule_region_status_derives() -> Result<(), Box<dyn std::error::Error>> {
         let status = RuleRegionStatus {
-            rule_id: RuleId::new("test").unwrap(),
+            rule_id: RuleId::new("test").ok_or("invalid rule id")?,
             region: RegionPath::new("src"),
             actual_count: 5,
             budget: 10,
@@ -560,5 +611,6 @@ mod tests {
         // Test debug
         let debug_str = format!("{:?}", status);
         assert!(debug_str.contains("RuleRegionStatus"));
+        Ok(())
     }
 }

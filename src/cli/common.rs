@@ -194,8 +194,7 @@ pub(crate) fn build_registry(config: &Config) -> Result<RuleRegistry, RuleError>
     RuleRegistry::build_from_config(config)
 }
 
-/// Render a [`ResolveError`] to stderr using the wording prescribed by
-/// Phase 3 of the ratchet-sets plan.
+/// Render a [`ResolveError`] to stderr.
 ///
 /// `Cycle` becomes `Set composition cycle: $a -> $b -> $a` (note the
 /// `$` sigil on each set ID so the line round-trips with the reference
@@ -241,16 +240,13 @@ mod tests {
 
     #[test]
     fn test_load_config_missing_file() {
-        // This test will fail if ratchets.toml exists in test directory
-        // but is useful for validating error handling
-        let result = load_config();
-        // We can't assert failure since the file might exist in the test environment
-        // Just ensure the function returns a Result
-        let _ = result;
+        // Cannot assert on the outcome: ratchets.toml may or may not exist in
+        // the test environment. Exercise the call path only.
+        let _ = load_config();
     }
 
     #[test]
-    fn test_discover_files_with_empty_paths() {
+    fn test_discover_files_with_empty_paths() -> Result<(), Box<dyn std::error::Error>> {
         // Create a minimal config for testing
         let config = Config {
             ratchets: crate::config::ratchet_toml::RatchetsMeta {
@@ -271,7 +267,8 @@ mod tests {
 
         let result = discover_files(&[], &config);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 0);
+        assert_eq!(result?.len(), 0);
+        Ok(())
     }
 
     #[test]

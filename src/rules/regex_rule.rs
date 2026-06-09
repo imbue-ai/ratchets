@@ -379,7 +379,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_from_toml_simple() {
+    fn test_from_toml_simple() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "test-rule"
@@ -390,17 +390,18 @@ severity = "error"
 pattern = "\\bTODO\\b"
 "#;
 
-        let rule = RegexRule::from_toml(toml).unwrap();
+        let rule = RegexRule::from_toml(toml)?;
         assert_eq!(rule.id.as_str(), "test-rule");
         assert_eq!(rule.description, "Test description");
         assert_eq!(rule.severity, Severity::Error);
         assert!(rule.languages.is_empty());
         assert!(rule.include.is_none());
         assert!(rule.exclude.is_none());
+        Ok(())
     }
 
     #[test]
-    fn test_from_toml_with_languages() {
+    fn test_from_toml_with_languages() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "js-rule"
@@ -412,14 +413,15 @@ pattern = "console\\.log"
 languages = ["javascript", "typescript"]
 "#;
 
-        let rule = RegexRule::from_toml(toml).unwrap();
+        let rule = RegexRule::from_toml(toml)?;
         assert_eq!(rule.languages.len(), 2);
         assert!(rule.languages.contains(&Language::JavaScript));
         assert!(rule.languages.contains(&Language::TypeScript));
+        Ok(())
     }
 
     #[test]
-    fn test_from_toml_with_globs() {
+    fn test_from_toml_with_globs() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "src-only"
@@ -432,9 +434,10 @@ include = ["src/**"]
 exclude = ["src/test/**"]
 "#;
 
-        let rule = RegexRule::from_toml(toml).unwrap();
+        let rule = RegexRule::from_toml(toml)?;
         assert!(rule.include.is_some());
         assert!(rule.exclude.is_some());
+        Ok(())
     }
 
     #[test]
@@ -532,7 +535,7 @@ pattern = "test"
     }
 
     #[test]
-    fn test_execute_simple_match() {
+    fn test_execute_simple_match() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "test-rule"
@@ -543,7 +546,7 @@ severity = "warning"
 pattern = "TODO"
 "#;
 
-        let rule = RegexRule::from_toml(toml).unwrap();
+        let rule = RegexRule::from_toml(toml)?;
 
         let ctx = ExecutionContext {
             file_path: Path::new("test.rs"),
@@ -556,10 +559,11 @@ pattern = "TODO"
         assert_eq!(violations.len(), 1);
         assert_eq!(violations[0].line, 1);
         assert_eq!(violations[0].snippet, "TODO");
+        Ok(())
     }
 
     #[test]
-    fn test_execute_multiple_matches() {
+    fn test_execute_multiple_matches() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "test-rule"
@@ -570,7 +574,7 @@ severity = "warning"
 pattern = "TODO"
 "#;
 
-        let rule = RegexRule::from_toml(toml).unwrap();
+        let rule = RegexRule::from_toml(toml)?;
 
         let ctx = ExecutionContext {
             file_path: Path::new("test.rs"),
@@ -583,10 +587,11 @@ pattern = "TODO"
         assert_eq!(violations.len(), 2);
         assert_eq!(violations[0].line, 1);
         assert_eq!(violations[1].line, 2);
+        Ok(())
     }
 
     #[test]
-    fn test_execute_no_match() {
+    fn test_execute_no_match() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "test-rule"
@@ -597,7 +602,7 @@ severity = "warning"
 pattern = "TODO"
 "#;
 
-        let rule = RegexRule::from_toml(toml).unwrap();
+        let rule = RegexRule::from_toml(toml)?;
 
         let ctx = ExecutionContext {
             file_path: Path::new("test.rs"),
@@ -608,10 +613,11 @@ pattern = "TODO"
 
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 0);
+        Ok(())
     }
 
     #[test]
-    fn test_execute_respects_include() {
+    fn test_execute_respects_include() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "test-rule"
@@ -623,7 +629,7 @@ pattern = "TODO"
 include = ["src/**"]
 "#;
 
-        let rule = RegexRule::from_toml(toml).unwrap();
+        let rule = RegexRule::from_toml(toml)?;
 
         // File in src/ should match
         let ctx = ExecutionContext {
@@ -644,10 +650,11 @@ include = ["src/**"]
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 0);
+        Ok(())
     }
 
     #[test]
-    fn test_execute_respects_exclude() {
+    fn test_execute_respects_exclude() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "test-rule"
@@ -659,7 +666,7 @@ pattern = "TODO"
 exclude = ["tests/**"]
 "#;
 
-        let rule = RegexRule::from_toml(toml).unwrap();
+        let rule = RegexRule::from_toml(toml)?;
 
         // File in tests/ should not match
         let ctx = ExecutionContext {
@@ -680,10 +687,11 @@ exclude = ["tests/**"]
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
+        Ok(())
     }
 
     #[test]
-    fn test_case_insensitive_pattern() {
+    fn test_case_insensitive_pattern() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "test-rule"
@@ -694,7 +702,7 @@ severity = "warning"
 pattern = "(?i)\\bTODO\\b"
 "#;
 
-        let rule = RegexRule::from_toml(toml).unwrap();
+        let rule = RegexRule::from_toml(toml)?;
 
         let ctx = ExecutionContext {
             file_path: Path::new("test.rs"),
@@ -705,10 +713,11 @@ pattern = "(?i)\\bTODO\\b"
 
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 3);
+        Ok(())
     }
 
     #[test]
-    fn test_multiline_content() {
+    fn test_multiline_content() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "test-rule"
@@ -719,7 +728,7 @@ severity = "warning"
 pattern = "FIXME"
 "#;
 
-        let rule = RegexRule::from_toml(toml).unwrap();
+        let rule = RegexRule::from_toml(toml)?;
 
         let content = "line 1\nline 2\nFIXME here\nline 4\nFIXME again\n";
         let ctx = ExecutionContext {
@@ -733,10 +742,11 @@ pattern = "FIXME"
         assert_eq!(violations.len(), 2);
         assert_eq!(violations[0].line, 3);
         assert_eq!(violations[1].line, 5);
+        Ok(())
     }
 
     #[test]
-    fn test_pattern_reference_single() {
+    fn test_pattern_reference_single() -> Result<(), Box<dyn std::error::Error>> {
         use crate::rules::RuleContext;
         use crate::types::GlobPattern;
         use std::collections::HashMap;
@@ -763,7 +773,7 @@ exclude = "@test_files"
         );
         let ctx = RuleContext::new(patterns);
 
-        let rule = RegexRule::from_toml_with_context(toml, Some(&ctx)).unwrap();
+        let rule = RegexRule::from_toml_with_context(toml, Some(&ctx))?;
 
         // File matching the pattern reference should be excluded
         let ctx_test = ExecutionContext {
@@ -784,10 +794,11 @@ exclude = "@test_files"
         };
         let violations = rule.execute(&ctx_normal);
         assert_eq!(violations.len(), 1);
+        Ok(())
     }
 
     #[test]
-    fn test_pattern_reference_mixed() {
+    fn test_pattern_reference_mixed() -> Result<(), Box<dyn std::error::Error>> {
         use crate::rules::RuleContext;
         use crate::types::GlobPattern;
         use std::collections::HashMap;
@@ -810,7 +821,7 @@ exclude = ["@test_files", "build/**"]
         );
         let ctx = RuleContext::new(patterns);
 
-        let rule = RegexRule::from_toml_with_context(toml, Some(&ctx)).unwrap();
+        let rule = RegexRule::from_toml_with_context(toml, Some(&ctx))?;
 
         // Test reference match
         let ctx1 = ExecutionContext {
@@ -838,6 +849,7 @@ exclude = ["@test_files", "build/**"]
             region_resolver: None,
         };
         assert_eq!(rule.execute(&ctx3).len(), 1);
+        Ok(())
     }
 
     #[test]
@@ -910,7 +922,7 @@ exclude = ["**/tests/**"]
     }
 
     #[test]
-    fn test_regex_rule_uses_configured_region() {
+    fn test_regex_rule_uses_configured_region() -> Result<(), Box<dyn std::error::Error>> {
         use crate::rules::RegionResolver;
         use crate::types::RegionPath;
         use std::sync::Arc;
@@ -926,8 +938,7 @@ severity = "error"
 pattern = "TODO"
 languages = ["rust"]
 "#,
-        )
-        .unwrap();
+        )?;
 
         // Create a resolver that always returns "configured/region"
         let resolver: RegionResolver =
@@ -943,13 +954,14 @@ languages = ["rust"]
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
         assert_eq!(violations[0].region.as_str(), "configured/region");
+        Ok(())
     }
 
     #[test]
-    fn test_include_matches_dot_slash_prefixed_path() {
-        // Regression test for bead code-owl: when invoked with no PATH (or `.`),
-        // the file walker emits paths like `./example_app/frontend/App.tsx`,
-        // and anchored include globs must still match.
+    fn test_include_matches_dot_slash_prefixed_path() -> Result<(), Box<dyn std::error::Error>> {
+        // When invoked with no PATH (or `.`), the file walker emits paths like
+        // `./example_app/frontend/App.tsx`, and anchored include globs must
+        // still match.
         let toml = r#"
 [rule]
 id = "no-raw-html-button"
@@ -960,7 +972,7 @@ severity = "warning"
 pattern = "<button"
 include = ["example_app/frontend/**/*.tsx"]
 "#;
-        let rule = RegexRule::from_toml(toml).unwrap();
+        let rule = RegexRule::from_toml(toml)?;
 
         // With dot-slash prefix (what the walker emits when root is `.`):
         let ctx = ExecutionContext {
@@ -999,11 +1011,12 @@ include = ["example_app/frontend/**/*.tsx"]
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 0, "non-matching paths still excluded");
+        Ok(())
     }
 
     #[test]
-    fn test_exclude_matches_dot_slash_prefixed_path() {
-        // Companion regression: exclude globs must also be normalized.
+    fn test_exclude_matches_dot_slash_prefixed_path() -> Result<(), Box<dyn std::error::Error>> {
+        // Exclude globs must also be normalized.
         let toml = r#"
 [rule]
 id = "test-rule"
@@ -1014,7 +1027,7 @@ severity = "warning"
 pattern = "TODO"
 exclude = ["**/tests/**"]
 "#;
-        let rule = RegexRule::from_toml(toml).unwrap();
+        let rule = RegexRule::from_toml(toml)?;
 
         // With ./ prefix, the **/tests/** pattern still matches and excludes.
         let ctx = ExecutionContext {
@@ -1035,5 +1048,6 @@ exclude = ["**/tests/**"]
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
+        Ok(())
     }
 }

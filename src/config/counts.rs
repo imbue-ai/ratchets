@@ -334,20 +334,6 @@ impl CountsManager {
     ///
     /// * `rule_id` - The rule to query
     /// * `region` - The region path to query (e.g., ".", "src", "src/legacy")
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use ratchets::config::counts::CountsManager;
-    /// # use ratchets::types::{RuleId, RegionPath};
-    /// let mut counts = CountsManager::new();
-    /// let rule_id = RuleId::new("no-unwrap").unwrap();
-    /// counts.set_count(&rule_id, &RegionPath::new("."), 0);
-    /// counts.set_count(&rule_id, &RegionPath::new("src/legacy"), 15);
-    ///
-    /// assert_eq!(counts.get_budget_by_region(&rule_id, &RegionPath::new(".")), 0);
-    /// assert_eq!(counts.get_budget_by_region(&rule_id, &RegionPath::new("src/legacy")), 15);
-    /// ```
     pub fn get_budget_by_region(&self, rule_id: &RuleId, region: &RegionPath) -> u64 {
         self.counts
             .get(rule_id)
@@ -386,13 +372,27 @@ impl CountsManager {
 
     /// Iterate over every rule ID that has at least one count entry.
     ///
-    /// Used by `ratchets tighten` to detect orphaned counts.toml entries —
-    /// rules that previously had budgets but are no longer in the resolved
-    /// enabled set. Per Phase 5 of the ratchet-sets plan, orphans stay dormant
-    /// (no cleanup); the tighten command warns about them so users notice
-    /// stale entries without losing the count if they re-enable the rule.
+    /// Used by `ratchets tighten` to detect orphaned counts.toml entries: rules
+    /// that previously had budgets but are no longer in the resolved enabled set.
+    /// Orphans stay dormant (no cleanup); tighten only warns about them so the
+    /// count is retained if the rule is re-enabled.
     pub fn iter_rule_ids(&self) -> impl Iterator<Item = &RuleId> {
         self.counts.keys()
+    }
+
+    /// Iterate over every explicitly configured `(rule, region)` pair.
+    ///
+    /// A region is configured when it was set via `set_count()` or parsed from
+    /// configuration; the root region "." is always configured for any rule
+    /// that has an entry. Used by `ratchets tighten` to visit budgets that have
+    /// zero current violations (and therefore no aggregator status), so they
+    /// can still be tightened to their actual count.
+    pub fn iter_configured(&self) -> impl Iterator<Item = (&RuleId, &RegionPath)> {
+        self.counts.iter().flat_map(|(rule_id, tree)| {
+            tree.configured_regions
+                .iter()
+                .map(move |region| (rule_id, region))
+        })
     }
 
     /// Serializes the CountsManager back to TOML format
@@ -742,30 +742,33 @@ mod tests {
     }
 
     #[test]
-    fn test_counts_manager_get_budget_missing_rule() {
+    fn test_counts_manager_get_budget_missing_rule() -> Result<(), Box<dyn std::error::Error>> {
         let manager = CountsManager::new();
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
 
         // Missing rule should return 0 (strict enforcement)
         assert_eq!(manager.get_budget(&rule_id, Path::new("src/foo.rs")), 0);
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_get_budget_by_region_root() {
+    fn test_counts_manager_get_budget_by_region_root() -> Result<(), Box<dyn std::error::Error>> {
         let mut manager = CountsManager::new();
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
         manager.set_count(&rule_id, &RegionPath::new("."), 10);
 
         assert_eq!(
             manager.get_budget_by_region(&rule_id, &RegionPath::new(".")),
             10
         );
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_get_budget_by_region_specific() {
+    fn test_counts_manager_get_budget_by_region_specific() -> Result<(), Box<dyn std::error::Error>>
+    {
         let mut manager = CountsManager::new();
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
         manager.set_count(&rule_id, &RegionPath::new("."), 0);
         manager.set_count(&rule_id, &RegionPath::new("src/legacy"), 15);
 
@@ -773,12 +776,14 @@ mod tests {
             manager.get_budget_by_region(&rule_id, &RegionPath::new("src/legacy")),
             15
         );
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_get_budget_by_region_inheritance() {
+    fn test_counts_manager_get_budget_by_region_inheritance()
+    -> Result<(), Box<dyn std::error::Error>> {
         let mut manager = CountsManager::new();
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
         manager.set_count(&rule_id, &RegionPath::new("."), 0);
         manager.set_count(&rule_id, &RegionPath::new("src/legacy"), 15);
 
@@ -787,26 +792,30 @@ mod tests {
             manager.get_budget_by_region(&rule_id, &RegionPath::new("src/legacy/parser")),
             15
         );
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_get_budget_by_region_missing_rule() {
+    fn test_counts_manager_get_budget_by_region_missing_rule()
+    -> Result<(), Box<dyn std::error::Error>> {
         let manager = CountsManager::new();
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
 
         // Missing rule should return 0 (strict enforcement)
         assert_eq!(
             manager.get_budget_by_region(&rule_id, &RegionPath::new("src")),
             0
         );
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_get_budget_by_region_consistency() {
+    fn test_counts_manager_get_budget_by_region_consistency()
+    -> Result<(), Box<dyn std::error::Error>> {
         // Verify that get_budget_by_region returns the same result as get_budget
         // for equivalent file and region paths
         let mut manager = CountsManager::new();
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
         manager.set_count(&rule_id, &RegionPath::new("."), 0);
         manager.set_count(&rule_id, &RegionPath::new("src"), 10);
         manager.set_count(&rule_id, &RegionPath::new("src/legacy"), 20);
@@ -828,12 +837,13 @@ mod tests {
             manager.get_budget_by_region(&rule_id, &RegionPath::new("src/legacy")),
             manager.get_budget(&rule_id, Path::new("src/legacy/file.rs"))
         );
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_set_count() {
+    fn test_counts_manager_set_count() -> Result<(), Box<dyn std::error::Error>> {
         let mut manager = CountsManager::new();
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
         let region = RegionPath::new("src/legacy");
 
         manager.set_count(&rule_id, &region, 15);
@@ -842,12 +852,13 @@ mod tests {
             manager.get_budget(&rule_id, Path::new("src/legacy/foo.rs")),
             15
         );
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_set_count_overwrites() {
+    fn test_counts_manager_set_count_overwrites() -> Result<(), Box<dyn std::error::Error>> {
         let mut manager = CountsManager::new();
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
         let region = RegionPath::new("src/legacy");
 
         manager.set_count(&rule_id, &region, 15);
@@ -857,6 +868,7 @@ mod tests {
             manager.get_budget(&rule_id, Path::new("src/legacy/foo.rs")),
             10
         );
+        Ok(())
     }
 
     #[test]
@@ -870,9 +882,9 @@ mod tests {
     }
 
     #[test]
-    fn test_counts_manager_to_toml_string_simple() {
+    fn test_counts_manager_to_toml_string_simple() -> Result<(), Box<dyn std::error::Error>> {
         let mut manager = CountsManager::new();
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
 
         manager.set_count(&rule_id, &RegionPath::new("."), 0);
         manager.set_count(&rule_id, &RegionPath::new("src/legacy"), 15);
@@ -882,17 +894,19 @@ mod tests {
         assert!(toml.contains("[no-unwrap]"));
         assert!(toml.contains("\".\" = 0"));
         assert!(toml.contains("\"src/legacy\" = 15"));
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_to_toml_string_multiple_rules() {
+    fn test_counts_manager_to_toml_string_multiple_rules() -> Result<(), Box<dyn std::error::Error>>
+    {
         let mut manager = CountsManager::new();
 
-        let no_unwrap = RuleId::new("no-unwrap").unwrap();
+        let no_unwrap = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
         manager.set_count(&no_unwrap, &RegionPath::new("."), 0);
         manager.set_count(&no_unwrap, &RegionPath::new("src/legacy"), 15);
 
-        let no_todo = RuleId::new("no-todo-comments").unwrap();
+        let no_todo = RuleId::new("no-todo-comments").ok_or("invalid rule id")?;
         manager.set_count(&no_todo, &RegionPath::new("."), 0);
         manager.set_count(&no_todo, &RegionPath::new("src"), 23);
 
@@ -900,10 +914,11 @@ mod tests {
 
         assert!(toml.contains("[no-todo-comments]"));
         assert!(toml.contains("[no-unwrap]"));
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_roundtrip() {
+    fn test_counts_manager_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
         let original_toml = r#"
 [no-unwrap]
 "." = 0
@@ -914,13 +929,13 @@ mod tests {
 "src" = 23
         "#;
 
-        let manager = CountsManager::parse(original_toml).unwrap();
+        let manager = CountsManager::parse(original_toml)?;
         let serialized = manager.to_toml_string();
-        let reparsed = CountsManager::parse(&serialized).unwrap();
+        let reparsed = CountsManager::parse(&serialized)?;
 
         // Verify the counts are the same after roundtrip
-        let no_unwrap = RuleId::new("no-unwrap").unwrap();
-        let no_todo = RuleId::new("no-todo-comments").unwrap();
+        let no_unwrap = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
+        let no_todo = RuleId::new("no-todo-comments").ok_or("invalid rule id")?;
 
         assert_eq!(
             manager.get_budget(&no_unwrap, Path::new("src/legacy/foo.rs")),
@@ -930,6 +945,7 @@ mod tests {
             manager.get_budget(&no_todo, Path::new("src/main.rs")),
             reparsed.get_budget(&no_todo, Path::new("src/main.rs"))
         );
+        Ok(())
     }
 
     #[test]
@@ -968,17 +984,18 @@ mod tests {
     }
 
     #[test]
-    fn test_counts_manager_parse_empty_file() {
+    fn test_counts_manager_parse_empty_file() -> Result<(), Box<dyn std::error::Error>> {
         let toml = "";
-        let manager = CountsManager::parse(toml).unwrap();
+        let manager = CountsManager::parse(toml)?;
 
         // Empty file should parse successfully
-        let rule_id = RuleId::new("any-rule").unwrap();
+        let rule_id = RuleId::new("any-rule").ok_or("invalid rule id")?;
         assert_eq!(manager.get_budget(&rule_id, Path::new("src/foo.rs")), 0);
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_parse_only_root_counts() {
+    fn test_counts_manager_parse_only_root_counts() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [no-unwrap]
 "." = 5
@@ -987,28 +1004,29 @@ mod tests {
 "." = 10
         "#;
 
-        let manager = CountsManager::parse(toml).unwrap();
+        let manager = CountsManager::parse(toml)?;
 
-        let no_unwrap = RuleId::new("no-unwrap").unwrap();
-        let no_todo = RuleId::new("no-todo").unwrap();
+        let no_unwrap = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
+        let no_todo = RuleId::new("no-todo").ok_or("invalid rule id")?;
 
         // All files should inherit from root
         assert_eq!(manager.get_budget(&no_unwrap, Path::new("src/foo.rs")), 5);
         assert_eq!(manager.get_budget(&no_unwrap, Path::new("a/b/c.rs")), 5);
         assert_eq!(manager.get_budget(&no_todo, Path::new("src/foo.rs")), 10);
         assert_eq!(manager.get_budget(&no_todo, Path::new("x/y/z.rs")), 10);
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_parse_zero_counts() {
+    fn test_counts_manager_parse_zero_counts() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [no-unwrap]
 "." = 0
 "src/legacy" = 0
         "#;
 
-        let manager = CountsManager::parse(toml).unwrap();
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let manager = CountsManager::parse(toml)?;
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
 
         // Zero counts should be preserved
         assert_eq!(manager.get_budget(&rule_id, Path::new("src/foo.rs")), 0);
@@ -1016,18 +1034,19 @@ mod tests {
             manager.get_budget(&rule_id, Path::new("src/legacy/bar.rs")),
             0
         );
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_parse_large_counts() {
+    fn test_counts_manager_parse_large_counts() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [no-unwrap]
 "." = 999999
 "src" = 1000000
         "#;
 
-        let manager = CountsManager::parse(toml).unwrap();
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let manager = CountsManager::parse(toml)?;
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
 
         // Large counts should be supported
         assert_eq!(manager.get_budget(&rule_id, Path::new("root.rs")), 999999);
@@ -1035,24 +1054,26 @@ mod tests {
             manager.get_budget(&rule_id, Path::new("src/main.rs")),
             1000000
         );
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_set_count_creates_new_rule() {
+    fn test_counts_manager_set_count_creates_new_rule() -> Result<(), Box<dyn std::error::Error>> {
         let mut manager = CountsManager::new();
-        let rule_id = RuleId::new("new-rule").unwrap();
+        let rule_id = RuleId::new("new-rule").ok_or("invalid rule id")?;
         let region = RegionPath::new("src");
 
         // Setting count for non-existent rule should create it
         manager.set_count(&rule_id, &region, 42);
 
         assert_eq!(manager.get_budget(&rule_id, Path::new("src/file.rs")), 42);
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_set_count_multiple_regions() {
+    fn test_counts_manager_set_count_multiple_regions() -> Result<(), Box<dyn std::error::Error>> {
         let mut manager = CountsManager::new();
-        let rule_id = RuleId::new("my-rule").unwrap();
+        let rule_id = RuleId::new("my-rule").ok_or("invalid rule id")?;
 
         manager.set_count(&rule_id, &RegionPath::new("."), 0);
         manager.set_count(&rule_id, &RegionPath::new("src"), 10);
@@ -1061,6 +1082,7 @@ mod tests {
         assert_eq!(manager.get_budget(&rule_id, Path::new("root.rs")), 0);
         assert_eq!(manager.get_budget(&rule_id, Path::new("src/main.rs")), 10);
         assert_eq!(manager.get_budget(&rule_id, Path::new("tests/test.rs")), 20);
+        Ok(())
     }
 
     #[test]
@@ -1151,7 +1173,7 @@ no-unwrap = 5
     }
 
     #[test]
-    fn test_counts_manager_parse_windows_style_paths() {
+    fn test_counts_manager_parse_windows_style_paths() -> Result<(), Box<dyn std::error::Error>> {
         // CountsManager should handle normalized region paths
         let toml = r#"
 [no-unwrap]
@@ -1159,14 +1181,15 @@ no-unwrap = 5
 "src/legacy" = 10
         "#;
 
-        let manager = CountsManager::parse(toml).unwrap();
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let manager = CountsManager::parse(toml)?;
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
 
         // Both Unix and Windows style paths should work (internally normalized)
         assert_eq!(
             manager.get_budget(&rule_id, Path::new("src/legacy/file.rs")),
             10
         );
+        Ok(())
     }
 
     #[test]
@@ -1180,7 +1203,7 @@ no-unwrap = 5
     }
 
     #[test]
-    fn test_counts_manager_multiple_rules_same_regions() {
+    fn test_counts_manager_multiple_rules_same_regions() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule-a]
 "." = 1
@@ -1195,22 +1218,23 @@ no-unwrap = 5
 "src" = 200
         "#;
 
-        let manager = CountsManager::parse(toml).unwrap();
+        let manager = CountsManager::parse(toml)?;
 
-        let rule_a = RuleId::new("rule-a").unwrap();
-        let rule_b = RuleId::new("rule-b").unwrap();
-        let rule_c = RuleId::new("rule-c").unwrap();
+        let rule_a = RuleId::new("rule-a").ok_or("invalid rule id")?;
+        let rule_b = RuleId::new("rule-b").ok_or("invalid rule id")?;
+        let rule_c = RuleId::new("rule-c").ok_or("invalid rule id")?;
 
         // Each rule should maintain independent budgets
         assert_eq!(manager.get_budget(&rule_a, Path::new("src/x.rs")), 2);
         assert_eq!(manager.get_budget(&rule_b, Path::new("src/x.rs")), 20);
         assert_eq!(manager.get_budget(&rule_c, Path::new("src/x.rs")), 200);
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_to_toml_regions_sorted() {
+    fn test_counts_manager_to_toml_regions_sorted() -> Result<(), Box<dyn std::error::Error>> {
         let mut manager = CountsManager::new();
-        let rule_id = RuleId::new("test-rule").unwrap();
+        let rule_id = RuleId::new("test-rule").ok_or("invalid rule id")?;
 
         // Add regions in non-alphabetical order
         manager.set_count(&rule_id, &RegionPath::new("z/region"), 1);
@@ -1220,17 +1244,19 @@ no-unwrap = 5
         let toml = manager.to_toml_string();
 
         // Find positions of each region
-        let a_pos = toml.find("\"a/region\"").unwrap();
-        let m_pos = toml.find("\"m/region\"").unwrap();
-        let z_pos = toml.find("\"z/region\"").unwrap();
+        let a_pos = toml.find("\"a/region\"").ok_or("a/region not found")?;
+        let m_pos = toml.find("\"m/region\"").ok_or("m/region not found")?;
+        let z_pos = toml.find("\"z/region\"").ok_or("z/region not found")?;
 
         // Verify alphabetical ordering
         assert!(a_pos < m_pos);
         assert!(m_pos < z_pos);
+        Ok(())
     }
 
     #[test]
-    fn test_region_tree_configured_regions_from_parsing() {
+    fn test_region_tree_configured_regions_from_parsing() -> Result<(), Box<dyn std::error::Error>>
+    {
         // Verify that parsing TOML populates configured_regions correctly
         let toml = r#"
 [no-unwrap]
@@ -1240,11 +1266,11 @@ no-unwrap = 5
 "tests" = 50
         "#;
 
-        let manager = CountsManager::parse(toml).unwrap();
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let manager = CountsManager::parse(toml)?;
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
 
         // Get the region tree for this rule
-        let tree = manager.counts.get(&rule_id).unwrap();
+        let tree = manager.counts.get(&rule_id).ok_or("rule not found")?;
 
         // Verify all configured regions are tracked
         assert!(tree.is_configured(&RegionPath::new(".")));
@@ -1255,6 +1281,7 @@ no-unwrap = 5
         // Verify unconfigured regions are not in the set
         assert!(!tree.is_configured(&RegionPath::new("src")));
         assert!(!tree.is_configured(&RegionPath::new("src/new")));
+        Ok(())
     }
 
     #[test]
@@ -1358,10 +1385,10 @@ no-unwrap = 5
     }
 
     #[test]
-    fn test_counts_manager_find_configured_region() {
+    fn test_counts_manager_find_configured_region() -> Result<(), Box<dyn std::error::Error>> {
         // Test finding configured region for a rule through CountsManager
         let mut manager = CountsManager::new();
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
 
         manager.set_count(&rule_id, &RegionPath::new("."), 0);
         manager.set_count(&rule_id, &RegionPath::new("src/legacy"), 15);
@@ -1384,13 +1411,15 @@ no-unwrap = 5
             manager.find_configured_region(&rule_id, Path::new("src/main.rs")),
             RegionPath::new(".")
         );
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_find_configured_region_missing_rule() {
+    fn test_counts_manager_find_configured_region_missing_rule()
+    -> Result<(), Box<dyn std::error::Error>> {
         // Test behavior when rule not in config
         let manager = CountsManager::new();
-        let rule_id = RuleId::new("missing-rule").unwrap();
+        let rule_id = RuleId::new("missing-rule").ok_or("invalid rule id")?;
 
         // Missing rule should fall back to "."
         assert_eq!(
@@ -1401,13 +1430,14 @@ no-unwrap = 5
             manager.find_configured_region(&rule_id, Path::new("any/path/file.rs")),
             RegionPath::new(".")
         );
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_is_configured_region() {
+    fn test_counts_manager_is_configured_region() -> Result<(), Box<dyn std::error::Error>> {
         // Test checking if region is configured for a rule
         let mut manager = CountsManager::new();
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
 
         manager.set_count(&rule_id, &RegionPath::new("."), 0);
         manager.set_count(&rule_id, &RegionPath::new("src/legacy"), 15);
@@ -1422,13 +1452,49 @@ no-unwrap = 5
         assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("src")));
         assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("src/legacy/parser")));
         assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("other")));
+        Ok(())
     }
 
     #[test]
-    fn test_counts_manager_is_configured_region_missing_rule() {
+    fn test_counts_manager_iter_configured() -> Result<(), Box<dyn std::error::Error>> {
+        let mut manager = CountsManager::new();
+        let no_unwrap = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
+        let no_panic = RuleId::new("no-panic").ok_or("invalid rule id")?;
+
+        manager.set_count(&no_unwrap, &RegionPath::new("."), 0);
+        manager.set_count(&no_unwrap, &RegionPath::new("src/legacy"), 15);
+        manager.set_count(&no_panic, &RegionPath::new("src"), 23);
+
+        // Collect into a sorted set of (rule, region) strings for stable assertion.
+        let mut pairs: Vec<(String, String)> = manager
+            .iter_configured()
+            .map(|(rule, region)| (rule.as_str().to_string(), region.as_str().to_string()))
+            .collect();
+        pairs.sort();
+
+        // no-panic: "." (always configured) + "src"; no-unwrap: "." + "src/legacy"
+        let expected = vec![
+            ("no-panic".to_string(), ".".to_string()),
+            ("no-panic".to_string(), "src".to_string()),
+            ("no-unwrap".to_string(), ".".to_string()),
+            ("no-unwrap".to_string(), "src/legacy".to_string()),
+        ];
+        assert_eq!(pairs, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_counts_manager_iter_configured_empty() {
+        let manager = CountsManager::new();
+        assert_eq!(manager.iter_configured().count(), 0);
+    }
+
+    #[test]
+    fn test_counts_manager_is_configured_region_missing_rule()
+    -> Result<(), Box<dyn std::error::Error>> {
         // Test behavior when rule not in config
         let manager = CountsManager::new();
-        let rule_id = RuleId::new("missing-rule").unwrap();
+        let rule_id = RuleId::new("missing-rule").ok_or("invalid rule id")?;
 
         // For missing rule, only root "." should be considered configured
         assert!(manager.is_configured_region(&rule_id, &RegionPath::new(".")));
@@ -1437,5 +1503,6 @@ no-unwrap = 5
         assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("src")));
         assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("tests")));
         assert!(!manager.is_configured_region(&rule_id, &RegionPath::new("any/path")));
+        Ok(())
     }
 }

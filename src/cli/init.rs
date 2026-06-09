@@ -7,24 +7,19 @@ use std::path::Path;
 
 /// Default content for ratchets.toml
 ///
-/// Phase 1 scaffold for the ratchet-sets feature:
-///   - `[ratchets].version = "2"` is the only schema the library accepts.
-///   - `enabled_ratchets = []` is the new opt-in list; entries are either
-///     `"$set-name"` references (ratchet-sets) or bare `"rule-id"` strings
-///     (single rules). Resolution arrives in bead `code-rs-p2`; the one
-///     starter set, `$common-starter`, ships in bead `code-rs-p4`.
-///   - `[rules]` now only carries per-rule severity / regions settings;
-///     enable / disable lives entirely in `enabled_ratchets` /
-///     `disabled_ratchets`.
+/// `[ratchets].version = "2"` is the only accepted schema. `enabled_ratchets`
+/// entries are either `"$set-name"` (ratchet-set) or `"rule-id"` (single rule)
+/// references; `disabled_ratchets` wins over `enabled_ratchets`. `[rules]`
+/// carries only per-rule severity / regions settings.
 const DEFAULT_RATCHET_TOML: &str = r#"# Ratchets v2 configuration scaffold.
 #
 # enabled_ratchets / disabled_ratchets accept two reference shapes:
 #   - "$set-name" — a ratchet-set (group of rules) reference.
 #   - "rule-id"   — a single rule reference.
 #
-# The only set that ships with this binary today is `$common-starter`
-# (lands in bead code-rs-p4). Per-language starter sets are deferred to
-# follow-up MRs. To opt in to the common cross-language rules write:
+# The only set that ships with this binary today is `$common-starter`.
+# Per-language starter sets are planned as follow-ups. To opt in to the
+# common cross-language rules write:
 #   enabled_ratchets = ["$common-starter"]
 enabled_ratchets = []
 # disabled_ratchets always wins over enabled_ratchets at resolution time.
@@ -72,11 +67,9 @@ pub enum InitError {
     #[error("Path error: {0}")]
     Path(String),
 
-    /// An existing `ratchets.toml` declares the v1 schema. Without `--force`
-    /// the bead-spec'd Phase 5 behaviour is to print the embedded upgrade
-    /// notice and exit with the standard error code rather than silently
-    /// skipping the file. The CLI dispatcher (`main.rs`) renders the notice
-    /// when it sees this variant.
+    /// An existing `ratchets.toml` declares the v1 schema and `--force` was not
+    /// given. The CLI dispatcher (`main.rs`) renders the embedded upgrade notice
+    /// when it sees this variant and exits with the standard error code.
     #[error(
         "ratchets.toml already exists with version = \"1\". Migrate to v2 (see the upgrade notice above) or re-run with --force to overwrite."
     )]
@@ -120,12 +113,9 @@ impl InitResult {
 /// * `Ok(InitResult)` - Summary of created/skipped/overwritten files
 /// * `Err(InitError)` - If an I/O error occurred
 pub fn run_init(force: bool) -> Result<InitResult, InitError> {
-    // Phase 5 of the ratchet-sets plan: without `--force`, an existing v1
-    // `ratchets.toml` is no longer silently skipped. We surface
-    // `InitError::ExistingV1Config` so the CLI dispatcher can print the
-    // embedded upgrade notice and exit with `EXIT_ERROR`. `--force` keeps the
-    // previous overwrite-the-file behaviour so users on a half-migrated repo
-    // can still re-scaffold.
+    // Without `--force`, an existing v1 `ratchets.toml` surfaces
+    // `InitError::ExistingV1Config` so the dispatcher can print the upgrade
+    // notice. `--force` overwrites it so a half-migrated repo can re-scaffold.
     if !force && existing_ratchets_toml_is_v1(Path::new("ratchets.toml"))? {
         return Err(InitError::ExistingV1Config);
     }
@@ -216,14 +206,9 @@ fn path_to_string(path: &Path) -> Result<String, InitError> {
 
 /// Returns `true` if `path` exists and its `[ratchets].version` is `"1"`.
 ///
-/// Used by [`run_init`] to special-case the "existing v1 config + no
-/// `--force`" path: rather than silently skipping the file as we used to,
-/// the dispatcher prints the embedded upgrade notice.
-///
 /// A malformed `ratchets.toml` (or any version other than `"1"`) returns
-/// `false` so the regular skip / overwrite flow handles those cases. We do
-/// not want a parse-error from a half-migrated file to prevent users from
-/// running `init --force`.
+/// `false` so the regular skip / overwrite flow handles those cases; a
+/// parse error from a half-migrated file must not block `init --force`.
 fn existing_ratchets_toml_is_v1(path: &Path) -> Result<bool, InitError> {
     if !path.exists() {
         return Ok(false);
@@ -252,24 +237,24 @@ mod tests {
 
     /// Helper to run init in a temporary directory
     /// Returns the temp dir (which must be kept alive) and the result
-    fn with_temp_dir<F, R>(f: F) -> R
+    fn with_temp_dir<F, R>(f: F) -> Result<R, Box<dyn std::error::Error>>
     where
-        F: FnOnce(&TempDir) -> R,
+        F: FnOnce(&TempDir) -> Result<R, Box<dyn std::error::Error>>,
     {
         // Lock to prevent parallel execution
-        let _guard = TEST_MUTEX.lock().unwrap();
+        let _guard = TEST_MUTEX.lock().map_err(|e| e.to_string())?;
 
-        let temp_dir = TempDir::new().unwrap();
-        let original_dir = std::env::current_dir().unwrap();
+        let temp_dir = TempDir::new()?;
+        let original_dir = std::env::current_dir()?;
 
         // Change to temp directory
-        std::env::set_current_dir(temp_dir.path()).unwrap();
+        std::env::set_current_dir(temp_dir.path())?;
 
         // Run the test function
         let result = f(&temp_dir);
 
         // Change back to original directory
-        std::env::set_current_dir(&original_dir).unwrap();
+        std::env::set_current_dir(&original_dir)?;
 
         result
     }
@@ -293,7 +278,6 @@ mod tests {
             let content = fs::read_to_string(&ratchet_toml)?;
             assert!(content.contains("[ratchets]"));
             assert!(content.contains("version = \"2\""));
-            // Phase 1 scaffold ships an explicit empty opt-in list.
             assert!(content.contains("enabled_ratchets = []"));
 
             let counts_toml = temp_dir.path().join("ratchet-counts.toml");
@@ -442,12 +426,12 @@ mod tests {
         assert!(DEFAULT_RATCHET_TOML.contains("[rules]"));
         assert!(DEFAULT_RATCHET_TOML.contains("[output]"));
         assert!(DEFAULT_RATCHET_TOML.contains("format = \"human\""));
-        // Phase 1 scaffold introduces the opt-in ratchet-set arrays.
         assert!(DEFAULT_RATCHET_TOML.contains("enabled_ratchets = []"));
         assert!(DEFAULT_RATCHET_TOML.contains("disabled_ratchets = []"));
-        // Mention `$common-starter` so users discover the one shipped set
-        // from the scaffold without reading external docs.
         assert!(DEFAULT_RATCHET_TOML.contains("$common-starter"));
+        // The scaffolded template is user-facing and must not leak internal
+        // bead IDs (e.g. `code-...`).
+        assert!(!DEFAULT_RATCHET_TOML.contains("code-"));
     }
 
     #[test]
@@ -466,11 +450,12 @@ mod tests {
     }
 
     #[test]
-    fn test_path_to_string() {
+    fn test_path_to_string() -> Result<(), Box<dyn std::error::Error>> {
         let path = Path::new("test/path");
         let result = path_to_string(path);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "test/path");
+        assert_eq!(result?, "test/path");
+        Ok(())
     }
 
     #[test]

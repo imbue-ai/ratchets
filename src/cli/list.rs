@@ -61,8 +61,7 @@ pub fn run_list(format: OutputFormat) -> i32 {
             if let ListError::Config(crate::error::ConfigError::UnsupportedVersion(_)) = &e {
                 super::upgrade_notice::print_to_stderr();
             }
-            // Phase 3: render ratchet-set resolution errors in the wording
-            // prescribed by the plan before the generic printer.
+            // Render ratchet-set resolution errors before the generic printer.
             if let ListError::Rule(crate::error::RuleError::SetResolve(ref resolve)) = e {
                 super::common::print_resolve_error(resolve);
             }
@@ -206,11 +205,10 @@ fn build_rule_statuses(
     statuses
 }
 
-/// Determine if a rule is builtin or custom based on naming convention
-/// This is a heuristic - in practice, we'd want to track this in the registry
+/// Determine whether a rule is builtin or custom.
+///
+/// All rules are reported as builtin until the registry tracks rule source.
 fn determine_rule_source(_rule_id: &RuleId) -> RuleSource {
-    // For now, we'll assume all rules are builtin
-    // In a full implementation, the registry would track this
     RuleSource::Builtin
 }
 
@@ -236,8 +234,9 @@ mod tests {
     }
 
     #[test]
-    fn test_build_rule_statuses_single_rule_within_budget() {
-        let rule_id = RuleId::new("test-rule").unwrap();
+    fn test_build_rule_statuses_single_rule_within_budget() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let rule_id = RuleId::new("test-rule").ok_or("invalid rule id")?;
         let rule_metadata = vec![RuleMetadata {
             rule_id: rule_id.clone(),
             description: "Test rule".to_string(),
@@ -270,11 +269,13 @@ mod tests {
         assert_eq!(status.violations, 5);
         assert_eq!(status.budget, 10);
         assert_eq!(status.status, CheckStatus::Pass);
+        Ok(())
     }
 
     #[test]
-    fn test_build_rule_statuses_single_rule_over_budget() {
-        let rule_id = RuleId::new("test-rule").unwrap();
+    fn test_build_rule_statuses_single_rule_over_budget() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let rule_id = RuleId::new("test-rule").ok_or("invalid rule id")?;
         let rule_metadata = vec![RuleMetadata {
             rule_id: rule_id.clone(),
             description: "Test rule".to_string(),
@@ -307,12 +308,13 @@ mod tests {
         assert_eq!(status.violations, 10);
         assert_eq!(status.budget, 5);
         assert_eq!(status.status, CheckStatus::OverBudget);
+        Ok(())
     }
 
     #[test]
-    fn test_build_rule_statuses_multiple_rules() {
-        let rule1_id = RuleId::new("rule-1").unwrap();
-        let rule2_id = RuleId::new("rule-2").unwrap();
+    fn test_build_rule_statuses_multiple_rules() -> Result<(), Box<dyn std::error::Error>> {
+        let rule1_id = RuleId::new("rule-1").ok_or("invalid rule id")?;
+        let rule2_id = RuleId::new("rule-2").ok_or("invalid rule id")?;
 
         let rule_metadata = vec![
             RuleMetadata {
@@ -366,11 +368,13 @@ mod tests {
 
         assert_eq!(statuses[1].rule_id, "rule-2");
         assert_eq!(statuses[1].status, CheckStatus::OverBudget);
+        Ok(())
     }
 
     #[test]
-    fn test_build_rule_statuses_rule_with_no_violations() {
-        let rule_id = RuleId::new("unused-rule").unwrap();
+    fn test_build_rule_statuses_rule_with_no_violations() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let rule_id = RuleId::new("unused-rule").ok_or("invalid rule id")?;
         let rule_metadata = vec![RuleMetadata {
             rule_id: rule_id.clone(),
             description: "Unused rule".to_string(),
@@ -395,12 +399,13 @@ mod tests {
         assert_eq!(status.violations, 0);
         assert_eq!(status.budget, 0);
         assert_eq!(status.status, CheckStatus::Pass);
+        Ok(())
     }
 
     #[test]
-    fn test_determine_rule_source() {
-        let rule_id = RuleId::new("test-rule").unwrap();
-        // Currently always returns Builtin - this is a placeholder
+    fn test_determine_rule_source() -> Result<(), Box<dyn std::error::Error>> {
+        let rule_id = RuleId::new("test-rule").ok_or("invalid rule id")?;
         assert_eq!(determine_rule_source(&rule_id), RuleSource::Builtin);
+        Ok(())
     }
 }

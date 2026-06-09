@@ -35,10 +35,9 @@ pub enum ConfigError {
 
     /// Unsupported configuration schema version
     ///
-    /// Phase 1 of the ratchet-sets plan bumps the expected
-    /// `[ratchets].version` to `"2"`. Any other version (including the
-    /// previously valid `"1"`) is rejected here. The CLI layer is expected to
-    /// match on this variant and render the embedded upgrade notice to stderr.
+    /// The expected `[ratchets].version` is `"2"`. Any other version is
+    /// rejected here. The CLI layer matches on this variant and renders the
+    /// embedded upgrade notice to stderr.
     #[error(
         "Unsupported configuration version '{0}'. Expected '2'. See the upgrade notice (`ratchets help upgrade`) for details."
     )]
@@ -67,11 +66,9 @@ pub enum RuleError {
     /// Failed to resolve `enabled_ratchets` / `disabled_ratchets` against
     /// the [`crate::config::SetRegistry`].
     ///
-    /// Phase 3 of the ratchet-sets plan wires [`crate::config::SetRegistry::resolve`]
-    /// into [`crate::rules::RuleRegistry::build_from_config`]. A `Cycle` or
-    /// `UnknownSet` reported by the resolver surfaces here so each CLI
-    /// subcommand can match on it and emit the plan's prescribed stderr
-    /// message before exiting non-zero.
+    /// A `Cycle` or `UnknownSet` reported by the resolver surfaces here so each
+    /// CLI subcommand can match on it and emit a stderr message before exiting
+    /// non-zero.
     #[error("Ratchet-set resolution failed: {0}")]
     SetResolve(#[from] crate::config::sets::ResolveError),
 }

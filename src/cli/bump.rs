@@ -65,8 +65,7 @@ pub fn run_bump(rule_id: Option<&str>, region: &str, count: Option<u64>, all: bo
             if let BumpError::Config(ConfigError::UnsupportedVersion(_)) = &e {
                 super::upgrade_notice::print_to_stderr();
             }
-            // Phase 3: surface the ratchet-set resolver error in the
-            // plan-prescribed wording before the generic printer.
+            // Render ratchet-set resolution errors before the generic printer.
             if let BumpError::Rule(crate::error::RuleError::SetResolve(ref resolve)) = e {
                 super::common::print_resolve_error(resolve);
             }
@@ -318,10 +317,11 @@ mod tests {
     }
 
     #[test]
-    fn test_valid_rule_id() {
+    fn test_valid_rule_id() -> Result<(), Box<dyn std::error::Error>> {
         let result = RuleId::new("no-unwrap");
         assert!(result.is_some());
-        assert_eq!(result.unwrap().as_str(), "no-unwrap");
+        assert_eq!(result.ok_or("invalid rule id")?.as_str(), "no-unwrap");
+        Ok(())
     }
 
     #[test]

@@ -14,7 +14,7 @@ use crate::engine::executor::ExecutionEngine;
 use crate::error::ConfigError;
 use crate::rules::RuleRegistry;
 use crate::types::{RegionPath, RuleId};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 /// Error type specific to tighten command
@@ -83,8 +83,7 @@ pub fn run_tighten(rule_id: Option<&str>, region: Option<&str>) -> i32 {
             if let TightenError::Config(ConfigError::UnsupportedVersion(_)) = &e {
                 super::upgrade_notice::print_to_stderr();
             }
-            // Phase 3: render ratchet-set resolution errors in the wording
-            // prescribed by the plan before the generic printer.
+            // Render ratchet-set resolution errors before the generic printer.
             if let TightenError::Rule(crate::error::RuleError::SetResolve(ref resolve)) = e {
                 super::common::print_resolve_error(resolve);
             }
@@ -129,8 +128,14 @@ fn run_tighten_inner(
     // 2. Load configuration
     let config = super::common::load_config().map_err(TightenError::Config)?;
 
-    // 3. Run check to get all current violation counts
-    let aggregation_result = run_full_check(&config)?;
+    // 3. Run check to get all current violation counts. `enabled_rules` is the
+    //    set of rule IDs in the resolved enabled set; configured budgets for
+    //    rules outside this set are orphans and must stay dormant (never
+    //    tightened), so they are excluded from the union below.
+    let CheckOutcome {
+        aggregation_result,
+        enabled_rules,
+    } = run_full_check(&config)?;
 
     // 4. Load existing counts
     let counts_path = Path::new("ratchet-counts.toml");
@@ -140,44 +145,83 @@ fn run_tighten_inner(
         CountsManager::new()
     };
 
-    // 5. Process each rule/region status
+    // 5. Process the union of configured (rule, region) pairs and aggregator
+    //    statuses. The aggregator only emits a status for a (rule, region) with
+    //    at least one violation, so a configured budget with zero current
+    //    violations would otherwise never be visited (and never tightened to 0).
     let mut exceeded_violations = Vec::new();
     let mut tightened_budgets = Vec::new();
 
-    for status in &aggregation_result.statuses {
+    // Map each (rule, region) key to its actual violation count from the
+    // aggregator. Absence means zero current violations.
+    let actual_counts: HashMap<(RuleId, RegionPath), u64> = aggregation_result
+        .statuses
+        .iter()
+        .map(|status| {
+            (
+                (status.rule_id.clone(), status.region.clone()),
+                status.actual_count,
+            )
+        })
+        .collect();
+
+    // Build the deduplicated set of target keys from both sources. Configured
+    // pairs for rules outside the resolved enabled set are orphans: they are
+    // skipped here so their dormant budgets are never tightened.
+    let mut target_keys: HashSet<(RuleId, RegionPath)> = HashSet::new();
+    for (rule_id, region) in counts.iter_configured() {
+        if !enabled_rules.contains(rule_id) {
+            continue;
+        }
+        target_keys.insert((rule_id.clone(), region.clone()));
+    }
+    for key in actual_counts.keys() {
+        target_keys.insert(key.clone());
+    }
+
+    // Iterate deterministically: sort by rule id, then region.
+    let mut target_keys: Vec<(RuleId, RegionPath)> = target_keys.into_iter().collect();
+    target_keys.sort_by(|a, b| {
+        a.0.as_str()
+            .cmp(b.0.as_str())
+            .then_with(|| a.1.as_str().cmp(b.1.as_str()))
+    });
+
+    for (key_rule_id, key_region) in &target_keys {
         // Apply filters
         if let Some(ref filter_rule_id) = rule_id_filter
-            && status.rule_id != *filter_rule_id
+            && key_rule_id != filter_rule_id
         {
             continue;
         }
 
         if let Some(filter_region) = region
-            && status.region.as_str() != filter_region
+            && key_region.as_str() != filter_region
         {
             continue;
         }
 
+        let actual = actual_counts
+            .get(&(key_rule_id.clone(), key_region.clone()))
+            .copied()
+            .unwrap_or(0);
+        let budget = counts.get_budget_by_region(key_rule_id, key_region);
+
         // Check if we can tighten
-        if status.actual_count > status.budget {
+        if actual > budget {
             // Violations exceed budget - can't tighten
             exceeded_violations.push(ExceededViolation {
-                rule_id: status.rule_id.clone(),
-                region: status.region.clone(),
-                actual_count: status.actual_count,
-                budget: status.budget,
+                rule_id: key_rule_id.clone(),
+                region: key_region.clone(),
+                actual_count: actual,
+                budget,
             });
-        } else if status.actual_count < status.budget {
+        } else if actual < budget {
             // Can tighten - reduce budget to current count
-            tightened_budgets.push((
-                status.rule_id.clone(),
-                status.region.clone(),
-                status.budget,
-                status.actual_count,
-            ));
-            counts.set_count(&status.rule_id, &status.region, status.actual_count);
+            tightened_budgets.push((key_rule_id.clone(), key_region.clone(), budget, actual));
+            counts.set_count(key_rule_id, key_region, actual);
         }
-        // If actual_count == budget, no change needed
+        // If actual == budget, no change needed
     }
 
     // 6. Check if any violations exceeded budget
@@ -207,10 +251,14 @@ fn run_tighten_inner(
     Ok(TightenResult::Success(tightened_budgets.len()))
 }
 
+/// Aggregation results plus the resolved enabled rule set from a full check.
+struct CheckOutcome {
+    aggregation_result: crate::engine::aggregator::AggregationResult,
+    enabled_rules: HashSet<RuleId>,
+}
+
 /// Run a full check and return aggregation results
-fn run_full_check(
-    config: &Config,
-) -> Result<crate::engine::aggregator::AggregationResult, TightenError> {
+fn run_full_check(config: &Config) -> Result<CheckOutcome, TightenError> {
     // Load counts
     let counts_path = Path::new("ratchet-counts.toml");
     let counts = if counts_path.exists() {
@@ -228,11 +276,14 @@ fn run_full_check(
         ));
     }
 
-    // Phase 5 of the ratchet-sets plan: warn about orphaned counts.toml
-    // entries — rules that previously had budgets but are no longer in the
-    // resolved enabled set. The entries stay dormant (no cleanup) so the user
-    // can re-enable the rule later without losing the count.
+    // Warn about orphaned counts.toml entries — rules that previously had
+    // budgets but are no longer in the resolved enabled set. The entries stay
+    // dormant (no cleanup) so re-enabling the rule preserves its count.
     warn_orphaned_counts(&counts, &registry);
+
+    // Capture the resolved enabled rule set so tighten can exclude orphaned
+    // configured budgets from its union iteration.
+    let enabled_rules: HashSet<RuleId> = registry.iter_rules().map(|r| r.id().clone()).collect();
 
     // Discover files
     let files = super::common::discover_files(&[".".to_string()], config)?;
@@ -249,7 +300,10 @@ fn run_full_check(
     let aggregator = ViolationAggregator::new(counts);
     let aggregation_result = aggregator.aggregate(execution_result.violations);
 
-    Ok(aggregation_result)
+    Ok(CheckOutcome {
+        aggregation_result,
+        enabled_rules,
+    })
 }
 
 /// Emit a stderr warning for every rule ID in `counts` that is not present in
@@ -358,12 +412,8 @@ mod tests {
         Ok(())
     }
 
-    /// Helpers shared by the orphan-detection tests. Keeping the test fixture
-    /// builders in their own module lets us avoid scattering `.unwrap()` calls
-    /// across every assertion — `unwrap_or_else(|| unreachable!())` would be
-    /// the same shape from `no-unwrap`'s perspective, so we use `match` with
-    /// `unreachable!` to surface programmer errors loudly without a `.unwrap`
-    /// call site per test.
+    /// Build a [`RuleId`] from a test literal, treating an invalid id as a
+    /// programmer error in the test data.
     fn mk_rule_id(id: &str) -> RuleId {
         match RuleId::new(id) {
             Some(rule_id) => rule_id,
