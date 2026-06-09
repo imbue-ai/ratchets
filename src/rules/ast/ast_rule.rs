@@ -578,7 +578,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_from_toml_simple() {
+    fn test_from_toml_simple() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "test-ast-rule"
@@ -592,17 +592,18 @@ query = """
 language = "rust"
 "#;
 
-        let rule = AstRule::from_toml(toml).unwrap();
+        let rule = AstRule::from_toml(toml)?;
         assert_eq!(rule.id.as_str(), "test-ast-rule");
         assert_eq!(rule.description, "Test AST rule");
         assert_eq!(rule.severity, Severity::Error);
         assert_eq!(rule.language, Language::Rust);
         assert!(rule.include.is_none());
         assert!(rule.exclude.is_none());
+        Ok(())
     }
 
     #[test]
-    fn test_from_toml_with_globs() {
+    fn test_from_toml_with_globs() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "src-only"
@@ -616,9 +617,10 @@ include = ["src/**"]
 exclude = ["src/test/**"]
 "#;
 
-        let rule = AstRule::from_toml(toml).unwrap();
+        let rule = AstRule::from_toml(toml)?;
         assert!(rule.include.is_some());
         assert!(rule.exclude.is_some());
+        Ok(())
     }
 
     #[test]
@@ -677,7 +679,7 @@ query = "(identifier) @violation"
 
     #[cfg(feature = "lang-rust")]
     #[test]
-    fn test_execute_simple_match() {
+    fn test_execute_simple_match() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "find-unwrap"
@@ -694,7 +696,7 @@ query = """
 language = "rust"
 "#;
 
-        let rule = AstRule::from_toml(toml).unwrap();
+        let rule = AstRule::from_toml(toml)?;
 
         let ctx = ExecutionContext {
             file_path: Path::new("test.rs"),
@@ -706,11 +708,12 @@ language = "rust"
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
         assert!(violations[0].snippet.contains("unwrap"));
+        Ok(())
     }
 
     #[cfg(feature = "lang-rust")]
     #[test]
-    fn test_execute_multiple_matches() {
+    fn test_execute_multiple_matches() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "find-unwrap"
@@ -727,7 +730,7 @@ query = """
 language = "rust"
 "#;
 
-        let rule = AstRule::from_toml(toml).unwrap();
+        let rule = AstRule::from_toml(toml)?;
 
         let ctx = ExecutionContext {
             file_path: Path::new("test.rs"),
@@ -738,11 +741,12 @@ language = "rust"
 
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 2);
+        Ok(())
     }
 
     #[cfg(feature = "lang-rust")]
     #[test]
-    fn test_execute_no_match() {
+    fn test_execute_no_match() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "find-unwrap"
@@ -759,7 +763,7 @@ query = """
 language = "rust"
 "#;
 
-        let rule = AstRule::from_toml(toml).unwrap();
+        let rule = AstRule::from_toml(toml)?;
 
         let ctx = ExecutionContext {
             file_path: Path::new("test.rs"),
@@ -770,11 +774,12 @@ language = "rust"
 
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 0);
+        Ok(())
     }
 
     #[cfg(feature = "lang-rust")]
     #[test]
-    fn test_execute_respects_include() {
+    fn test_execute_respects_include() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "find-unwrap"
@@ -792,7 +797,7 @@ language = "rust"
 include = ["src/**"]
 "#;
 
-        let rule = AstRule::from_toml(toml).unwrap();
+        let rule = AstRule::from_toml(toml)?;
 
         // File in src/ should match
         let ctx = ExecutionContext {
@@ -813,11 +818,12 @@ include = ["src/**"]
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 0);
+        Ok(())
     }
 
     #[cfg(feature = "lang-rust")]
     #[test]
-    fn test_execute_respects_exclude() {
+    fn test_execute_respects_exclude() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "find-unwrap"
@@ -835,7 +841,7 @@ language = "rust"
 exclude = ["tests/**"]
 "#;
 
-        let rule = AstRule::from_toml(toml).unwrap();
+        let rule = AstRule::from_toml(toml)?;
 
         // File in tests/ should not match
         let ctx = ExecutionContext {
@@ -856,11 +862,12 @@ exclude = ["tests/**"]
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
+        Ok(())
     }
 
     #[cfg(feature = "lang-rust")]
     #[test]
-    fn test_violation_positions() {
+    fn test_violation_positions() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "find-let"
@@ -872,7 +879,7 @@ query = "(let_declaration) @violation"
 language = "rust"
 "#;
 
-        let rule = AstRule::from_toml(toml).unwrap();
+        let rule = AstRule::from_toml(toml)?;
 
         let content = "fn main() {\n    let x = 5;\n}";
         let ctx = ExecutionContext {
@@ -886,11 +893,12 @@ language = "rust"
         assert_eq!(violations.len(), 1);
         assert_eq!(violations[0].line, 2);
         assert!(violations[0].column > 0);
+        Ok(())
     }
 
     #[cfg(feature = "lang-rust")]
     #[test]
-    fn test_query_without_violation_capture() {
+    fn test_query_without_violation_capture() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "find-identifier"
@@ -902,7 +910,7 @@ query = "(identifier) @id"
 language = "rust"
 "#;
 
-        let rule = AstRule::from_toml(toml).unwrap();
+        let rule = AstRule::from_toml(toml)?;
 
         let ctx = ExecutionContext {
             file_path: Path::new("test.rs"),
@@ -914,11 +922,12 @@ language = "rust"
         let violations = rule.execute(&ctx);
         // Should find at least "main"
         assert!(!violations.is_empty());
+        Ok(())
     }
 
     #[cfg(feature = "lang-rust")]
     #[test]
-    fn test_execute_with_tree_direct() {
+    fn test_execute_with_tree_direct() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "find-unwrap"
@@ -935,23 +944,26 @@ query = """
 language = "rust"
 "#;
 
-        let rule = AstRule::from_toml(toml).unwrap();
+        let rule = AstRule::from_toml(toml)?;
 
         // Parse the content
         let content = "fn main() { Some(5).unwrap(); }";
         let parser_cache = ParserCache::new();
-        let mut parser = parser_cache.get_parser(Language::Rust).unwrap();
-        let tree = parser.parse(content, None).unwrap();
+        let mut parser = parser_cache.get_parser(Language::Rust)?;
+        let tree = parser
+            .parse(content, None)
+            .ok_or("failed to parse content")?;
 
         // Execute with tree
         let violations = rule.execute_with_tree(&tree, content, Path::new("test.rs"), None);
         assert_eq!(violations.len(), 1);
         assert!(violations[0].snippet.contains("unwrap"));
+        Ok(())
     }
 
     #[cfg(feature = "lang-rust")]
     #[test]
-    fn test_ast_rule_uses_configured_region() {
+    fn test_ast_rule_uses_configured_region() -> Result<(), Box<dyn std::error::Error>> {
         use crate::rules::RegionResolver;
         use crate::types::RegionPath;
         use std::sync::Arc;
@@ -967,8 +979,7 @@ severity = "error"
 query = "(call_expression) @violation"
 language = "rust"
 "#,
-        )
-        .unwrap();
+        )?;
 
         // Create a resolver that always returns "configured/region"
         let resolver: RegionResolver =
@@ -984,11 +995,12 @@ language = "rust"
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
         assert_eq!(violations[0].region.as_str(), "configured/region");
+        Ok(())
     }
 
     #[cfg(feature = "lang-rust")]
     #[test]
-    fn test_include_matches_dot_slash_prefixed_path() {
+    fn test_include_matches_dot_slash_prefixed_path() -> Result<(), Box<dyn std::error::Error>> {
         // Regression test for bead code-owl: when invoked with no PATH (or `.`),
         // the file walker emits paths like `./src/foo.rs`, and anchored include
         // globs must still match.
@@ -1008,7 +1020,7 @@ query = """
 language = "rust"
 include = ["src/**"]
 "#;
-        let rule = AstRule::from_toml(toml).unwrap();
+        let rule = AstRule::from_toml(toml)?;
 
         // With ./ prefix:
         let ctx = ExecutionContext {
@@ -1047,11 +1059,12 @@ include = ["src/**"]
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 0);
+        Ok(())
     }
 
     #[cfg(feature = "lang-rust")]
     #[test]
-    fn test_exclude_matches_dot_slash_prefixed_path() {
+    fn test_exclude_matches_dot_slash_prefixed_path() -> Result<(), Box<dyn std::error::Error>> {
         let toml = r#"
 [rule]
 id = "find-unwrap-not-tests"
@@ -1068,7 +1081,7 @@ query = """
 language = "rust"
 exclude = ["**/tests/**"]
 "#;
-        let rule = AstRule::from_toml(toml).unwrap();
+        let rule = AstRule::from_toml(toml)?;
 
         // With ./ prefix, the exclude pattern still matches.
         let ctx = ExecutionContext {
@@ -1089,5 +1102,6 @@ exclude = ["**/tests/**"]
         };
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
+        Ok(())
     }
 }
