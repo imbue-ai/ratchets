@@ -191,15 +191,19 @@ mod tests {
     use tempfile::TempDir;
 
     /// Helper to create a test file with given TOML content
-    fn create_test_file(dir: &TempDir, name: &str, content: &str) -> String {
+    fn create_test_file(
+        dir: &TempDir,
+        name: &str,
+        content: &str,
+    ) -> Result<String, Box<dyn std::error::Error>> {
         let path = dir.path().join(name);
-        fs::write(&path, content).unwrap();
-        path.to_string_lossy().to_string()
+        fs::write(&path, content)?;
+        Ok(path.to_string_lossy().to_string())
     }
 
     #[test]
-    fn test_merge_driver_basic() {
-        let temp_dir = TempDir::new().unwrap();
+    fn test_merge_driver_basic() -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = TempDir::new()?;
 
         let base = create_test_file(
             &temp_dir,
@@ -208,7 +212,7 @@ mod tests {
 [no-unwrap]
 "." = 20
 "#,
-        );
+        )?;
 
         let ours = create_test_file(
             &temp_dir,
@@ -217,7 +221,7 @@ mod tests {
 [no-unwrap]
 "." = 15
 "#,
-        );
+        )?;
 
         let theirs = create_test_file(
             &temp_dir,
@@ -226,25 +230,24 @@ mod tests {
 [no-unwrap]
 "." = 18
 "#,
-        );
+        )?;
 
         let result = run_merge_driver(&base, &ours, &theirs);
         assert_eq!(result, EXIT_SUCCESS);
 
-        // Read the merged result
-        let merged_content = fs::read_to_string(&ours).unwrap();
-        let merged_counts = CountsManager::parse(&merged_content).unwrap();
+        let merged_content = fs::read_to_string(&ours)?;
+        let merged_counts = CountsManager::parse(&merged_content)?;
 
-        // Verify minimum was taken (15 < 18)
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
         assert_eq!(merged_counts.get_budget(&rule_id, Path::new(".")), 15);
+        Ok(())
     }
 
     #[test]
-    fn test_merge_driver_new_rule_in_ours() {
-        let temp_dir = TempDir::new().unwrap();
+    fn test_merge_driver_new_rule_in_ours() -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = TempDir::new()?;
 
-        let base = create_test_file(&temp_dir, "base.toml", "");
+        let base = create_test_file(&temp_dir, "base.toml", "")?;
 
         let ours = create_test_file(
             &temp_dir,
@@ -253,27 +256,28 @@ mod tests {
 [no-unwrap]
 "." = 10
 "#,
-        );
+        )?;
 
-        let theirs = create_test_file(&temp_dir, "theirs.toml", "");
+        let theirs = create_test_file(&temp_dir, "theirs.toml", "")?;
 
         let result = run_merge_driver(&base, &ours, &theirs);
         assert_eq!(result, EXIT_SUCCESS);
 
-        let merged_content = fs::read_to_string(&ours).unwrap();
-        let merged_counts = CountsManager::parse(&merged_content).unwrap();
+        let merged_content = fs::read_to_string(&ours)?;
+        let merged_counts = CountsManager::parse(&merged_content)?;
 
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
         assert_eq!(merged_counts.get_budget(&rule_id, Path::new(".")), 10);
+        Ok(())
     }
 
     #[test]
-    fn test_merge_driver_new_rule_in_theirs() {
-        let temp_dir = TempDir::new().unwrap();
+    fn test_merge_driver_new_rule_in_theirs() -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = TempDir::new()?;
 
-        let base = create_test_file(&temp_dir, "base.toml", "");
+        let base = create_test_file(&temp_dir, "base.toml", "")?;
 
-        let ours = create_test_file(&temp_dir, "ours.toml", "");
+        let ours = create_test_file(&temp_dir, "ours.toml", "")?;
 
         let theirs = create_test_file(
             &temp_dir,
@@ -282,21 +286,22 @@ mod tests {
 [no-todo]
 "." = 5
 "#,
-        );
+        )?;
 
         let result = run_merge_driver(&base, &ours, &theirs);
         assert_eq!(result, EXIT_SUCCESS);
 
-        let merged_content = fs::read_to_string(&ours).unwrap();
-        let merged_counts = CountsManager::parse(&merged_content).unwrap();
+        let merged_content = fs::read_to_string(&ours)?;
+        let merged_counts = CountsManager::parse(&merged_content)?;
 
-        let rule_id = RuleId::new("no-todo").unwrap();
+        let rule_id = RuleId::new("no-todo").ok_or("invalid rule id")?;
         assert_eq!(merged_counts.get_budget(&rule_id, Path::new(".")), 5);
+        Ok(())
     }
 
     #[test]
-    fn test_merge_driver_multiple_rules() {
-        let temp_dir = TempDir::new().unwrap();
+    fn test_merge_driver_multiple_rules() -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = TempDir::new()?;
 
         let base = create_test_file(
             &temp_dir,
@@ -307,7 +312,7 @@ mod tests {
 [no-todo]
 "." = 30
 "#,
-        );
+        )?;
 
         let ours = create_test_file(
             &temp_dir,
@@ -318,7 +323,7 @@ mod tests {
 [no-todo]
 "." = 30
 "#,
-        );
+        )?;
 
         let theirs = create_test_file(
             &temp_dir,
@@ -329,24 +334,25 @@ mod tests {
 [no-todo]
 "." = 25
 "#,
-        );
+        )?;
 
         let result = run_merge_driver(&base, &ours, &theirs);
         assert_eq!(result, EXIT_SUCCESS);
 
-        let merged_content = fs::read_to_string(&ours).unwrap();
-        let merged_counts = CountsManager::parse(&merged_content).unwrap();
+        let merged_content = fs::read_to_string(&ours)?;
+        let merged_counts = CountsManager::parse(&merged_content)?;
 
-        let no_unwrap = RuleId::new("no-unwrap").unwrap();
-        let no_todo = RuleId::new("no-todo").unwrap();
+        let no_unwrap = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
+        let no_todo = RuleId::new("no-todo").ok_or("invalid rule id")?;
 
         assert_eq!(merged_counts.get_budget(&no_unwrap, Path::new(".")), 15);
         assert_eq!(merged_counts.get_budget(&no_todo, Path::new(".")), 25);
+        Ok(())
     }
 
     #[test]
-    fn test_merge_driver_multiple_regions() {
-        let temp_dir = TempDir::new().unwrap();
+    fn test_merge_driver_multiple_regions() -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = TempDir::new()?;
 
         let base = create_test_file(
             &temp_dir,
@@ -356,7 +362,7 @@ mod tests {
 "." = 20
 "src" = 15
 "#,
-        );
+        )?;
 
         let ours = create_test_file(
             &temp_dir,
@@ -366,7 +372,7 @@ mod tests {
 "." = 18
 "src" = 10
 "#,
-        );
+        )?;
 
         let theirs = create_test_file(
             &temp_dir,
@@ -376,25 +382,26 @@ mod tests {
 "." = 19
 "src" = 12
 "#,
-        );
+        )?;
 
         let result = run_merge_driver(&base, &ours, &theirs);
         assert_eq!(result, EXIT_SUCCESS);
 
-        let merged_content = fs::read_to_string(&ours).unwrap();
-        let merged_counts = CountsManager::parse(&merged_content).unwrap();
+        let merged_content = fs::read_to_string(&ours)?;
+        let merged_counts = CountsManager::parse(&merged_content)?;
 
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
         assert_eq!(merged_counts.get_budget(&rule_id, Path::new(".")), 18);
         assert_eq!(
             merged_counts.get_budget(&rule_id, Path::new("src/file.rs")),
             10
         );
+        Ok(())
     }
 
     #[test]
-    fn test_merge_driver_missing_files() {
-        let temp_dir = TempDir::new().unwrap();
+    fn test_merge_driver_missing_files() -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = TempDir::new()?;
 
         let base = temp_dir.path().join("nonexistent_base.toml");
         let ours = create_test_file(
@@ -404,36 +411,40 @@ mod tests {
 [no-unwrap]
 "." = 10
 "#,
-        );
+        )?;
         let theirs = temp_dir.path().join("nonexistent_theirs.toml");
 
-        let result = run_merge_driver(base.to_str().unwrap(), &ours, theirs.to_str().unwrap());
+        let base = base.to_str().ok_or("base path is not valid UTF-8")?;
+        let theirs = theirs.to_str().ok_or("theirs path is not valid UTF-8")?;
+        let result = run_merge_driver(base, &ours, theirs);
         assert_eq!(result, EXIT_SUCCESS);
 
-        let merged_content = fs::read_to_string(&ours).unwrap();
-        let merged_counts = CountsManager::parse(&merged_content).unwrap();
+        let merged_content = fs::read_to_string(&ours)?;
+        let merged_counts = CountsManager::parse(&merged_content)?;
 
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
         assert_eq!(merged_counts.get_budget(&rule_id, Path::new(".")), 10);
+        Ok(())
     }
 
     #[test]
-    fn test_merge_driver_invalid_toml() {
-        let temp_dir = TempDir::new().unwrap();
+    fn test_merge_driver_invalid_toml() -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = TempDir::new()?;
 
-        let base = create_test_file(&temp_dir, "base.toml", "");
-        let ours = create_test_file(&temp_dir, "ours.toml", "invalid [[ toml");
-        let theirs = create_test_file(&temp_dir, "theirs.toml", "");
+        let base = create_test_file(&temp_dir, "base.toml", "")?;
+        let ours = create_test_file(&temp_dir, "ours.toml", "invalid [[ toml")?;
+        let theirs = create_test_file(&temp_dir, "theirs.toml", "")?;
 
         let result = run_merge_driver(&base, &ours, &theirs);
         assert_eq!(result, EXIT_ERROR);
+        Ok(())
     }
 
     #[test]
-    fn test_extract_all_counts() {
+    fn test_extract_all_counts() -> Result<(), Box<dyn std::error::Error>> {
         let mut counts = CountsManager::new();
-        let rule1 = RuleId::new("rule1").unwrap();
-        let rule2 = RuleId::new("rule2").unwrap();
+        let rule1 = RuleId::new("rule1").ok_or("invalid rule id")?;
+        let rule2 = RuleId::new("rule2").ok_or("invalid rule id")?;
 
         counts.set_count(&rule1, &RegionPath::new("."), 10);
         counts.set_count(&rule1, &RegionPath::new("src"), 5);
@@ -443,7 +454,6 @@ mod tests {
 
         assert_eq!(extracted.len(), 3);
 
-        // Check that all expected entries are present
         let has_rule1_root = extracted
             .iter()
             .any(|(r, p, c)| r.as_str() == "rule1" && p.as_str() == "." && *c == 10);
@@ -457,15 +467,16 @@ mod tests {
         assert!(has_rule1_root);
         assert!(has_rule1_src);
         assert!(has_rule2_root);
+        Ok(())
     }
 
     #[test]
-    fn test_merge_counts_minimum_wins() {
+    fn test_merge_counts_minimum_wins() -> Result<(), Box<dyn std::error::Error>> {
         let mut base = CountsManager::new();
         let mut ours = CountsManager::new();
         let mut theirs = CountsManager::new();
 
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
         let region = RegionPath::new(".");
 
         base.set_count(&rule_id, &region, 20);
@@ -475,15 +486,16 @@ mod tests {
         let merged = merge_counts(&base, &ours, &theirs);
 
         assert_eq!(merged.get_budget(&rule_id, Path::new(".")), 15);
+        Ok(())
     }
 
     #[test]
-    fn test_merge_counts_only_in_ours() {
+    fn test_merge_counts_only_in_ours() -> Result<(), Box<dyn std::error::Error>> {
         let base = CountsManager::new();
         let mut ours = CountsManager::new();
         let theirs = CountsManager::new();
 
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
         let region = RegionPath::new(".");
 
         ours.set_count(&rule_id, &region, 10);
@@ -491,15 +503,16 @@ mod tests {
         let merged = merge_counts(&base, &ours, &theirs);
 
         assert_eq!(merged.get_budget(&rule_id, Path::new(".")), 10);
+        Ok(())
     }
 
     #[test]
-    fn test_merge_counts_only_in_theirs() {
+    fn test_merge_counts_only_in_theirs() -> Result<(), Box<dyn std::error::Error>> {
         let base = CountsManager::new();
         let ours = CountsManager::new();
         let mut theirs = CountsManager::new();
 
-        let rule_id = RuleId::new("no-unwrap").unwrap();
+        let rule_id = RuleId::new("no-unwrap").ok_or("invalid rule id")?;
         let region = RegionPath::new(".");
 
         theirs.set_count(&rule_id, &region, 10);
@@ -507,17 +520,18 @@ mod tests {
         let merged = merge_counts(&base, &ours, &theirs);
 
         assert_eq!(merged.get_budget(&rule_id, Path::new(".")), 10);
+        Ok(())
     }
 
     #[test]
-    fn test_merge_counts_complex() {
+    fn test_merge_counts_complex() -> Result<(), Box<dyn std::error::Error>> {
         let mut base = CountsManager::new();
         let mut ours = CountsManager::new();
         let mut theirs = CountsManager::new();
 
-        let rule1 = RuleId::new("rule1").unwrap();
-        let rule2 = RuleId::new("rule2").unwrap();
-        let rule3 = RuleId::new("rule3").unwrap();
+        let rule1 = RuleId::new("rule1").ok_or("invalid rule id")?;
+        let rule2 = RuleId::new("rule2").ok_or("invalid rule id")?;
+        let rule3 = RuleId::new("rule3").ok_or("invalid rule id")?;
 
         let root = RegionPath::new(".");
         let src = RegionPath::new("src");
@@ -538,5 +552,6 @@ mod tests {
         assert_eq!(merged.get_budget(&rule1, Path::new(".")), 15);
         assert_eq!(merged.get_budget(&rule2, Path::new(".")), 10);
         assert_eq!(merged.get_budget(&rule3, Path::new("src/file.rs")), 5);
+        Ok(())
     }
 }
