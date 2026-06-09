@@ -10,7 +10,7 @@ use crate::rules::rule::normalize_for_glob_match;
 use crate::rules::{ExecutionContext, Rule, RuleContext, Violation};
 use crate::types::{GlobPattern, Language, RuleId, Severity};
 use globset::{Glob, GlobSet, GlobSetBuilder};
-use regex::Regex;
+use resharp::Regex;
 use serde::Deserialize;
 use std::path::Path;
 
@@ -59,6 +59,11 @@ pub struct RegexRule {
     description: String,
     severity: Severity,
     pattern: Regex,
+    /// The original pattern source string.
+    ///
+    /// `resharp::Regex` does not expose the source pattern, so we retain it
+    /// here for diagnostics (e.g. `Debug`).
+    pattern_source: String,
     languages: Vec<Language>,
     include: Option<GlobSet>,
     exclude: Option<GlobSet>,
@@ -70,7 +75,7 @@ impl std::fmt::Debug for RegexRule {
             .field("id", &self.id)
             .field("description", &self.description)
             .field("severity", &self.severity)
-            .field("pattern", &self.pattern.as_str())
+            .field("pattern", &self.pattern_source)
             .field("languages", &self.languages)
             .field("include", &"<GlobSet>")
             .field("exclude", &"<GlobSet>")
@@ -127,6 +132,7 @@ impl RegexRule {
                 def.match_section.pattern, e
             ))
         })?;
+        let pattern_source = def.match_section.pattern.clone();
 
         // Process languages (empty means all languages)
         let languages = def.match_section.languages.unwrap_or_default();
@@ -150,6 +156,7 @@ impl RegexRule {
             description: def.rule.description,
             severity: def.rule.severity,
             pattern,
+            pattern_source,
             languages,
             include,
             exclude,
@@ -340,12 +347,20 @@ impl Rule for RegexRule {
         // Precompute line offsets for efficient position calculation
         let line_offsets = compute_line_offsets(ctx.content);
 
-        // Find all matches
+        // Find all matches. resharp operates on bytes and returns byte
+        // offsets, which is consistent with the byte-based line offsets above.
         let mut violations = Vec::new();
 
-        for match_result in self.pattern.find_iter(ctx.content) {
-            let match_start = match_result.start();
-            let match_end = match_result.end();
+        let matches = match self.pattern.find_all(ctx.content.as_bytes()) {
+            Ok(matches) => matches,
+            // A matching failure (e.g. DFA cache exhaustion) yields no
+            // violations for this file rather than aborting the run.
+            Err(_) => return violations,
+        };
+
+        for match_result in matches {
+            let match_start = match_result.start;
+            let match_end = match_result.end;
 
             // Extract snippet
             let snippet = ctx.content[match_start..match_end].to_string();
