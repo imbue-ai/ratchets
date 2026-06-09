@@ -236,8 +236,9 @@ mod tests {
     }
 
     #[test]
-    fn test_build_rule_statuses_single_rule_within_budget() {
-        let rule_id = RuleId::new("test-rule").unwrap();
+    fn test_build_rule_statuses_single_rule_within_budget() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let rule_id = RuleId::new("test-rule").ok_or("invalid rule id")?;
         let rule_metadata = vec![RuleMetadata {
             rule_id: rule_id.clone(),
             description: "Test rule".to_string(),
@@ -270,11 +271,13 @@ mod tests {
         assert_eq!(status.violations, 5);
         assert_eq!(status.budget, 10);
         assert_eq!(status.status, CheckStatus::Pass);
+        Ok(())
     }
 
     #[test]
-    fn test_build_rule_statuses_single_rule_over_budget() {
-        let rule_id = RuleId::new("test-rule").unwrap();
+    fn test_build_rule_statuses_single_rule_over_budget() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let rule_id = RuleId::new("test-rule").ok_or("invalid rule id")?;
         let rule_metadata = vec![RuleMetadata {
             rule_id: rule_id.clone(),
             description: "Test rule".to_string(),
@@ -307,12 +310,13 @@ mod tests {
         assert_eq!(status.violations, 10);
         assert_eq!(status.budget, 5);
         assert_eq!(status.status, CheckStatus::OverBudget);
+        Ok(())
     }
 
     #[test]
-    fn test_build_rule_statuses_multiple_rules() {
-        let rule1_id = RuleId::new("rule-1").unwrap();
-        let rule2_id = RuleId::new("rule-2").unwrap();
+    fn test_build_rule_statuses_multiple_rules() -> Result<(), Box<dyn std::error::Error>> {
+        let rule1_id = RuleId::new("rule-1").ok_or("invalid rule id")?;
+        let rule2_id = RuleId::new("rule-2").ok_or("invalid rule id")?;
 
         let rule_metadata = vec![
             RuleMetadata {
@@ -366,11 +370,13 @@ mod tests {
 
         assert_eq!(statuses[1].rule_id, "rule-2");
         assert_eq!(statuses[1].status, CheckStatus::OverBudget);
+        Ok(())
     }
 
     #[test]
-    fn test_build_rule_statuses_rule_with_no_violations() {
-        let rule_id = RuleId::new("unused-rule").unwrap();
+    fn test_build_rule_statuses_rule_with_no_violations() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let rule_id = RuleId::new("unused-rule").ok_or("invalid rule id")?;
         let rule_metadata = vec![RuleMetadata {
             rule_id: rule_id.clone(),
             description: "Unused rule".to_string(),
@@ -395,12 +401,13 @@ mod tests {
         assert_eq!(status.violations, 0);
         assert_eq!(status.budget, 0);
         assert_eq!(status.status, CheckStatus::Pass);
+        Ok(())
     }
 
     #[test]
-    fn test_determine_rule_source() {
-        let rule_id = RuleId::new("test-rule").unwrap();
-        // Currently always returns Builtin - this is a placeholder
+    fn test_determine_rule_source() -> Result<(), Box<dyn std::error::Error>> {
+        let rule_id = RuleId::new("test-rule").ok_or("invalid rule id")?;
         assert_eq!(determine_rule_source(&rule_id), RuleSource::Builtin);
+        Ok(())
     }
 }

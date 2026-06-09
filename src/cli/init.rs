@@ -252,24 +252,24 @@ mod tests {
 
     /// Helper to run init in a temporary directory
     /// Returns the temp dir (which must be kept alive) and the result
-    fn with_temp_dir<F, R>(f: F) -> R
+    fn with_temp_dir<F, R>(f: F) -> Result<R, Box<dyn std::error::Error>>
     where
-        F: FnOnce(&TempDir) -> R,
+        F: FnOnce(&TempDir) -> Result<R, Box<dyn std::error::Error>>,
     {
         // Lock to prevent parallel execution
-        let _guard = TEST_MUTEX.lock().unwrap();
+        let _guard = TEST_MUTEX.lock().map_err(|e| e.to_string())?;
 
-        let temp_dir = TempDir::new().unwrap();
-        let original_dir = std::env::current_dir().unwrap();
+        let temp_dir = TempDir::new()?;
+        let original_dir = std::env::current_dir()?;
 
         // Change to temp directory
-        std::env::set_current_dir(temp_dir.path()).unwrap();
+        std::env::set_current_dir(temp_dir.path())?;
 
         // Run the test function
         let result = f(&temp_dir);
 
         // Change back to original directory
-        std::env::set_current_dir(&original_dir).unwrap();
+        std::env::set_current_dir(&original_dir)?;
 
         result
     }
@@ -466,11 +466,12 @@ mod tests {
     }
 
     #[test]
-    fn test_path_to_string() {
+    fn test_path_to_string() -> Result<(), Box<dyn std::error::Error>> {
         let path = Path::new("test/path");
         let result = path_to_string(path);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "test/path");
+        assert_eq!(result?, "test/path");
+        Ok(())
     }
 
     #[test]

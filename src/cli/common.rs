@@ -250,7 +250,7 @@ mod tests {
     }
 
     #[test]
-    fn test_discover_files_with_empty_paths() {
+    fn test_discover_files_with_empty_paths() -> Result<(), Box<dyn std::error::Error>> {
         // Create a minimal config for testing
         let config = Config {
             ratchets: crate::config::ratchet_toml::RatchetsMeta {
@@ -271,7 +271,8 @@ mod tests {
 
         let result = discover_files(&[], &config);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 0);
+        assert_eq!(result?.len(), 0);
+        Ok(())
     }
 
     #[test]

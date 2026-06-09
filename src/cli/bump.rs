@@ -318,10 +318,11 @@ mod tests {
     }
 
     #[test]
-    fn test_valid_rule_id() {
+    fn test_valid_rule_id() -> Result<(), Box<dyn std::error::Error>> {
         let result = RuleId::new("no-unwrap");
         assert!(result.is_some());
-        assert_eq!(result.unwrap().as_str(), "no-unwrap");
+        assert_eq!(result.ok_or("invalid rule id")?.as_str(), "no-unwrap");
+        Ok(())
     }
 
     #[test]
