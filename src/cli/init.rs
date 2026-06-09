@@ -17,9 +17,9 @@ const DEFAULT_RATCHET_TOML: &str = r#"# Ratchets v2 configuration scaffold.
 #   - "$set-name" — a ratchet-set (group of rules) reference.
 #   - "rule-id"   — a single rule reference.
 #
-# The only set that ships with this binary today is `$common-starter`
-# (lands in bead code-rs-p4). Per-language starter sets are deferred to
-# follow-up MRs. To opt in to the common cross-language rules write:
+# The only set that ships with this binary today is `$common-starter`.
+# Per-language starter sets are planned as follow-ups. To opt in to the
+# common cross-language rules write:
 #   enabled_ratchets = ["$common-starter"]
 enabled_ratchets = []
 # disabled_ratchets always wins over enabled_ratchets at resolution time.
@@ -429,6 +429,9 @@ mod tests {
         assert!(DEFAULT_RATCHET_TOML.contains("enabled_ratchets = []"));
         assert!(DEFAULT_RATCHET_TOML.contains("disabled_ratchets = []"));
         assert!(DEFAULT_RATCHET_TOML.contains("$common-starter"));
+        // The scaffolded template is user-facing and must not leak internal
+        // bead IDs (e.g. `code-...`).
+        assert!(!DEFAULT_RATCHET_TOML.contains("code-"));
     }
 
     #[test]
