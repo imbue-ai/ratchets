@@ -2,8 +2,6 @@
 //!
 //! The notice text lives in `docs/upgrade-v1-to-v2.md` (the canonical hand-
 //! maintained source) and is embedded into the binary via `include_str!()`.
-//! Phase 5 of the ratchet-sets plan finalised the content; earlier phases
-//! shipped a placeholder string in this file.
 
 /// Embedded upgrade notice text printed to stderr when the loaded
 /// `ratchets.toml` declares a version other than `"2"`.

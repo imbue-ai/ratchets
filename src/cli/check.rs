@@ -86,10 +86,9 @@ pub fn run_check(
             if let CheckError::Config(ConfigError::UnsupportedVersion(_)) = &e {
                 super::upgrade_notice::print_to_stderr();
             }
-            // Phase 3: render ratchet-set resolution errors with the prescribed
-            // wording before falling through to the generic printer (the
-            // generic prefix `Error:` still appears so callers grepping for it
-            // continue to work).
+            // Render ratchet-set resolution errors with the prescribed wording
+            // before falling through to the generic printer (the generic prefix
+            // `Error:` still appears so callers grepping for it continue to work).
             if let CheckError::Rule(crate::error::RuleError::SetResolve(ref resolve)) = e {
                 super::common::print_resolve_error(resolve);
             }
