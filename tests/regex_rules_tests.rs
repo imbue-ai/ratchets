@@ -25,6 +25,54 @@ fn builtin_rules_dir() -> PathBuf {
         .join("regex")
 }
 
+/// Recursively collect every `*.toml` under any `regex/` directory inside
+/// `builtin-ratchets/`. This guards the regression in bead code-bko: the
+/// regex engine switched to `resharp` (RE#), which rejects some constructs the
+/// old `regex` crate accepted, so every shipped pattern must still compile.
+fn collect_builtin_regex_tomls(
+    dir: &Path,
+    out: &mut Vec<PathBuf>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_builtin_regex_tomls(&path, out)?;
+        } else if path.extension().and_then(|e| e.to_str()) == Some("toml")
+            && path
+                .parent()
+                .and_then(|p| p.file_name())
+                .and_then(|n| n.to_str())
+                == Some("regex")
+        {
+            out.push(path);
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn test_all_builtin_regex_patterns_compile_under_resharp() -> Result<(), Box<dyn std::error::Error>>
+{
+    let builtin_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("builtin-ratchets");
+    let mut tomls = Vec::new();
+    collect_builtin_regex_tomls(&builtin_root, &mut tomls)?;
+
+    assert!(
+        !tomls.is_empty(),
+        "expected to find builtin regex rule TOMLs under {:?}",
+        builtin_root
+    );
+
+    for path in &tomls {
+        // `from_path` compiles the pattern with `resharp::Regex`; a parse
+        // failure surfaces here as an `Err`.
+        RegexRule::from_path(path)
+            .map_err(|e| format!("builtin regex rule {:?} failed to compile: {}", path, e))?;
+    }
+    Ok(())
+}
+
 /// Helper function to load a fixture file's content
 fn load_fixture(filename: &str) -> String {
     let path = fixtures_dir().join(filename);
@@ -468,6 +516,49 @@ fn test_word_boundary_matching() {
     // Only the standalone "TODO" should match
     assert_eq!(violations.len(), 1);
     assert_eq!(violations[0].column, 20); // Position of standalone TODO (1-indexed)
+}
+
+#[test]
+fn test_no_ssh_subprocess_matches_intent() -> Result<(), Box<dyn std::error::Error>> {
+    // Rewritten for resharp (greedy `[^)]*` instead of lazy `[^)]*?`).
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("builtin-ratchets")
+        .join("python")
+        .join("regex")
+        .join("no-ssh-subprocess.toml");
+    let rule = RegexRule::from_path(&path)?;
+
+    let ctx = ExecutionContext {
+        file_path: Path::new("deploy.py"),
+        content: "subprocess.run([\"ssh\", host])\nsubprocess.Popen(\"echo ok\")\n",
+        ast: None,
+        region_resolver: None,
+    };
+    let violations = rule.execute(&ctx);
+    assert_eq!(violations.len(), 1);
+    assert!(violations[0].snippet.contains("ssh"));
+    Ok(())
+}
+
+#[test]
+fn test_no_click_echo_matches_intent() -> Result<(), Box<dyn std::error::Error>> {
+    // Rewritten for resharp (lookahead replaces trailing `\b` after `.*`).
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("builtin-ratchets")
+        .join("python")
+        .join("regex")
+        .join("no-click-echo.toml");
+    let rule = RegexRule::from_path(&path)?;
+
+    let ctx = ExecutionContext {
+        file_path: Path::new("cli.py"),
+        content: "click.echo(\"hi\")\nfrom click import echo\nlogger.info(\"ok\")\n",
+        ast: None,
+        region_resolver: None,
+    };
+    let violations = rule.execute(&ctx);
+    assert_eq!(violations.len(), 2);
+    Ok(())
 }
 
 #[test]
