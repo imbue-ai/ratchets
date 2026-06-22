@@ -364,8 +364,11 @@ impl Rule for RegexRule {
             let match_start = match_result.start;
             let match_end = match_result.end;
 
-            // Extract snippet
-            let snippet = ctx.content[match_start..match_end].to_string();
+            // resharp returns byte offsets that may not fall on char
+            // boundaries, so slice the bytes and convert lossily rather than
+            // indexing the `&str` (which would panic mid-multibyte-character).
+            let snippet = String::from_utf8_lossy(&ctx.content.as_bytes()[match_start..match_end])
+                .into_owned();
 
             // Calculate line/column positions
             let (line, column) = offset_to_line_col(match_start, &line_offsets);
@@ -759,6 +762,45 @@ pattern = "FIXME"
         assert_eq!(violations.len(), 2);
         assert_eq!(violations[0].line, 3);
         assert_eq!(violations[1].line, 5);
+        Ok(())
+    }
+
+    #[test]
+    fn test_execute_match_spanning_multibyte_does_not_panic()
+    -> Result<(), Box<dyn std::error::Error>> {
+        // resharp matches over raw bytes, so a match can begin or end in the
+        // middle of a multibyte UTF-8 character. The snippet must be extracted
+        // from the byte slice (lossily) rather than by indexing the `&str`,
+        // which would panic. Here `caf.` matches "caf" plus the first byte of
+        // the two-byte 'é', so the match ends mid-character.
+        let rule = RegexRule::from_toml(
+            r#"
+[rule]
+id = "test-rule"
+description = "Find caf."
+severity = "warning"
+
+[match]
+pattern = "caf."
+"#,
+        )?;
+
+        let content = "café latte";
+        // Sanity: the matched byte range really is not on a char boundary.
+        assert!(!content.is_char_boundary(4));
+
+        let ctx = ExecutionContext {
+            file_path: Path::new("test.rs"),
+            content,
+            ast: None,
+            region_resolver: None,
+        };
+
+        let violations = rule.execute(&ctx);
+        assert_eq!(violations.len(), 1);
+        // The lossy snippet keeps the leading ASCII and replaces the partial
+        // multibyte tail with U+FFFD, without panicking.
+        assert!(violations[0].snippet.starts_with("caf"));
         Ok(())
     }
 
