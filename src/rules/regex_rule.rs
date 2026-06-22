@@ -361,14 +361,14 @@ impl Rule for RegexRule {
         };
 
         for match_result in matches {
-            let match_start = match_result.start;
-            let match_end = match_result.end;
+            // resharp matches over raw bytes, so an offset may land in the
+            // middle of a multibyte character. Snap outward to the enclosing
+            // char boundaries so the snippet holds whole characters and
+            // slicing the `&str` cannot panic.
+            let match_start = ctx.content.floor_char_boundary(match_result.start);
+            let match_end = ctx.content.ceil_char_boundary(match_result.end);
 
-            // resharp returns byte offsets that may not fall on char
-            // boundaries, so slice the bytes and convert lossily rather than
-            // indexing the `&str` (which would panic mid-multibyte-character).
-            let snippet = String::from_utf8_lossy(&ctx.content.as_bytes()[match_start..match_end])
-                .into_owned();
+            let snippet = ctx.content[match_start..match_end].to_string();
 
             // Calculate line/column positions
             let (line, column) = offset_to_line_col(match_start, &line_offsets);
@@ -766,13 +766,13 @@ pattern = "FIXME"
     }
 
     #[test]
-    fn test_execute_match_spanning_multibyte_does_not_panic()
+    fn test_execute_match_spanning_multibyte_captures_whole_char()
     -> Result<(), Box<dyn std::error::Error>> {
         // resharp matches over raw bytes, so a match can begin or end in the
-        // middle of a multibyte UTF-8 character. The snippet must be extracted
-        // from the byte slice (lossily) rather than by indexing the `&str`,
-        // which would panic. Here `caf.` matches "caf" plus the first byte of
-        // the two-byte 'é', so the match ends mid-character.
+        // middle of a multibyte UTF-8 character. Here `caf.` matches "caf"
+        // plus only the first byte of the two-byte 'é'; the offsets are
+        // snapped outward to char boundaries so the snippet is the whole
+        // "café" (and slicing the `&str` cannot panic).
         let rule = RegexRule::from_toml(
             r#"
 [rule]
@@ -798,9 +798,9 @@ pattern = "caf."
 
         let violations = rule.execute(&ctx);
         assert_eq!(violations.len(), 1);
-        // The lossy snippet keeps the leading ASCII and replaces the partial
-        // multibyte tail with U+FFFD, without panicking.
-        assert!(violations[0].snippet.starts_with("caf"));
+        // The match is extended to the char boundary, yielding the whole
+        // character rather than a lossy replacement.
+        assert_eq!(violations[0].snippet, "café");
         Ok(())
     }
 
