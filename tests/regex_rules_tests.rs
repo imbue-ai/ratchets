@@ -561,6 +561,155 @@ fn test_no_click_echo_matches_intent() -> Result<(), Box<dyn std::error::Error>>
     Ok(())
 }
 
+/// Load a Python builtin regex rule by name from `builtin-ratchets/python/regex/`.
+fn load_python_regex_rule(name: &str) -> Result<RegexRule, Box<dyn std::error::Error>> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("builtin-ratchets")
+        .join("python")
+        .join("regex")
+        .join(format!("{}.toml", name));
+    Ok(RegexRule::from_path(&path)?)
+}
+
+/// Count violations a regex rule reports for `src`.
+fn regex_violation_count(rule: &RegexRule, src: &str) -> usize {
+    let ctx = ExecutionContext {
+        file_path: Path::new("t.py"),
+        content: src,
+        ast: None,
+        region_resolver: None,
+    };
+    rule.execute(&ctx).len()
+}
+
+// The three rules below were converted from tree-sitter `#not-match?` AST
+// workarounds to resharp negative-lookahead regex rules. The cases mirror the
+// previous AST validation tests verbatim.
+
+#[test]
+fn pyre_ignore_unnumbered_matches() -> Result<(), Box<dyn std::error::Error>> {
+    let rule = load_python_regex_rule("no-unnumbered-pyre-ignore")?;
+    for (src, label) in [
+        ("# pyre-ignore foo\nx = 1\n", "bare"),
+        ("# pyre-ignore: foo\nx = 1\n", "bare with colon"),
+        ("# pyre-ignore\nx = 1\n", "bare only"),
+    ] {
+        assert!(
+            regex_violation_count(&rule, src) > 0,
+            "[{}] expected match for: {:?}",
+            label,
+            src
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn pyre_ignore_unnumbered_non_matches() -> Result<(), Box<dyn std::error::Error>> {
+    let rule = load_python_regex_rule("no-unnumbered-pyre-ignore")?;
+    for (src, label) in [
+        ("# pyre-ignore[1] foo\nx = 1\n", "numbered"),
+        ("# pyre-ignore[1]: foo\nx = 1\n", "numbered colon"),
+        ("# pyre-ignore[1]\nx = 1\n", "just [1]"),
+        ("# pyre-ignore[10] foo\nx = 1\n", "[10]"),
+        ("# pyre-ignore-all-errors\nx = 1\n", "all-errors"),
+        ("# pyre-ignore-all-errors[1]\nx = 1\n", "all-errors[1]"),
+        ("# something pyre-ignore\nx = 1\n", "embedded"),
+        ("# pyre-ignore[7, 19]\nx = 1\n", "multi-numbered"),
+    ] {
+        assert_eq!(
+            regex_violation_count(&rule, src),
+            0,
+            "[{}] expected NO match for: {:?}",
+            label,
+            src
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn pyre_fixme_unnumbered_matches() -> Result<(), Box<dyn std::error::Error>> {
+    let rule = load_python_regex_rule("no-unnumbered-pyre-fixme")?;
+    for (src, label) in [
+        ("# pyre-fixme foo\nx = 1\n", "bare"),
+        ("# pyre-fixme: foo\nx = 1\n", "bare colon"),
+        ("# pyre-fixme\nx = 1\n", "bare only"),
+    ] {
+        assert!(
+            regex_violation_count(&rule, src) > 0,
+            "[{}] expected match for: {:?}",
+            label,
+            src
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn pyre_fixme_unnumbered_non_matches() -> Result<(), Box<dyn std::error::Error>> {
+    let rule = load_python_regex_rule("no-unnumbered-pyre-fixme")?;
+    for (src, label) in [
+        ("# pyre-fixme[1] foo\nx = 1\n", "[1] foo"),
+        ("# pyre-fixme[1]: foo\nx = 1\n", "[1]: foo"),
+        ("# pyre-fixme[1]\nx = 1\n", "[1]"),
+        ("# pyre-fixme[10]\nx = 1\n", "[10]"),
+        ("# something pyre-fixme\nx = 1\n", "embedded"),
+        ("# pyre-fixme[7, 19]\nx = 1\n", "multi"),
+    ] {
+        assert_eq!(
+            regex_violation_count(&rule, src),
+            0,
+            "[{}] expected NO match for: {:?}",
+            label,
+            src
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn type_ignore_unlabeled_matches() -> Result<(), Box<dyn std::error::Error>> {
+    let rule = load_python_regex_rule("no-unlabeled-type-ignore")?;
+    for (src, label) in [
+        ("x = 1  # type: ignore\n", "bare"),
+        ("x = 1  # type: ignore foo\n", "bare foo"),
+        ("x = 1  # type: ignore: foo\n", "bare colon"),
+    ] {
+        assert!(
+            regex_violation_count(&rule, src) > 0,
+            "[{}] expected match for: {:?}",
+            label,
+            src
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn type_ignore_unlabeled_non_matches() -> Result<(), Box<dyn std::error::Error>> {
+    let rule = load_python_regex_rule("no-unlabeled-type-ignore")?;
+    for (src, label) in [
+        ("x = 1  # type: ignore[prop-decorator]\n", "labeled prop"),
+        (
+            "x = 1  # type: ignore[return-value]: foo\n",
+            "labeled return",
+        ),
+        ("x = 1  # type: ignore[1]\n", "labeled [1]"),
+        ("x = 1  # type: ignore[10]\n", "labeled [10]"),
+        ("x = 1  # something type: ignore\n", "embedded"),
+    ] {
+        assert_eq!(
+            regex_violation_count(&rule, src),
+            0,
+            "[{}] expected NO match for: {:?}",
+            label,
+            src
+        );
+    }
+    Ok(())
+}
+
 #[test]
 fn test_empty_file() {
     let rule = load_builtin_rule("no-todo-comments");

@@ -1,0 +1,10 @@
+[rule]
+id = "no-unnumbered-pyre-ignore"
+description = "# pyre-ignore must be numbered with an error code (e.g. # pyre-ignore[1]) or use # pyre-ignore-all-errors"
+severity = "warning"
+
+[match]
+# Uses resharp negative lookahead to allow the `-all-errors` suffix or a
+# numbered `[<digits>]` code.
+pattern = "# pyre-ignore(?!-all-errors|\\[[\\d,\\s]+\\])"
+languages = ["python"]

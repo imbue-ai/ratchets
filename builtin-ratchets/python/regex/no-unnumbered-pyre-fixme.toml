@@ -1,0 +1,9 @@
+[rule]
+id = "no-unnumbered-pyre-fixme"
+description = "# pyre-fixme must be numbered with an error code (e.g. # pyre-fixme[1])"
+severity = "warning"
+
+[match]
+# Uses resharp negative lookahead to allow the numbered form `[<digits>]`.
+pattern = "# pyre-fixme(?!\\[[\\d,\\s]+\\])"
+languages = ["python"]
