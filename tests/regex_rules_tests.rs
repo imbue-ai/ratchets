@@ -26,9 +26,8 @@ fn builtin_rules_dir() -> PathBuf {
 }
 
 /// Recursively collect every `*.toml` under any `regex/` directory inside
-/// `builtin-ratchets/`. This guards the regression in bead code-bko: the
-/// regex engine switched to `resharp` (RE#), which rejects some constructs the
-/// old `regex` crate accepted, so every shipped pattern must still compile.
+/// `builtin-ratchets/`, so every shipped pattern can be checked to compile
+/// under `resharp`.
 fn collect_builtin_regex_tomls(
     dir: &Path,
     out: &mut Vec<PathBuf>,
@@ -65,8 +64,6 @@ fn test_all_builtin_regex_patterns_compile_under_resharp() -> Result<(), Box<dyn
     );
 
     for path in &tomls {
-        // `from_path` compiles the pattern with `resharp::Regex`; a parse
-        // failure surfaces here as an `Err`.
         RegexRule::from_path(path)
             .map_err(|e| format!("builtin regex rule {:?} failed to compile: {}", path, e))?;
     }
@@ -520,7 +517,6 @@ fn test_word_boundary_matching() {
 
 #[test]
 fn test_no_ssh_subprocess_matches_intent() -> Result<(), Box<dyn std::error::Error>> {
-    // Rewritten for resharp (greedy `[^)]*` instead of lazy `[^)]*?`).
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("builtin-ratchets")
         .join("python")
@@ -542,7 +538,6 @@ fn test_no_ssh_subprocess_matches_intent() -> Result<(), Box<dyn std::error::Err
 
 #[test]
 fn test_no_click_echo_matches_intent() -> Result<(), Box<dyn std::error::Error>> {
-    // Rewritten for resharp (lookahead replaces trailing `\b` after `.*`).
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("builtin-ratchets")
         .join("python")
@@ -581,10 +576,6 @@ fn regex_violation_count(rule: &RegexRule, src: &str) -> usize {
     };
     rule.execute(&ctx).len()
 }
-
-// The three rules below were converted from tree-sitter `#not-match?` AST
-// workarounds to resharp negative-lookahead regex rules. The cases mirror the
-// previous AST validation tests verbatim.
 
 #[test]
 fn pyre_ignore_unnumbered_matches() -> Result<(), Box<dyn std::error::Error>> {

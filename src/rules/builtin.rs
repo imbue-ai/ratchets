@@ -201,7 +201,6 @@ const BUILTIN_PYTHON_REGEX_RULES: &[(&str, &str)] = &[
         "no-type-ignore",
         include_str!("../../builtin-ratchets/python/regex/no-type-ignore.toml"),
     ),
-    // Resharp negative-lookahead rules (converted from AST workarounds)
     (
         "no-unnumbered-pyre-fixme",
         include_str!("../../builtin-ratchets/python/regex/no-unnumbered-pyre-fixme.toml"),

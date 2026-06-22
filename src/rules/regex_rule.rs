@@ -122,13 +122,9 @@ impl RegexRule {
             RuleError::InvalidDefinition(format!("Invalid rule ID: {}", def.rule.id))
         })?;
 
-        // Compile regex pattern.
-        //
-        // resharp defaults to multiline-ON and leftmost-longest matching;
-        // disabling multiline keeps bare `^`/`$` behaving like the `regex`
-        // crate did, and disabling dot-matches-new-line mirrors the old
-        // defaults to minimize behavioral drift. Inline flags such as `(?m)`
-        // in individual patterns still apply per-pattern.
+        // resharp defaults to multiline-ON; disable multiline and
+        // dot-matches-new-line so bare `^`/`$`/`.` match against the whole
+        // input, not per line. Inline flags such as `(?m)` still apply.
         let opts = resharp::RegexOptions::default()
             .multiline(false)
             .dot_matches_new_line(false);
@@ -357,9 +353,8 @@ impl Rule for RegexRule {
         // Find all matches
         let mut violations = Vec::new();
 
-        // `find_all` returns byte-offset matches. On engine errors (e.g.
-        // CapacityExceeded) we gracefully treat the file as having no matches
-        // rather than panicking, consistent with the no-panic policy.
+        // On engine errors (e.g. capacity exceeded), treat the file as
+        // match-free rather than panicking.
         let matches = match self.pattern.find_all(ctx.content.as_bytes()) {
             Ok(matches) => matches,
             Err(_) => return violations,

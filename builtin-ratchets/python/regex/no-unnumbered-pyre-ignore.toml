@@ -4,7 +4,5 @@ description = "# pyre-ignore must be numbered with an error code (e.g. # pyre-ig
 severity = "warning"
 
 [match]
-# Uses resharp negative lookahead to allow the `-all-errors` suffix or a
-# numbered `[<digits>]` code.
 pattern = "# pyre-ignore(?!-all-errors|\\[[\\d,\\s]+\\])"
 languages = ["python"]

@@ -4,6 +4,5 @@ description = "# type: ignore must include an error label like [return-value]; b
 severity = "warning"
 
 [match]
-# Uses resharp negative lookahead to allow the labeled `[<label>]` form.
 pattern = "# type: ignore(?!\\[)"
 languages = ["python"]
