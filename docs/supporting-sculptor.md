@@ -2,6 +2,13 @@
 
 **Status:** All four groups have landed. This document is preserved as a historical migration plan.
 
+> **Engine note (post-migration):** the regex engine has since switched from the
+> Rust `regex` crate to `resharp` (RE#), which *does* support lookaround. The
+> "Group C — lookaround → tree-sitter" rationale below reflects the old engine;
+> three of those rules (`no-unnumbered-pyre-fixme`, `no-unnumbered-pyre-ignore`,
+> `no-unlabeled-type-ignore`) were later reimplemented as plain regex rules with
+> negative lookahead. See `DESIGN.md` for current regex-authoring guidance.
+
 **Tracking beads (one per porting strategy):**
 - Group A — plain regex: [`code-61d`](../.beads/issues.jsonl) (closed)
 - Group B — path-scoped regex: [`code-aoe`](../.beads/issues.jsonl) (closed; subsequently relocated out of this library — see Group B section below)
