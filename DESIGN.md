@@ -163,7 +163,7 @@ description = "Disallow console.log statements"
 severity = "error"
 
 [match]
-# Regex pattern (Rust regex syntax)
+# Regex pattern (resharp / RE# syntax)
 pattern = "console\\.log\\s*\\("
 
 # File types this rule applies to (optional, defaults to all)
@@ -173,6 +173,31 @@ languages = ["javascript", "typescript"]
 include = ["src/**"]
 exclude = ["src/debug/**"]
 ```
+
+##### Regex engine (resharp / RE#)
+
+Regex rules are compiled with the [`resharp`](https://crates.io/crates/resharp)
+(RE#) engine, an automata-based, non-backtracking engine. Most patterns written
+for the standard Rust `regex` crate work unchanged, but rule authors should know
+the following differences:
+
+- **Lookaround is supported.** `(?=...)`, `(?!...)`, `(?<=...)`, and `(?<!...)`
+  compile directly into the automaton. So do intersection (`&`) and complement
+  (`~(...)`). For example, "`# type: ignore` without a `[label]`" is just
+  `# type: ignore(?!\[)`.
+- **Lazy quantifiers are unsupported.** `*?`, `+?`, and `??` are parse errors.
+  Rewrite greedily over a restricted class (e.g. `[^)]*?` → `[^)]*`) or bound
+  the match with a lookahead / complement.
+- **Leftmost-longest matching**, not leftmost-greedy. Among matches starting at
+  the same position, the longest is reported; branch order is irrelevant.
+- **Anchors and dot match the standard `regex`-crate defaults.** `^`/`$` anchor
+  to the start/end of the whole input and `.` does not match a newline. Opt in
+  per pattern with inline flags: `(?m)` for line anchors, `(?s)` for dot-all.
+- Matching runs over UTF-8 bytes; reported snippets are expanded to whole
+  characters, so a match never splits a multibyte character.
+
+Note: AST rule text-predicates (`#match?` / `#not-match?`) are evaluated by
+tree-sitter's own bundled regex, not by resharp.
 
 #### AST Rules (`ratchets/ast/*.toml`)
 
