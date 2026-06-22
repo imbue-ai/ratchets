@@ -1,0 +1,8 @@
+[rule]
+id = "no-unlabeled-type-ignore"
+description = "# type: ignore must include an error label like [return-value]; bare suppression is too broad"
+severity = "warning"
+
+[match]
+pattern = "# type: ignore(?!\\[)"
+languages = ["python"]

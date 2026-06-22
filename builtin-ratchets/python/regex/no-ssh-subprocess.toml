@@ -4,5 +4,6 @@ description = "Disallow subprocess.* calls that invoke ssh; use shared helpers i
 severity = "error"
 
 [match]
-pattern = "subprocess\\.(Popen|run|call|check_call|check_output)\\([^)]*?ssh[^)]*?\\)"
+# resharp (RE#) rejects lazy quantifiers (`*?`); use greedy `[^)]*`.
+pattern = "subprocess\\.(Popen|run|call|check_call|check_output)\\([^)]*ssh[^)]*\\)"
 languages = ["python"]

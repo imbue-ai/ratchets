@@ -10,7 +10,6 @@ use crate::rules::rule::normalize_for_glob_match;
 use crate::rules::{ExecutionContext, Rule, RuleContext, Violation};
 use crate::types::{GlobPattern, Language, RuleId, Severity};
 use globset::{Glob, GlobSet, GlobSetBuilder};
-use regex::Regex;
 use serde::Deserialize;
 use std::path::Path;
 
@@ -58,7 +57,10 @@ pub struct RegexRule {
     id: RuleId,
     description: String,
     severity: Severity,
-    pattern: Regex,
+    pattern: resharp::Regex,
+    /// Original pattern source string. `resharp::Regex` has no `as_str()`,
+    /// so the source is retained for the `Debug` impl and diagnostics.
+    pattern_src: String,
     languages: Vec<Language>,
     include: Option<GlobSet>,
     exclude: Option<GlobSet>,
@@ -70,7 +72,7 @@ impl std::fmt::Debug for RegexRule {
             .field("id", &self.id)
             .field("description", &self.description)
             .field("severity", &self.severity)
-            .field("pattern", &self.pattern.as_str())
+            .field("pattern", &self.pattern_src)
             .field("languages", &self.languages)
             .field("include", &"<GlobSet>")
             .field("exclude", &"<GlobSet>")
@@ -120,13 +122,20 @@ impl RegexRule {
             RuleError::InvalidDefinition(format!("Invalid rule ID: {}", def.rule.id))
         })?;
 
-        // Compile regex pattern
-        let pattern = Regex::new(&def.match_section.pattern).map_err(|e| {
-            RuleError::InvalidRegex(format!(
-                "Failed to compile pattern '{}': {}",
-                def.match_section.pattern, e
-            ))
-        })?;
+        // resharp defaults to multiline-ON; disable multiline and
+        // dot-matches-new-line so bare `^`/`$`/`.` match against the whole
+        // input, not per line. Inline flags such as `(?m)` still apply.
+        let opts = resharp::RegexOptions::default()
+            .multiline(false)
+            .dot_matches_new_line(false);
+        let pattern =
+            resharp::Regex::with_options(&def.match_section.pattern, opts).map_err(|e| {
+                RuleError::InvalidRegex(format!(
+                    "Failed to compile pattern '{}': {}",
+                    def.match_section.pattern, e
+                ))
+            })?;
+        let pattern_src = def.match_section.pattern.clone();
 
         // Process languages (empty means all languages)
         let languages = def.match_section.languages.unwrap_or_default();
@@ -150,6 +159,7 @@ impl RegexRule {
             description: def.rule.description,
             severity: def.rule.severity,
             pattern,
+            pattern_src,
             languages,
             include,
             exclude,
@@ -343,11 +353,21 @@ impl Rule for RegexRule {
         // Find all matches
         let mut violations = Vec::new();
 
-        for match_result in self.pattern.find_iter(ctx.content) {
-            let match_start = match_result.start();
-            let match_end = match_result.end();
+        // On engine errors (e.g. capacity exceeded), treat the file as
+        // match-free rather than panicking.
+        let matches = match self.pattern.find_all(ctx.content.as_bytes()) {
+            Ok(matches) => matches,
+            Err(_) => return violations,
+        };
 
-            // Extract snippet
+        for match_result in matches {
+            // resharp matches over raw bytes, so an offset may land in the
+            // middle of a multibyte character. Snap outward to the enclosing
+            // char boundaries so the snippet holds whole characters and
+            // slicing the `&str` cannot panic.
+            let match_start = ctx.content.floor_char_boundary(match_result.start);
+            let match_end = ctx.content.ceil_char_boundary(match_result.end);
+
             let snippet = ctx.content[match_start..match_end].to_string();
 
             // Calculate line/column positions
@@ -742,6 +762,45 @@ pattern = "FIXME"
         assert_eq!(violations.len(), 2);
         assert_eq!(violations[0].line, 3);
         assert_eq!(violations[1].line, 5);
+        Ok(())
+    }
+
+    #[test]
+    fn test_execute_match_spanning_multibyte_captures_whole_char()
+    -> Result<(), Box<dyn std::error::Error>> {
+        // resharp matches over raw bytes, so a match can begin or end in the
+        // middle of a multibyte UTF-8 character. Here `caf.` matches "caf"
+        // plus only the first byte of the two-byte 'é'; the offsets are
+        // snapped outward to char boundaries so the snippet is the whole
+        // "café" (and slicing the `&str` cannot panic).
+        let rule = RegexRule::from_toml(
+            r#"
+[rule]
+id = "test-rule"
+description = "Find caf."
+severity = "warning"
+
+[match]
+pattern = "caf."
+"#,
+        )?;
+
+        let content = "café latte";
+        // Sanity: the matched byte range really is not on a char boundary.
+        assert!(!content.is_char_boundary(4));
+
+        let ctx = ExecutionContext {
+            file_path: Path::new("test.rs"),
+            content,
+            ast: None,
+            region_resolver: None,
+        };
+
+        let violations = rule.execute(&ctx);
+        assert_eq!(violations.len(), 1);
+        // The match is extended to the char boundary, yielding the whole
+        // character rather than a lossy replacement.
+        assert_eq!(violations[0].snippet, "café");
         Ok(())
     }
 

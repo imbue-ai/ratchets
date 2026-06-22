@@ -1,0 +1,8 @@
+[rule]
+id = "no-unnumbered-pyre-fixme"
+description = "# pyre-fixme must be numbered with an error code (e.g. # pyre-fixme[1])"
+severity = "warning"
+
+[match]
+pattern = "# pyre-fixme(?!\\[[\\d,\\s]+\\])"
+languages = ["python"]

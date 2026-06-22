@@ -201,6 +201,18 @@ const BUILTIN_PYTHON_REGEX_RULES: &[(&str, &str)] = &[
         "no-type-ignore",
         include_str!("../../builtin-ratchets/python/regex/no-type-ignore.toml"),
     ),
+    (
+        "no-unnumbered-pyre-fixme",
+        include_str!("../../builtin-ratchets/python/regex/no-unnumbered-pyre-fixme.toml"),
+    ),
+    (
+        "no-unnumbered-pyre-ignore",
+        include_str!("../../builtin-ratchets/python/regex/no-unnumbered-pyre-ignore.toml"),
+    ),
+    (
+        "no-unlabeled-type-ignore",
+        include_str!("../../builtin-ratchets/python/regex/no-unlabeled-type-ignore.toml"),
+    ),
 ];
 
 /// Embedded built-in regex rule files for TypeScript
@@ -299,18 +311,6 @@ const BUILTIN_AST_PYTHON_RULES: &[(&str, &str)] = &[
     (
         "no-typing-cast",
         include_str!("../../builtin-ratchets/python/ast/no-typing-cast.toml"),
-    ),
-    (
-        "no-unnumbered-pyre-ignore",
-        include_str!("../../builtin-ratchets/python/ast/no-unnumbered-pyre-ignore.toml"),
-    ),
-    (
-        "no-unnumbered-pyre-fixme",
-        include_str!("../../builtin-ratchets/python/ast/no-unnumbered-pyre-fixme.toml"),
-    ),
-    (
-        "no-unlabeled-type-ignore",
-        include_str!("../../builtin-ratchets/python/ast/no-unlabeled-type-ignore.toml"),
     ),
     (
         "no-untyped-args-kwargs",

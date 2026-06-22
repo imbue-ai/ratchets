@@ -25,6 +25,51 @@ fn builtin_rules_dir() -> PathBuf {
         .join("regex")
 }
 
+/// Recursively collect every `*.toml` under any `regex/` directory inside
+/// `builtin-ratchets/`, so every shipped pattern can be checked to compile
+/// under `resharp`.
+fn collect_builtin_regex_tomls(
+    dir: &Path,
+    out: &mut Vec<PathBuf>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_builtin_regex_tomls(&path, out)?;
+        } else if path.extension().and_then(|e| e.to_str()) == Some("toml")
+            && path
+                .parent()
+                .and_then(|p| p.file_name())
+                .and_then(|n| n.to_str())
+                == Some("regex")
+        {
+            out.push(path);
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn test_all_builtin_regex_patterns_compile_under_resharp() -> Result<(), Box<dyn std::error::Error>>
+{
+    let builtin_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("builtin-ratchets");
+    let mut tomls = Vec::new();
+    collect_builtin_regex_tomls(&builtin_root, &mut tomls)?;
+
+    assert!(
+        !tomls.is_empty(),
+        "expected to find builtin regex rule TOMLs under {:?}",
+        builtin_root
+    );
+
+    for path in &tomls {
+        RegexRule::from_path(path)
+            .map_err(|e| format!("builtin regex rule {:?} failed to compile: {}", path, e))?;
+    }
+    Ok(())
+}
+
 /// Helper function to load a fixture file's content
 fn load_fixture(filename: &str) -> String {
     let path = fixtures_dir().join(filename);
@@ -468,6 +513,192 @@ fn test_word_boundary_matching() {
     // Only the standalone "TODO" should match
     assert_eq!(violations.len(), 1);
     assert_eq!(violations[0].column, 20); // Position of standalone TODO (1-indexed)
+}
+
+#[test]
+fn test_no_ssh_subprocess_matches_intent() -> Result<(), Box<dyn std::error::Error>> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("builtin-ratchets")
+        .join("python")
+        .join("regex")
+        .join("no-ssh-subprocess.toml");
+    let rule = RegexRule::from_path(&path)?;
+
+    let ctx = ExecutionContext {
+        file_path: Path::new("deploy.py"),
+        content: "subprocess.run([\"ssh\", host])\nsubprocess.Popen(\"echo ok\")\n",
+        ast: None,
+        region_resolver: None,
+    };
+    let violations = rule.execute(&ctx);
+    assert_eq!(violations.len(), 1);
+    assert!(violations[0].snippet.contains("ssh"));
+    Ok(())
+}
+
+#[test]
+fn test_no_click_echo_matches_intent() -> Result<(), Box<dyn std::error::Error>> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("builtin-ratchets")
+        .join("python")
+        .join("regex")
+        .join("no-click-echo.toml");
+    let rule = RegexRule::from_path(&path)?;
+
+    let ctx = ExecutionContext {
+        file_path: Path::new("cli.py"),
+        content: "click.echo(\"hi\")\nfrom click import echo\nlogger.info(\"ok\")\n",
+        ast: None,
+        region_resolver: None,
+    };
+    let violations = rule.execute(&ctx);
+    assert_eq!(violations.len(), 2);
+    Ok(())
+}
+
+/// Load a Python builtin regex rule by name from `builtin-ratchets/python/regex/`.
+fn load_python_regex_rule(name: &str) -> Result<RegexRule, Box<dyn std::error::Error>> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("builtin-ratchets")
+        .join("python")
+        .join("regex")
+        .join(format!("{}.toml", name));
+    Ok(RegexRule::from_path(&path)?)
+}
+
+/// Count violations a regex rule reports for `src`.
+fn regex_violation_count(rule: &RegexRule, src: &str) -> usize {
+    let ctx = ExecutionContext {
+        file_path: Path::new("t.py"),
+        content: src,
+        ast: None,
+        region_resolver: None,
+    };
+    rule.execute(&ctx).len()
+}
+
+#[test]
+fn pyre_ignore_unnumbered_matches() -> Result<(), Box<dyn std::error::Error>> {
+    let rule = load_python_regex_rule("no-unnumbered-pyre-ignore")?;
+    for (src, label) in [
+        ("# pyre-ignore foo\nx = 1\n", "bare"),
+        ("# pyre-ignore: foo\nx = 1\n", "bare with colon"),
+        ("# pyre-ignore\nx = 1\n", "bare only"),
+    ] {
+        assert!(
+            regex_violation_count(&rule, src) > 0,
+            "[{}] expected match for: {:?}",
+            label,
+            src
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn pyre_ignore_unnumbered_non_matches() -> Result<(), Box<dyn std::error::Error>> {
+    let rule = load_python_regex_rule("no-unnumbered-pyre-ignore")?;
+    for (src, label) in [
+        ("# pyre-ignore[1] foo\nx = 1\n", "numbered"),
+        ("# pyre-ignore[1]: foo\nx = 1\n", "numbered colon"),
+        ("# pyre-ignore[1]\nx = 1\n", "just [1]"),
+        ("# pyre-ignore[10] foo\nx = 1\n", "[10]"),
+        ("# pyre-ignore-all-errors\nx = 1\n", "all-errors"),
+        ("# pyre-ignore-all-errors[1]\nx = 1\n", "all-errors[1]"),
+        ("# something pyre-ignore\nx = 1\n", "embedded"),
+        ("# pyre-ignore[7, 19]\nx = 1\n", "multi-numbered"),
+    ] {
+        assert_eq!(
+            regex_violation_count(&rule, src),
+            0,
+            "[{}] expected NO match for: {:?}",
+            label,
+            src
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn pyre_fixme_unnumbered_matches() -> Result<(), Box<dyn std::error::Error>> {
+    let rule = load_python_regex_rule("no-unnumbered-pyre-fixme")?;
+    for (src, label) in [
+        ("# pyre-fixme foo\nx = 1\n", "bare"),
+        ("# pyre-fixme: foo\nx = 1\n", "bare colon"),
+        ("# pyre-fixme\nx = 1\n", "bare only"),
+    ] {
+        assert!(
+            regex_violation_count(&rule, src) > 0,
+            "[{}] expected match for: {:?}",
+            label,
+            src
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn pyre_fixme_unnumbered_non_matches() -> Result<(), Box<dyn std::error::Error>> {
+    let rule = load_python_regex_rule("no-unnumbered-pyre-fixme")?;
+    for (src, label) in [
+        ("# pyre-fixme[1] foo\nx = 1\n", "[1] foo"),
+        ("# pyre-fixme[1]: foo\nx = 1\n", "[1]: foo"),
+        ("# pyre-fixme[1]\nx = 1\n", "[1]"),
+        ("# pyre-fixme[10]\nx = 1\n", "[10]"),
+        ("# something pyre-fixme\nx = 1\n", "embedded"),
+        ("# pyre-fixme[7, 19]\nx = 1\n", "multi"),
+    ] {
+        assert_eq!(
+            regex_violation_count(&rule, src),
+            0,
+            "[{}] expected NO match for: {:?}",
+            label,
+            src
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn type_ignore_unlabeled_matches() -> Result<(), Box<dyn std::error::Error>> {
+    let rule = load_python_regex_rule("no-unlabeled-type-ignore")?;
+    for (src, label) in [
+        ("x = 1  # type: ignore\n", "bare"),
+        ("x = 1  # type: ignore foo\n", "bare foo"),
+        ("x = 1  # type: ignore: foo\n", "bare colon"),
+    ] {
+        assert!(
+            regex_violation_count(&rule, src) > 0,
+            "[{}] expected match for: {:?}",
+            label,
+            src
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn type_ignore_unlabeled_non_matches() -> Result<(), Box<dyn std::error::Error>> {
+    let rule = load_python_regex_rule("no-unlabeled-type-ignore")?;
+    for (src, label) in [
+        ("x = 1  # type: ignore[prop-decorator]\n", "labeled prop"),
+        (
+            "x = 1  # type: ignore[return-value]: foo\n",
+            "labeled return",
+        ),
+        ("x = 1  # type: ignore[1]\n", "labeled [1]"),
+        ("x = 1  # type: ignore[10]\n", "labeled [10]"),
+        ("x = 1  # something type: ignore\n", "embedded"),
+    ] {
+        assert_eq!(
+            regex_violation_count(&rule, src),
+            0,
+            "[{}] expected NO match for: {:?}",
+            label,
+            src
+        );
+    }
+    Ok(())
 }
 
 #[test]

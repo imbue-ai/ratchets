@@ -4,5 +4,7 @@ description = "Do not use click.echo. Use logger.info() instead"
 severity = "warning"
 
 [match]
-pattern = "\\bclick\\.echo\\b|\\bfrom\\s+click\\s+import\\s+.*\\becho\\b"
+# resharp (RE#) rejects `\b` immediately after a star, so the trailing word
+# boundary after `.*` is expressed as a lookahead.
+pattern = "\\bclick\\.echo\\b|\\bfrom\\s+click\\s+import\\s+.*echo(?=\\W|\\z)"
 languages = ["python"]

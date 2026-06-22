@@ -33,7 +33,7 @@ Ratchets is a compiled binary that runs locally, exits cleanly, and never commun
 │                            Rule Executors                                    │
 │  ┌──────────────────────────┐    ┌──────────────────────────────────────┐   │
 │  │     Regex Executor       │    │         AST Executor                 │   │
-│  │  (regex crate)           │    │  (tree-sitter + language grammars)  │   │
+│  │  (resharp / RE#)         │    │  (tree-sitter + language grammars)  │   │
 │  └──────────────────────────┘    └──────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
@@ -214,7 +214,7 @@ Responsibilities:
 - Extract match locations (line, column, snippet)
 
 Implementation notes:
-- Use `regex` crate with `RegexSet` for multi-pattern matching
+- Use the `resharp` (RE#) crate; compile one `resharp::Regex` per rule and scan with `find_all` over the file bytes
 - Precompute line offsets for efficient line/column conversion
 - Parallel execution across files using `rayon`
 
@@ -350,7 +350,7 @@ Error handling philosophy:
 |---------|-------|-----------|
 | CLI parsing | `clap` | Industry standard, derive macros |
 | TOML parsing | `toml` | Standard Rust TOML crate |
-| Regex | `regex` | Fast, well-maintained |
+| Regex | `resharp` (RE#) | Automata-based; native intersection, complement, and lookaround |
 | AST parsing | `tree-sitter` | Multi-language, fast, mature |
 | Parallelism | `rayon` | Ergonomic data parallelism |
 | File walking | `ignore` | Gitignore-aware, fast |
